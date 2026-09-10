@@ -13,7 +13,9 @@ routine. OpenMausBot at port 8871 is a separate app.
    python3 /Users/davidai/ZCodeProject/ZmartyChat-paper-grid/paper_grid/audits.py pending --runtime /Users/davidai/Sandbox/grokbot/zmarty-paper-runtime
    ```
 
-2. Read `/Users/davidai/Sandbox/grokbot/vercel-publisher/publisher.json` for
+2. Read `http://127.0.0.1:8873/api/analytics` for the learning lab. Compare checks, discovery, entries, additional buys, net win/loss outcomes, close reasons and add cohorts separately by account and period. State the evidence timestamp and sample size; do not treat association as a strategy improvement or change trading rules. Link <https://danslabtrader.vercel.app/#learning> when discussing this evidence. If analytics is unavailable, continue the report review and disclose the gap.
+
+   Read `/Users/davidai/Sandbox/grokbot/vercel-publisher/publisher.json` for
    sanitized publisher status. Report a newly observed publication failure or a
    last successful publication older than 45 minutes. Do not expose authentication
    files, tokens, private paths or raw provider payloads in public content.

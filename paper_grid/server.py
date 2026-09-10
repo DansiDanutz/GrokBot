@@ -14,7 +14,7 @@ import time
 from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from paper_grid import cli, experiment
+from paper_grid import cli, experiment, analytics
 
 
 class Monitor:
@@ -65,6 +65,17 @@ class Monitor:
 
 
 def make_handler(monitor, port):
+    analytics_lock = threading.Lock()
+    analytics_cache = {'at': 0, 'payload': None}
+
+    def read_analytics():
+        # Bound concurrent archive reads from multiple open dashboard tabs.
+        with analytics_lock:
+            if analytics_cache['payload'] is None or time.monotonic() - analytics_cache['at'] >= 60:
+                payload = analytics.build(monitor.runtime)
+                analytics_cache.update(at=time.monotonic(), payload=payload)
+            return analytics_cache['payload']
+
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -97,10 +108,12 @@ def make_handler(monitor, port):
                     return self.send(404, b'Not found', 'text/plain')
                 kind = {'html': 'text/html; charset=utf-8', 'json': 'application/json', 'md': 'text/plain; charset=utf-8'}[file.suffix[1:]]
                 return self.send(200, file.read_bytes(), kind)
-            if path not in ('/api/report', '/api/health', '/api/audits'):
+            if path not in ('/api/report', '/api/health', '/api/audits', '/api/analytics'):
                 return self.send(404, b'Not found', 'text/plain')
             try:
-                if path == '/api/audits':
+                if path == '/api/analytics':
+                    payload = read_analytics()
+                elif path == '/api/audits':
                     from paper_grid import audits
                     payload = {'reports': audits.list_reports(monitor.runtime)}
                 else:

@@ -70,3 +70,12 @@ of the active runtime.
 A new installation from GrokBot and multiple days of unattended publishing have
 not been exercised by this source-copy verification. Refer to `docs/paper-operations.md`
 for the still-active service paths and explicit migration precautions.
+
+## Learning lab — 11 September 2026
+
+`npm run verify` passed 17 Node and 181 Python tests. Analytics regression coverage
+includes deduplicated archives, missing evidence, lifecycle reconstruction,
+period boundaries, cost accounting, privacy, independent accounts and bounded
+output. The two dashboards passed JavaScript syntax and browser checks against
+real empty data and isolated synthetic win/loss fixtures. Deployment evidence is
+in `paper_grid/ANALYTICS.md`.

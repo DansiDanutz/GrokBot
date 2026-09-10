@@ -97,3 +97,11 @@ and narrow and desktop browser views loaded real exported data. No reports were
 due at activation; future archived report generation/export is covered by tests.
 Automatic operation over subsequent days and authentication lifetime have not
 yet been observed. Logs are under the separate publisher state directory.
+
+## Learning analytics
+
+`/data/analytics.json` contains separately timestamped, sanitized historical
+analytics for the learning lab. Its generation can fail independently without
+blocking portfolio publication. See [ANALYTICS.md](ANALYTICS.md) for definitions,
+period boundaries and the limits of interpreting paper results. The current
+source extends the initial four-file export with this additional JSON document.

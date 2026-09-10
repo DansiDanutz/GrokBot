@@ -16,7 +16,7 @@ import re
 import tempfile
 import time
 
-from paper_grid import audits, engine, experiment
+from paper_grid import audits, engine, experiment, analytics
 
 MAX_BYTES = 5 * 1024 * 1024
 MAX_REPORTS = 100
@@ -310,7 +310,14 @@ def export_snapshot(runtime, output_dir, now=None, *, health=None):
     report = _report(source, published_at)
     public_health = _health(health if health is not None else source.get('health'), report, published_at)
     report['health'] = public_health
-    payloads = {'data/report.json': _encoded(report), 'data/health.json': _encoded(public_health)}
+    try:
+        learning = analytics.build(runtime, now=published_at)
+    except (OSError, ValueError, KeyError, TypeError, OverflowError):
+        # Missing archive evidence must not hide the last valid account report.
+        learning = dict(schema=1, mode='paper', status='unavailable', generated_at=published_at,
+                        message='Analytics evidence is unavailable. Portfolio reporting continues independently.')
+    payloads = {'data/report.json': _encoded(report), 'data/health.json': _encoded(public_health),
+                'data/analytics.json': _encoded(learning)}
     index = PUBLIC_INDEX
     _no_symlinks(index)
     if not index.is_file() or index.stat().st_size > 512 * 1024:

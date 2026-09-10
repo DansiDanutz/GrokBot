@@ -1,0 +1,9 @@
+{
+  "score": 94,
+  "verdict": "pass",
+  "category_match": true,
+  "differences": [],
+  "suggestions": [],
+  "reasoning": "Real empty data and isolated synthetic win/loss data render correctly; filters, journal, cohorts and signed bars agree. Short date labels and integer count ticks are readable without overlap.",
+  "next_actions": []
+}

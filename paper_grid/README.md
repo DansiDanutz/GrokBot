@@ -113,3 +113,10 @@ Official endpoint references:
 - https://www.kucoin.com/docs-new/rest/futures-trading/market-data/get-all-tickers
 - https://www.kucoin.com/docs-new/rest/futures-trading/market-data/get-klines
 - https://www.kucoin.com/support/5090571400217
+
+## Learning lab
+
+The local and public dashboards include read-only charts for checks, discovery,
+entries, adds, closed outcomes, exit reasons and net P&L. Use account and period
+filters to keep comparisons separate. [ANALYTICS.md](ANALYTICS.md) defines each
+metric and explains data completeness, costs and lifecycle reconstruction.

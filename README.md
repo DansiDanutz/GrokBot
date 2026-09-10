@@ -12,6 +12,8 @@ continuous paper comparison every 30 minutes. The complete source is now in
 liquidation filtering, two virtual accounts, cost-aware execution, risk limits,
 48-hour audits, daily/weekly summaries, and a sanitized static Vercel publisher.
 It uses Python 3.10+ standard-library modules and makes no live exchange orders.
+The [learning lab](paper_grid/ANALYTICS.md) adds period/account filters, activity
+charts, win/loss and exit-reason analysis, additional-buy cohorts and a trade journal.
 
 The installed **Grok Bot** app reviews this separate service. It is distinct from
 the OpenMausBot foundation below. See [operating paths and reporting](docs/paper-operations.md),

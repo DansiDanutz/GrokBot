@@ -91,7 +91,7 @@ class PublicSnapshotTests(unittest.TestCase):
         self.assertEqual(report['accounts']['baseline']['equity'], 1000)
         self.assertEqual(report['coinglass']['symbols']['BTCUSDTM'],
                          dict(eligible=True, reason='liquidation_filter_pass'))
-        self.assertEqual(metadata['file_count'], 4)
+        self.assertEqual(metadata['file_count'], 5)
         self.assertIsNone(report['health']['worker_alive'])
 
     def test_health_is_allowlisted_not_exception_text(self):
@@ -102,6 +102,20 @@ class PublicSnapshotTests(unittest.TestCase):
         self.assertTrue(value['collection_error'])
         self.assertTrue(value['audit_error'])
         self.assertEqual(value['errors'], [dict(category='cycle_error', count=1)])
+
+    def test_analytics_failure_keeps_portfolio_and_hides_exception(self):
+        with patch.object(public.analytics, 'build', side_effect=ValueError(SECRET)):
+            self.export()
+        value = json.loads((self.root / 'site/data/analytics.json').read_text())
+        self.assertEqual(value['status'], 'unavailable')
+        self.assertNotIn(SECRET, json.dumps(value))
+        self.assertTrue((self.root / 'site/data/report.json').is_file())
+
+    def test_analytics_dto_is_published_as_separate_file(self):
+        value = dict(schema=1, mode='paper', status='ok', generated_at=AT, windows={})
+        with patch.object(public.analytics, 'build', return_value=value):
+            self.export()
+        self.assertEqual(json.loads((self.root / 'site/data/analytics.json').read_text()), value)
         self.assertNotIn(SECRET, self.contents())
 
     def test_audits_regenerated_from_numeric_dto(self):
