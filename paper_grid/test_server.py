@@ -55,6 +55,27 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(response.status, 503)
         self.assertNotIn(b'secret-example-value', content)
 
+    def test_analytics_is_read_only_and_cached_independently(self):
+        value = {'mode': 'paper', 'status': 'ok', 'windows': {}}
+        with patch.object(server.analytics, 'build', return_value=value) as build:
+            with patch.object(server.experiment, 'tick', side_effect=AssertionError('must not tick')):
+                first, content = self.request('/api/analytics')
+                second, _ = self.request('/api/analytics')
+        self.assertEqual(first.status, 200)
+        self.assertEqual(second.status, 200)
+        self.assertEqual(json.loads(content), value)
+        self.assertEqual(build.call_count, 1)
+        self.assertEqual(first.getheader('Cache-Control'), 'no-store')
+        self.assertEqual(self.request('/api/analytics', method='POST')[0].status, 405)
+
+    def test_analytics_failure_is_sanitized_and_does_not_break_report(self):
+        with patch.object(server.analytics, 'build', side_effect=ValueError('private-token')):
+            response, content = self.request('/api/analytics')
+        self.assertEqual(response.status, 503)
+        self.assertNotIn(b'private-token', content)
+        with patch.object(server.experiment, 'report', return_value={'mode': 'paper'}):
+            self.assertEqual(self.request('/api/report')[0].status, 200)
+
     def test_frozen_experiment_stops_scheduler(self):
         with patch.object(server.experiment, 'tick', return_value={'experiment': {'status': 'frozen'}}) as tick:
             self.monitor.loop()
