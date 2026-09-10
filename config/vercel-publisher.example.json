@@ -1,0 +1,8 @@
+{
+  "project_id": "prj_REPLACE_WITH_PROJECT_ID",
+  "org_id": "team_REPLACE_WITH_TEAM_ID",
+  "scope": "your-vercel-team",
+  "node": "/absolute/path/to/node",
+  "cli": "/absolute/path/to/vercel/dist/vc.js",
+  "public_url": "https://danslabtrader.vercel.app"
+}

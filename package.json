@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "setup": "node scripts/setup.mjs",
     "start": "node scripts/start.mjs",
@@ -11,7 +13,12 @@
     "fleet": "node scripts/fleet-status.mjs",
     "test": "node --test tests/*.test.mjs",
     "verify:upstream": "node scripts/verify-upstream.mjs",
-    "verify": "node scripts/check.mjs && npm test"
+    "verify": "node scripts/check.mjs && npm test && npm run test:paper",
+    "test:paper": "python3 -m unittest discover -s paper_grid -p \"test_*.py\" -q",
+    "verify:secrets": "node scripts/check-committed-secrets.mjs"
   },
-  "devDependencies": { "@openai/codex": "0.154.0", "pnpm": "10.33.0" }
+  "devDependencies": {
+    "@openai/codex": "0.154.0",
+    "pnpm": "10.33.0"
+  }
 }

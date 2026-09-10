@@ -4,7 +4,26 @@ A Mac Studio integration of the **OpenMausBot open-source runtime**, configured 
 
 The [repository comparison](docs/repository-research.md) explains the selection. [upstream.lock.json](upstream.lock.json) pins the reviewed source and its successful CI run. The runtime is exported without `enterprise/`, with upstream licensing and notices intact. Custom branding and other enterprise features are not enabled.
 
-## Run locally
+## Continuous paper research and public dashboard
+
+**[DansLabTrader.vercel.app](https://danslabtrader.vercel.app)** publishes the
+continuous paper comparison every 30 minutes. The complete source is now in
+[`paper_grid/`](paper_grid/README.md): public KuCoin discovery, CoinGlass
+liquidation filtering, two virtual accounts, cost-aware execution, risk limits,
+48-hour audits, daily/weekly summaries, and a sanitized static Vercel publisher.
+It uses Python 3.10+ standard-library modules and makes no live exchange orders.
+
+The installed **Grok Bot** app reviews this separate service. It is distinct from
+the OpenMausBot foundation below. See [operating paths and reporting](docs/paper-operations.md),
+[reusable Grok instructions](config/paper-review-instructions.md), and
+[public publisher setup](paper_grid/PUBLIC_WEB.md). The running experiment remains
+in its original checkout; importing source here does not restart or relocate it.
+
+`config/paper-source.lock.json` records the original revision and file hashes.
+Only source, tests and documentation are included. Private ledgers, credentials,
+chat history and generated snapshots remain local.
+
+## Run the OpenMausBot foundation locally
 
 Requires macOS ARM64, Node 24+, Git, npm, and a Codex ChatGPT sign-in. This repository installs its own Codex and pnpm versions; it does not upgrade global tools.
 
@@ -42,6 +61,8 @@ The upstream source and build live at `.runtime/<commit>/`. Treat them as immuta
 The repository is separate from the runtime. Keep `.runtime/`, API keys, transcripts and machine snapshots out of Git. Sharing this integration does not share the local app state.
 
 ## Development
+
+Node 24+ and Python 3.10+ are required for the complete offline verification gate.
 
 ```sh
 npm run verify

@@ -6,3 +6,10 @@ node_modules/
 .DS_Store
 coverage/
 *.log
+
+# Paper research: source only; runtime, credentials and exports stay local.
+__pycache__/
+*.py[cod]
+.vercel/
+.paper-runtime/
+.publisher-state/

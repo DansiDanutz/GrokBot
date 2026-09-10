@@ -16,6 +16,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 24
-      # Integration tests use only Node built-ins and fake child processes.
+      # Integration and paper tests use Node/Python built-ins with isolated fixtures.
       # No dependency install, model login or generation request is needed.
       - run: npm run verify
+      - run: npm run verify:secrets

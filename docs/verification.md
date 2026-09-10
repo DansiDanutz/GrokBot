@@ -52,3 +52,21 @@ For a chat fixture, follow upstream `docs/verification/README.md` and `chat-turn
 - Fleet integration is read-only status. No dispatch, routing-oracle decisions, Telegram polling, service restarts or droplet changes were performed.
 - The existing global Codex configuration still applies to the signed-in CLI where upstream preserves it. Separate app state is not a security boundary against every file readable by the user's account.
 - Runtime UI branding stays OpenMausBot. No enterprise branding or budget entitlement is bypassed; there is no enforced dollar spending cap in this OSS integration.
+
+## Paper research consolidation — 11 September 2026
+
+The completed `paper_grid/` source was imported byte-for-byte from local ZmartyChat
+implementation commit `6ee309c2134ad88e63c0cd3c021859a6c02df03b`; all 30 hashes match
+`config/paper-source.lock.json`. This is a repository consolidation, not a move
+of the active runtime.
+
+- `npm run verify`: syntax/configuration checks, 17 Node tests and 159 Python tests passed.
+- Local and public dashboard inline JavaScript passed `node --check`.
+- Both placeholder LaunchAgent plists parsed successfully.
+- `npm run verify:secrets` scans the committed revision before push and in CI.
+- No provider calls, state migration, service restart or new deployment was needed for this import.
+- The source deployment's public URL, first background publication and browser checks are recorded in `paper_grid/PUBLIC_WEB.md`.
+
+A new installation from GrokBot and multiple days of unattended publishing have
+not been exercised by this source-copy verification. Refer to `docs/paper-operations.md`
+for the still-active service paths and explicit migration precautions.
