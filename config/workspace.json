@@ -1,0 +1,8 @@
+{
+  "name": "GrokBot — Dan's Lab",
+  "model": "gpt-6-astra",
+  "effort": "low",
+  "port": 8871,
+  "maxConcurrentPerBot": 2,
+  "localVmMaxInstances": 1
+}

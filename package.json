@@ -1,0 +1,17 @@
+{
+  "name": "danslab-grokbot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "start": "node scripts/start.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "fleet": "node scripts/fleet-status.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "verify:upstream": "node scripts/verify-upstream.mjs",
+    "verify": "node scripts/check.mjs && npm test"
+  },
+  "devDependencies": { "@openai/codex": "0.154.0", "pnpm": "10.33.0" }
+}

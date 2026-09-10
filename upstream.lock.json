@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/milind-soni/OpenMausBot.git",
+  "commit": "1fcefafc7e31bd6b271be36fc3b80311e43d95b8",
+  "edition": "oss",
+  "exclude": ["enterprise"],
+  "ci": "https://github.com/milind-soni/OpenMausBot/actions/runs/34529505678",
+  "reviewedAt": "2026-09-11"
+}
