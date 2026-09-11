@@ -413,8 +413,10 @@ class HistoricalSnapshot:
         available = self._causal_quote(pair, at_ms)
         if available is not None:
             result = dict(available[1], filter_mode='quote/book filters',
-                quote_turnover_24h=turnover, turnover_basis=basis, candle_volume_unit=self.volume_unit,
-                listed_at_ms=self._index[pair][0], membership_basis='observed_candles',
+                turnover_basis='observed 24h quote turnover', candle_volume_unit=self.volume_unit,
+                listed_at_ms=available[1].get('listed_at_ms', available[1].get('firstOpenDate')),
+                membership_basis='causal_quote_record', candle_quote_turnover_24h=turnover,
+                candle_turnover_basis=basis, candle_listed_at_ms=self._index[pair][0],
                 candle_coverage_ratio=min(ratios), candle_coverage=coverage,
                 metadata_basis='causal copied quote/book contract record')
         return result

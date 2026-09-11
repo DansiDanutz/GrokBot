@@ -346,23 +346,24 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(json.loads(json.dumps(actual)), json.loads(json.dumps(reference)))
 
 
-    def test_historical_adapter_uses_fresh_quote_filters_and_keeps_derived_candle_turnover(self):
+    def test_historical_adapter_uses_fresh_quote_filters_and_labels_candle_turnover_diagnostic(self):
         from trader.research.kucoin_snapshot import HistoricalSnapshot
         from trader.research.kucoin_radar import radar
         day, at = 86400000, 8*86400000
         raw = dict(status='Open', tickSize=.01, lotSize=1, multiplier=2, quoteCurrency='USDT',
-                   expireDate=None, isInverse=False, assetClass='CRYPTO', fundingRateGranularity=28800000)
+                   expireDate=None, isInverse=False, assetClass='CRYPTO', fundingRateGranularity=28800000, firstOpenDate=0)
         with closing(sqlite3.connect(self.path)) as db, db:
             db.executemany('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
                 [('AAAUSDTM', '1m', t, 100, 101, 100, 100, 100, 10000) for t in range(0, at, 60000)])
             db.execute('INSERT INTO ticker_snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-                ('AAAUSDTM', at-60000, at-60000, None, 100, 100, 100, 1, 1, 1, None, json.dumps(raw)))
+                ('AAAUSDTM', at-60000, at-60000, None, 100, 100, 100, 1, 600000, 1, None, json.dumps(raw)))
             db.execute('INSERT INTO top_of_book VALUES (?,?,?,?,?,?,?)',
                 ('AAAUSDTM', at-30000, at-30000, 99.99, 100.01, 1000, 1000))
         with Snapshot(self.path) as source:
             record = HistoricalSnapshot(source).records(at)[0]
             self.assertEqual(record['market']['filter_mode'], 'quote/book filters')
-            self.assertEqual(record['market']['quote_turnover_24h'], 10000*1440)
+            self.assertEqual(record['market']['quote_turnover_24h'], 600000)
+            self.assertEqual(record['market']['candle_quote_turnover_24h'], 10000*1440)
             self.assertIsNone(record['market']['funding_rate'])
             result = radar([record], at)
             self.assertEqual(result['radar'], [])
@@ -390,6 +391,36 @@ class SnapshotTests(unittest.TestCase):
             self.assertEqual(data.records(at)[0]['market']['filter_mode'], 'candle-only filters')
             self.assertTrue(data.market('AAAUSDTM', at)['assumed'])
             self.assertAlmostEqual(data.market('AAAUSDTM', at)['bid'], 99.95)
+
+
+    def test_observed_quote_turnover_and_listing_age_override_candle_diagnostics(self):
+        from trader.research.kucoin_snapshot import HistoricalSnapshot
+        from trader.research.kucoin_radar import radar
+        day, at = 86400000, 8*86400000
+        raw = dict(status='Open', tickSize=.01, lotSize=1, multiplier=2, quoteCurrency='USDT',
+                   expireDate=None, isInverse=False, assetClass='CRYPTO', fundingRateGranularity=28800000)
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
+                [('AAAUSDTM', '1m', t, 100, 101, 100, 100, 100, 10000) for t in range(0, at, 60000)])
+            db.execute('INSERT INTO top_of_book VALUES (?,?,?,?,?,?,?)',
+                ('AAAUSDTM', at-30000, at-30000, 99.99, 100.01, 1000, 1000))
+        for turnover, listed, reason in ((1, 0, 'quote turnover'), (800000, at-day, 'listing age'),
+                                         (None, 0, 'quote turnover'), (800000, None, 'listing age')):
+            with self.subTest(turnover=turnover, listed=listed):
+                observed = dict(raw, firstOpenDate=listed)
+                with closing(sqlite3.connect(self.path)) as db, db:
+                    db.execute('DELETE FROM ticker_snapshots')
+                    db.execute('INSERT INTO ticker_snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                        ('AAAUSDTM', at-60000, at-60000, None, 100, 100, 100, 1, turnover, 1, 0, json.dumps(observed)))
+                with Snapshot(self.path) as source:
+                    record = HistoricalSnapshot(source).records(at)[0]
+                    self.assertEqual(record['market']['quote_turnover_24h'], turnover)
+                    self.assertEqual(record['market']['listed_at_ms'], listed)
+                    self.assertEqual(record['market']['candle_quote_turnover_24h'], 14400000)
+                    self.assertEqual(record['market']['candle_listed_at_ms'], 0)
+                    result = radar([record], at)
+                    self.assertEqual(result['radar'], [])
+                    self.assertIn(reason, result['rejected'][0]['reason'])
 
 
 if __name__ == '__main__':
