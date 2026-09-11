@@ -318,5 +318,75 @@ class RecordedOperatorIncomeTests(unittest.TestCase):
                 self.assertTrue(summary['income_coverage_reason'])
 
 
+class OperatorExecutionCoverageTests(unittest.TestCase):
+    def income(self, actual, *, flags=None, closed=None, funding_end=None):
+        from trader.research.kucoin_operator import _running_income
+        count=360
+        class Snapshot:
+            def funding_coverage(self,pair,start,end):
+                limit=end if funding_end is None else funding_end
+                return dict(start_ms=start,end_ms=min(end,limit),modeled_complete=end<=limit)
+            def candles(self,pair,start,end):
+                rows=[dict(timestamp_ms=i*60000,open=100,high=100,low=100,close=100)
+                      for i in range(actual) if start<=i*60000<end]
+                if flags:
+                    rows.extend(dict(timestamp_ms=i*60000,open=100,high=100,low=100,close=100,**flags)
+                                for i in range(actual,count) if start<=i*60000<end)
+                return rows+rows[:2]  # Duplicate observations never raise coverage.
+        summary=dict(status='running' if closed is None else 'stopped',funding=0)
+        bot=dict(pair='TEST',start_ms=0,expected_start_income_per_hour=2.)
+        options={} if closed is None else {'closed_flat_since_ms':closed}
+        return _running_income(Snapshot(),bot,[],summary,6*3600000,**options)
+
+    def test_missing_execution_is_unknown_not_a_known_zero_income(self):
+        for flags in (None,{'synthetic':True},{'indicator_only':True},{'observed':False}):
+            summary=self.income(0,flags=flags)
+            self.assertFalse(summary['income_coverage_6h_known'])
+            self.assertIsNone(summary['realized_grid_income_per_hour_6h'])
+            self.assertIsNone(summary['realized_gph_6h'])
+            coverage=summary['income_execution_coverage_6h']
+            self.assertEqual(coverage['observed_minutes'],0)
+            self.assertEqual(coverage['missing_minutes'],360)
+            self.assertEqual(coverage['minimum_fraction'],.95)
+
+    def test_exact_95_percent_passes_and_next_missing_minute_fails(self):
+        for actual,eligible in ((342,True),(341,False)):
+            summary=self.income(actual)
+            coverage=summary['income_execution_coverage_6h']
+            self.assertEqual(coverage['eligible'],eligible)
+            self.assertEqual(coverage['observed_minutes'],actual)
+            self.assertEqual(coverage['expected_minutes'],360)
+            self.assertAlmostEqual(coverage['fraction'],actual/360)
+            self.assertEqual(summary['income_coverage_6h_known'],eligible)
+            if eligible:
+                self.assertEqual(summary['realized_grid_income_per_hour_6h'],0)
+            else:
+                self.assertIsNone(summary['realized_grid_income_per_hour_6h'])
+
+    def test_funding_is_required_through_flat_close_but_not_afterward(self):
+        close=60*60000
+        known=self.income(60,closed=close,funding_end=close)
+        self.assertTrue(known['income_coverage_6h_known'])
+        self.assertEqual(known['realized_grid_income_per_hour_6h'],0)
+        self.assertEqual(known['funding_history_coverage']['end_ms'],close)
+        self.assertEqual(known['income_execution_coverage_6h']['known_flat_minutes'],300)
+        unknown=self.income(60,closed=close,funding_end=close-60000)
+        self.assertFalse(unknown['income_coverage_6h_known'])
+        self.assertIsNone(unknown['realized_grid_income_per_hour_6h'])
+        self.assertIn('holding history',unknown['income_coverage_reason'])
+
+    def test_closed_flat_time_is_known_but_missing_pre_close_minutes_are_not(self):
+        closed=60*60000
+        for actual,expected,eligible in ((60,360,True),(0,300,False)):
+            summary=self.income(actual,closed=closed)
+            coverage=summary['income_execution_coverage_6h']
+            self.assertEqual(coverage['observed_minutes'],expected)
+            self.assertEqual(coverage['known_flat_minutes'],300)
+            self.assertEqual(summary['income_coverage_6h_known'],eligible)
+        # The partially active closing minute still needs an actual candle.
+        summary=self.income(60,closed=closed+1)
+        self.assertEqual(summary['income_execution_coverage_6h']['missing_minutes'],1)
+
+
 if __name__=='__main__':
     unittest.main()

@@ -204,7 +204,38 @@ def _funding_coverage(snapshot, bot, ending):
     return value if isinstance(value,dict) else {}
 
 
-def _running_income(snapshot, bot, ledger, summary, ending):
+def _income_execution_coverage(snapshot, bot, start, end, closed_flat_since_ms=None):
+    """Count actual unique active minutes plus proven fully closed-flat minutes."""
+    expected = (end-start)//60000
+    active_end = end
+    if closed_flat_since_ms is not None:
+        if type(closed_flat_since_ms) is not int or not bot['start_ms'] <= closed_flat_since_ms <= end:
+            raise ValueError('closed-flat time must be a causal reconstructed timestamp')
+        # A partial closing minute still contains active exposure.
+        active_end = max(start,min(end,(closed_flat_since_ms+59999)//60000*60000))
+    rows = snapshot.candles(bot['pair'],start,active_end) if start < active_end else []
+    times = set()
+    for row in rows:
+        timestamp = row.get('timestamp_ms',row.get('time_ms'))
+        if (type(timestamp) is not int or timestamp % 60000 or not start <= timestamp < active_end
+                or row.get('synthetic') or row.get('indicator_only') or row.get('observed') is False):
+            continue
+        values = [row.get(key) for key in ('open','high','low','close')]
+        if any(type(value) not in (int,float) or not math.isfinite(value) or value <= 0 for value in values):
+            continue
+        opening,high,low,close = values
+        if low <= min(opening,close) and max(opening,close) <= high:
+            times.add(timestamp)
+    flat = (end-active_end)//60000
+    covered = len(times)+flat
+    return dict(observed_minutes=covered,actual_observed_minutes=len(times),known_flat_minutes=flat,
+        expected_minutes=expected,missing_minutes=expected-covered,
+        fraction=covered/expected if expected else None,minimum_fraction=.95,
+        eligible=bool(expected and covered*100 >= expected*95),
+        basis='unique actual one-minute candles before close plus fully closed-flat time; missing active minutes never create cycles')
+
+
+def _running_income(snapshot, bot, ledger, summary, ending, *, closed_flat_since_ms=None):
     """Attribute full holding history before selecting closes in the last six hours.
 
     No supplied income totals are accepted. Numeric income remains a recorded
@@ -213,7 +244,12 @@ def _running_income(snapshot, bot, ledger, summary, ending):
     """
     start = bot['start_ms']
     cut = max(start,ending-6*HOUR_MS)
-    proof = _funding_coverage(snapshot,bot,ending)
+    cycles = funded_cycles(ledger,cut,ending,coverage_known=False)
+    measured = cycles['summary']
+    flat = closed_flat_since_ms if summary.get('status') in TERMINAL and not cycles['open'] else None
+    execution = _income_execution_coverage(snapshot,bot,cut,ending,flat)
+    holding_end = ending if flat is None else min(ending,flat)
+    proof = _funding_coverage(snapshot,bot,holding_end)
     if summary.get('funding_mode') != 'recorded_events':
         # Plain initial/terminal track_summary has only model cash. It cannot
         # restore verified funding after recorded-event coverage was unknown.
@@ -222,10 +258,8 @@ def _running_income(snapshot, bot, ledger, summary, ending):
             funding_modeled_complete=proof.get('modeled_complete') is True,
             funding_coverage=proof,
             funding_unknown_reasons=['initial/terminal summary preserves model cash without independent funding verification'])
-    cycles = funded_cycles(ledger,cut,ending,coverage_known=False)
-    measured = cycles['summary']
     bounds = proof.get('start_ms'),proof.get('end_ms')
-    spanning = all(type(value) is int for value in bounds) and bounds[0] <= start and ending <= bounds[1]
+    spanning = all(type(value) is int for value in bounds) and bounds[0] <= start and holding_end <= bounds[1]
     reasons = []
     if ending-start < 6*HOUR_MS:
         reasons.append('six-hour warmup is incomplete')
@@ -233,6 +267,8 @@ def _running_income(snapshot, bot, ledger, summary, ending):
         reasons.append('recorded funding model does not cover the complete holding history')
     if measured['modeled_unknown']:
         reasons.append('one or more completed-cycle model amounts are unknown')
+    if not execution['eligible']:
+        reasons.append('six-hour actual execution coverage is below 95% or unavailable')
     known = not reasons
     return dict(summary,expected_start_income_per_hour=bot.get('expected_start_income_per_hour'),
         starting_income_basis='immutable user-supplied starting estimate; never recalculated from current radar',
@@ -241,7 +277,8 @@ def _running_income(snapshot, bot, ledger, summary, ending):
         realized_gph_6h=measured['completed_grids']/6 if known else None,
         income_coverage_reason='; '.join(reasons) if reasons else None,
         income_coverage_basis='full reconstructed ledger with inferred recorded-settlement coverage; not independently verified',
-        funding_history_coverage=proof,funded_cycle_summary_6h=measured)
+        funding_history_coverage=proof,funding_holding_end_ms=holding_end,funded_cycle_summary_6h=measured,
+        income_execution_coverage_6h=execution)
 
 
 def _track_bot(snapshot, bot, asof, pairs, parameters):
@@ -257,14 +294,16 @@ def _track_bot(snapshot, bot, asof, pairs, parameters):
                 ledger.append(event)
                 seen.add(event['event_id'])
         if parameters.get('strategy')=='income_chart_v3':
-            summary = _running_income(snapshot,bot,ledger,summary,ending)
+            summary = _running_income(snapshot,bot,ledger,summary,ending,
+                closed_flat_since_ms=state.timestamp_ms if state.status in TERMINAL and not state.positions else None)
         history.append(summary)
         at = ending
     summary = dict(history[-1] if history else
                    track_summary(state, bot['start_ms'], asof, bot['expected_start_gph']),
                    running_pairs=pairs)
     if parameters.get('strategy')=='income_chart_v3' and not history:
-        summary = _running_income(snapshot,bot,ledger,summary,asof)
+        summary = _running_income(snapshot,bot,ledger,summary,asof,
+            closed_flat_since_ms=state.timestamp_ms if state.status in TERMINAL and not state.positions else None)
     quote = _quote(snapshot, bot['pair'], asof) if state.status not in TERMINAL else None
     decision = _decision(state, summary, bot['bot_id'], quote)
     estimate = preview(state.config)
