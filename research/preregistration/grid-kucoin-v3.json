@@ -53,13 +53,14 @@
     "otherwise": "shelve"
   },
   "execution_limits": [
-    "No runtime, installed scheduler, account login, order API or live recommendations.",
+    "No runtime, installed scheduler, order API or live recommendations.",
     "OHLC-generated fill ledgers are simulations, not observed KuCoin trades.",
     "Snapshot calibration cannot recover unknown original quantities or margin amendments; never fit each symbol to its target.",
     "Both continuous and gap-aware price paths are disclosed; any liquidation fails the trial.",
     "Missing historical books, funding, membership or candles stays explicit coverage failure.",
     "Stop-loss closes automatically; no qualifying replacement means remain closed, not resurrect a stopped bot.",
-    "Baseline actual margins plus reserve are reported separately from the 2400-USDT two-bot portfolio."
+    "Baseline actual margins plus reserve are reported separately from the 2400-USDT two-bot portfolio.",
+    "Dan separately authorized read-only signed-in Chrome observation gathering; no order submissions or account-credential handling."
   ],
   "neutral_preview_tolerance_percentage_points": 0.3,
   "neutral_evidence": "RAY: 70 grids, 140 orders, long 544 lots and short 629 lots, 17 lots per order, used 1000 plus 200 reserve; preview and post-creation states remain separate.",
@@ -111,8 +112,9 @@
     "Existing uncalibrated sizing may be used only for labeled sensitivity results pending independently observed quantities."
   ],
   "calibration": {
-    "status": "blocked_missing_long_order_details",
-    "required": "Independent Long and Neutral quantity/order, interval, order count, grids, used margin, reserve, leverage, mode and contract multiplier. Predict RAY 17 lots from form before adopting a fitted quantity rule.",
-    "forbidden": "Inferring quantities from target profits and claiming independent prediction."
+    "status": "blocked_predictive_allocation_and_original_margin_history",
+    "required": "Known creation inputs and amendment history, then an independently supported Long/Neutral allocation rule predicting RAY 17 lots without fitting its observed target.",
+    "forbidden": "Inferring quantities from target profits and claiming independent prediction.",
+    "observations": "Six redacted Order Details configurations read from authorized Chrome account; independent quantity-based cycle accounting passes, universal allocation hypotheses fail."
   }
 }
