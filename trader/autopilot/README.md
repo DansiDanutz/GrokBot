@@ -63,3 +63,37 @@ Tick scheduling can skip a slot when bounded transport is slow; no catch-up burs
 
 All automated verification uses synthetic fixtures and injected clients/clocks.
 No daemon, installed agent, provider request or Telegram delivery is run by tests.
+
+## Scored watchlist
+
+The radar and autopilot share `trader/radar/scoring.py`. Each qualifying row has a
+0–100 score with numeric measurements and fixed reason codes. The complete radar
+row universe is eligible, including rows beyond the display's eight-per-section
+limit. Qualification retains liquidity, valid profile/range and minimum expected
+rate checks; current bot occupancy and cooldown do not remove a coin from the radar.
+
+Persisted core and bench each hold up to five entries. Distinct increasing scan IDs
+refresh scores/directions once; rereads do not advance misses. Core begins with the
+five highest scores. A challenger must lead the lowest core score by at least ten
+points after that seat has held for two hours. At most one promotion occurs per
+scan after startup. All twice-missing core coins drop immediately; multiple empty
+seats refill one per scan. Each post-start promotion counts once in daily swaps.
+Same-symbol direction changes preserve seat age. Score ties break by symbol.
+
+Only qualifying current core coins can open a new paper bot. Total open bots are
+capped at five; preferred 2/2/2 direction slots borrow up to four of one direction.
+Demotion does not close a bot. Its existing label/range/stop/drop/age rules continue;
+it cannot reopen from bench. Older radar scans cannot drive labels or admission.
+
+Snapshots include core/bench, last 48 watchlist events, scan ID/time and 30-day swap
+timestamps. The shared event journal additionally accepts PROMOTE, DEMOTE, DROP and
+DIRECTION_CHANGE with validated replacement symbols and numeric scores; these are
+watchlist events, not exchange instructions. State without watchlist fields is
+initialized on its next valid scan without changing existing engine accounting.
+
+Changed scans queue an opt-in Telegram watchlist message with top reason codes and
+swap scores/margin. Unchanged scans are silent. Failed messages preserve each scan's
+numeric payload across restart and newer scans (up to 720 entries / 30 days), with
+oldest-first delivery after health alerts. Daily summaries include local-day swaps.
+Phase C renders the score reason templates and watchlist event feed; this phase
+changes no public page, installed agent or publisher.

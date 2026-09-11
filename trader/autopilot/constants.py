@@ -1,6 +1,11 @@
 """Paper-only portfolio and scheduling constants from the approved spec."""
 PAPER_EQUITY_USDT = 10_000
-MAX_BOTS = 6
+CORE_SIZE = 5
+BENCH_SIZE = 5
+PROMOTION_MARGIN = 10
+CORE_MIN_HOLD_HOURS = 2
+MAX_SWAPS_PER_SCAN = 1
+MAX_BOTS = CORE_SIZE
 NOTIONAL_PER_BOT_USDT = 1_000
 SLOTS = {'NEUTRAL': 2, 'LONG': 2, 'SHORT': 2}
 DIRECTION_CAP = 4

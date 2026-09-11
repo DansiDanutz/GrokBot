@@ -35,3 +35,20 @@ These are named constants in `trader/radar/radar.py`; there is no fitting, repla
 | 50M USDT or more | 0.52% | 0.45 | `0.45 × ATR1h% / 0.52` |
 
 Dan fitted these constants from the live HEMI, BTR, MOVR, and SOL grid bots observed on 11 September 2026. They are operational heuristics and expected values, not guaranteed fills or profit.
+
+## Shared watchlist score
+
+Private `radar.json` rows now also carry `score` (clamped to 0–100) and
+`score_parts`, containing only fixed codes and numeric measurements/points.
+`trader/radar/scoring.py` is shared with the paper autopilot: oscillation 30,
+trend clarity 20, turnover 10, spread 5, range room 15, funding 10 and stability 10,
+minus explicit mover, young-listing, stale-data and major-low-yield penalties.
+Turnover points rise linearly from zero at 3M to ten at 30M USDT; spread points fall
+from five at 0.05% to zero at 0.15%. Separate LIQUIDITY_TURNOVER and LIQUIDITY_SPREAD
+codes preserve both inputs. Invalid/nonfinite scoring inputs are rejected.
+The existing radar section ordering and rank_score remain unchanged. Phase C's
+paper watchlist will render these reasons; the current public radar DTO is unchanged.
+
+The shared k(step) implementation lives in `trader/radar/rates.py`: the standard
+coefficient is `1.9 * sqrt(step_pct / 0.8)`; at turnover >=50M it is
+`0.45 * sqrt(step_pct / 0.52)`. The table above shows the unchanged base-step values.

@@ -1,6 +1,7 @@
 """Pure notification planning and explicit, checkpointed Telegram delivery."""
 import copy
 from datetime import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -35,6 +36,9 @@ def _summary(snapshot, now_ms):
               datetime.fromtimestamp(bot['closed_ms'] / 1000, ZONE).date() == today]
     lines = [f"Paper daily summary {today} · equity {snapshot.get('equity', 0):.2f} USDT"
              f" · {len(opened)} open bots"]
+    swaps = sum(datetime.fromtimestamp(ts / 1000, ZONE).date() == today
+                for ts in snapshot.get('watchlist_swap_times', []))
+    lines.append(f"{swaps} watchlist swaps today")
     for direction in DIRECTIONS:
         bots = [bot for bot in opened + closed if bot['direction'] == direction]
         totals = {key: sum(bot.get(key, 0) for bot in bots) for key in
@@ -48,6 +52,36 @@ def _summary(snapshot, now_ms):
                      f" · net {sum(_net(bot) for bot in bots):.2f} USDT")
     for label, chooser in [('Best', max), ('Worst', min)]:
         lines.append(f"{label}: " + (_row(chooser(closed, key=_net)) if closed else 'none'))
+    return '\n'.join(lines)
+
+
+def _watchlist_fingerprint(watchlist):
+    fields = ('symbol', 'direction', 'score', 'score_parts', 'rank')
+    values = {tier: [{key: entry[key] for key in fields}
+                     for entry in watchlist.get(tier, [])]
+              for tier in ('core', 'bench')}
+    return hashlib.sha256(json.dumps(values, sort_keys=True,
+                                     separators=(',', ':')).encode()).hexdigest()
+
+
+def _watchlist_text(snapshot):
+    def row(entry):
+        positive = [part for part in entry['score_parts'] if part['points'] > 0]
+        reason = (min(positive, key=lambda part: (-part['points'], part['code']))['code']
+                  if positive else 'NONE')
+        return f"{entry['symbol']} {entry['direction']} {entry['score']:.6g} ({reason})"
+
+    lines = [tier.title() + ': ' + ('; '.join(row(entry) for entry in
+             snapshot['watchlist'].get(tier, [])) or 'none') for tier in ('core', 'bench')]
+    for event in snapshot.get('watchlist_history', []):
+        if event['ts_ms'] != snapshot.get('watchlist_asof_ms'):
+            continue
+        if event['type'] == 'PROMOTE':
+            lines.append(f"PROMOTE {event['symbol']} over {event['replaced_symbol'] or 'vacancy'}"
+                         f" · {event['score']:.6g} vs {event['replaced_score']:.6g}"
+                         f" · margin {event['margin']:.6g}")
+        elif event['type'] in ('DROP', 'DIRECTION_CHANGE'):
+            lines.append(f"{event['type']} {event['symbol']} · score {event['score']:.6g}")
     return '\n'.join(lines)
 
 
@@ -82,6 +116,22 @@ def notifications(snapshot, events, now_ms, delivery_state):
     elif active and not unhealthy and snapshot.get('kucoin_ok', False):
         queue(f'RECOVER:{now_ms}', 'Paper health recovered: public market ticks available.',
               remember=False, health_active=False)
+
+    pending = snapshot.get('pending_watchlists', [snapshot])
+    for payload in pending:
+        scan_id = payload.get('watchlist_scan_id')
+        identity = f'WATCHLIST:{scan_id}'
+        if (scan_id is None or scan_id == state.get('watchlist_scan_id')
+                or identity in state['sent']):
+            continue
+        fingerprint = _watchlist_fingerprint(payload.get('watchlist', {}))
+        if fingerprint != state.get('watchlist_fingerprint'):
+            queue(identity, _watchlist_text(payload),
+                  watchlist_scan_id=scan_id, watchlist_fingerprint=fingerprint)
+        else:
+            state['watchlist_scan_id'] = scan_id
+            if 'pending_watchlists' in snapshot:
+                state['sent'][identity] = now_ms
 
     bots = {bot['bot_id']: bot for bot in
             snapshot.get('open_bots', []) + snapshot.get('closed_bots', [])}

@@ -15,7 +15,8 @@ import tempfile
 MAX_BYTES = 2 * 1024 * 1024
 MAX_EVENT_BYTES = 65536
 EVENT_TYPES = frozenset({"OPEN", "FILL", "GRID", "CLOSE", "RANGE_BREAK",
-                         "STOP_LOSS", "ALERT", "RECOVER", "ERROR"})
+                         "STOP_LOSS", "ALERT", "RECOVER", "ERROR",
+                         "PROMOTE", "DEMOTE", "DROP", "DIRECTION_CHANGE"})
 
 
 def _safe(path):
@@ -130,7 +131,19 @@ def validate_event(event):
             raise ValueError("invalid event identity")
     if "event_id" in event and (type(event["event_id"]) is not int or event["event_id"] < 1):
         raise ValueError("invalid event id")
+    watchlist_event = event['type'] in ('PROMOTE', 'DEMOTE', 'DROP', 'DIRECTION_CHANGE')
+    if watchlist_event:
+        replacement = event.get('replaced_symbol')
+        if not isinstance(replacement, str) or (replacement and not re.fullmatch(r'[A-Z0-9]{1,32}', replacement)):
+            raise ValueError('invalid replacement symbol')
+        for key in ('score', 'replaced_score', 'margin'):
+            if type(event.get(key)) not in (int, float) or not math.isfinite(event[key]):
+                raise ValueError('invalid watchlist score')
+        if not 0 <= event['score'] <= 100 or not 0 <= event['replaced_score'] <= 100:
+            raise ValueError('invalid watchlist score bounds')
     for key, value in event.items():
+        if key == 'replaced_symbol' and watchlist_event:
+            continue
         if key in ("type", "symbol"):
             continue
         if (not isinstance(key, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", key)

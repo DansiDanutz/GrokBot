@@ -145,6 +145,73 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(view['open_bots'], [])
         self.assertEqual(view['closed_bots'][0]['reason'], 'STOP_LOSS')
 
+    def test_expired_watchlist_is_pruned_before_retry_without_new_scan(self):
+        notifier = unittest.mock.Mock(side_effect=RuntimeError('offline'))
+        runner = self.runner(chat_id='1', telegram_state=self.root/'telegram.json', notifier=notifier)
+        runner.pass_once()
+        self.assertEqual(len(runner.state['pending_watchlists']), 1)
+        self.clock[0] += 31 * 86400000
+        runner.pass_once()
+        self.assertEqual(notifier.call_args.args[0]['pending_watchlists'], [])
+        self.assertEqual(read_json(self.state)['pending_watchlists'], [])
+
+    def test_failed_watchlist_send_retains_prior_scan_across_restart(self):
+        notifier = unittest.mock.Mock(side_effect=RuntimeError('offline'))
+        runner = self.runner(chat_id='1', telegram_state=self.root/'telegram.json', notifier=notifier)
+        runner.pass_once()
+        first = copy.deepcopy(runner.state['pending_watchlists'][0])
+        self.clock[0] += 3600000
+        changed = row('A', 'NEUTRAL', expected_grids_per_hour=20)
+        atomic_json(self.radar, dict(radar(neutral=[changed]), schema_version=1, asof_ms=self.clock[0]))
+        runner.pass_once()
+        self.assertEqual(len(runner.state['pending_watchlists']), 2)
+        again = self.runner(chat_id='1', telegram_state=self.root/'telegram.json', notifier=notifier)
+        self.assertEqual(again.state['pending_watchlists'][0], first)
+        again.pass_once()
+        self.assertEqual(len(again.state['pending_watchlists']), 2)
+        def accepted(view, events, now, chat_id, path):
+            oldest = view['pending_watchlists'][0]
+            atomic_json(path, {'sent': {f"WATCHLIST:{oldest['watchlist_scan_id']}": now}})
+        notifier.side_effect = accepted
+        self.clock[0] += 10000; again.pass_once()
+        self.assertEqual(len(again.state['pending_watchlists']), 1)
+        self.assertEqual(again.state['pending_watchlists'][0]['watchlist_scan_id'], str(NOW+3600000))
+
+    def test_watchlist_swap_survives_restart_without_repeating_events(self):
+        rows = [row(f'N{i}', 'NEUTRAL') for i in range(5)]
+        report = dict(radar(neutral=rows), schema_version=1, asof_ms=NOW)
+        atomic_json(self.radar, report)
+        runner = self.runner(); runner.pass_once()
+        self.clock[0] += 2 * 3600000
+        rows.append(row('NEW', 'NEUTRAL', expected_grids_per_hour=20,
+                        turnover_24h_usdt=30_000_000))
+        atomic_json(self.radar, dict(radar(neutral=rows), schema_version=1, asof_ms=self.clock[0]))
+        view = runner.pass_once()
+        self.assertIn('NEW', {r['symbol'] for r in view['watchlist']['core']})
+        self.assertEqual(len(view['watchlist_history']), 2)
+        history = read_events(self.state.parent, 0)
+        self.assertEqual(sum(e['type'] == 'PROMOTE' for e in history), 1)
+        again = self.runner(); restored = again.pass_once()
+        self.assertEqual(restored['watchlist_history'], view['watchlist_history'])
+        self.assertEqual(restored['watchlist'], view['watchlist'])
+        self.assertEqual(read_events(self.state.parent, 0), history)
+
+    def test_stale_radar_cannot_open_core_bots(self):
+        self.clock[0] += 121 * 60000
+        runner = self.runner(); view = runner.pass_once()
+        self.assertEqual(view['watchlist']['core'], [])
+        self.assertEqual(view['open_bots'], [])
+
+    def test_previous_phase_b_state_migrates_watchlist_without_closing(self):
+        runner = self.runner(); runner.pass_once()
+        previous = read_json(self.state)
+        del previous['watchlist']
+        atomic_json(self.state, previous)
+        again = self.runner(); view = again.pass_once()
+        self.assertEqual([r['symbol'] for r in view['watchlist']['core']], ['A'])
+        self.assertEqual(len(view['open_bots']), 1)
+        self.assertEqual(view['closed_bots'], [])
+
     def test_each_missed_funding_boundary_uses_its_stored_rate_once(self):
         atomic_json(self.radar, dict(radar(long=[row('A', 'LONG')]), schema_version=1, asof_ms=NOW))
         runner = self.runner(); runner.pass_once()

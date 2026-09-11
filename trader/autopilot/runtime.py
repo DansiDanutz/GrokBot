@@ -44,7 +44,7 @@ class Runner:
             raise ValueError('both Telegram arguments are required')
         self.state = (read_json(self.state_path, max_bytes=64 * 1024 * 1024)
                       if self.state_path.exists() else policy.new_state(self.now_ms()))
-        allowed = set(policy.new_state(0)) | {'runtime', 'event_seq', 'pending_events', 'pending_notifications'}
+        allowed = set(policy.new_state(0)) | {'runtime', 'event_seq', 'pending_events', 'pending_notifications', 'pending_watchlists'}
         if self.state.get('schema_version') != 1 or set(self.state) - allowed:
             raise ValueError('unsupported autopilot state')
         for key in ('open_bots', 'closed_bots', 'equity_curve'):
@@ -53,7 +53,7 @@ class Runner:
         self.state.setdefault('runtime', dict(quotes={}, kucoin_ok=False,
                               kucoin_down_since_ms=None, alert_active=False, last_write_ms=0,
                               last_decision_ms=0, radar_scan_id=None))
-        for key, value in [('event_seq', 0), ('pending_events', []), ('pending_notifications', [])]:
+        for key, value in [('event_seq', 0), ('pending_events', []), ('pending_notifications', []), ('pending_watchlists', [])]:
             self.state.setdefault(key, value)
         directory = self.state_path.parent
         self.log = EventLog(directory if directory.name == 'autopilot' else directory / 'autopilot')
@@ -151,11 +151,13 @@ class Runner:
     def _notify(self, view, now):
         if not self.chat_id or (self.stop is not None and self.stop.is_set()):
             return
+        self.state['pending_watchlists'] = [entry for entry in self.state['pending_watchlists']
+            if entry['watchlist_asof_ms'] >= now - 30 * 86400000]
         if self.notifier is None:
             from trader.autopilot.telegram import deliver
             self.notifier = deliver
         # Retain bot details for retries beyond the public snapshot's last20 closed rows.
-        private = dict(view, closed_bots=[])
+        private = dict(view, closed_bots=[], pending_watchlists=deepcopy(self.state['pending_watchlists']))
         for wrapper in self.state['closed_bots']:
             bot = wrapper['engine']
             elapsed = max(1, bot['closed_ms'] - bot['opened_ms'])
@@ -166,6 +168,9 @@ class Runner:
             self._queue([_system(now, 'ERROR', 4)])
         else:
             sent = read_json(self.telegram_state).get('sent', {})
+            self.state['pending_watchlists'] = [entry for entry in self.state['pending_watchlists']
+                if f"WATCHLIST:{entry['watchlist_scan_id']}" not in sent
+                and entry['watchlist_asof_ms'] >= now - 30 * 86400000]
             self.state['pending_notifications'] = [e for e in self.state['pending_notifications']
                 if f"{e['type']}:{e['bot_id']}:{e['ts_ms']}" not in sent
                 and e['ts_ms'] >= now - 30 * 86400000]
@@ -218,13 +223,23 @@ class Runner:
                 and not (self.stop is not None and self.stop.is_set())):
             radar = self.radar
             if radar is not None and now - radar['asof_ms'] > 120 * 60000:
-                radar = dict(radar, sections={})
+                radar = dict(radar, sections={}, rows=[dict(r, passes_liquidity=False) for r in radar.get('rows', [])])
             # Apply funding through close time even if the last trade preceded a boundary.
             self._charge_funding({w['engine']['symbol']: dict(ts_ms=now)
                                   for w in self.state['open_bots']})
             prices = {s: q['price'] for s, q in meta['quotes'].items()}
             scan_id = str(self.radar['asof_ms']) if self.radar else None
+            previous_watchlist = deepcopy(self.state.get('watchlist', {}))
             self.state, emitted = policy.decide(self.state, radar, prices, now, scan_id)
+            current = self.state['watchlist']
+            if (self.chat_id and current['last_scan_id'] != previous_watchlist.get('last_scan_id')
+                    and any(current[tier] != previous_watchlist.get(tier, []) for tier in ('core', 'bench'))):
+                self.state['pending_watchlists'].append(dict(
+                    watchlist={tier: deepcopy(current[tier]) for tier in ('core', 'bench')},
+                    watchlist_history=deepcopy(current['history']),
+                    watchlist_scan_id=current['last_scan_id'], watchlist_asof_ms=current['asof_ms']))
+                self.state['pending_watchlists'] = [entry for entry in self.state['pending_watchlists']
+                    if entry['watchlist_asof_ms'] >= now - 30 * 86400000][-720:]
             events.extend(emitted)
             self.state['runtime'].update(last_decision_ms=now, radar_scan_id=scan_id)
         self.state = policy.sample(self.state, now)
@@ -243,8 +258,8 @@ class Runner:
         view = policy.snapshot(self.state, now, health)
         if changed or now - self.state['runtime']['last_write_ms'] >= SNAPSHOT_MAX_INTERVAL_S * 1000:
             view = self._persist(now)
-        pending_before = deepcopy(self.state['pending_notifications'])
+        pending_before = deepcopy((self.state['pending_notifications'], self.state['pending_watchlists']))
         self._notify(view, now)
-        if pending_before != self.state['pending_notifications'] or self.state['pending_events']:
+        if pending_before != (self.state['pending_notifications'], self.state['pending_watchlists']) or self.state['pending_events']:
             view = self._persist(now)
         return view

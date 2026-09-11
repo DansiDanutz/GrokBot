@@ -15,7 +15,8 @@ def row(symbol, direction='LONG', **extra):
                 range_high=110, low_7d=92, high_7d=108, atr_4h_pct=4,
                 atr_1h_pct=6.2, turnover_24h_usdt=8_000_000, step_pct=.8,
                 grids=25, rank_score=10, expected_grids_per_hour=14,
-                funding_pct=0, passes_liquidity=True)
+                funding_pct=0, passes_liquidity=True, spread_pct=.05, listing_age_days=30,
+                snapshot_age_min=0, position_7d=.5, change_24h_pct=0)
     result.update(extra)
     return result
 
@@ -35,16 +36,17 @@ class PolicyTests(unittest.TestCase):
         result, events = policy.decide(state, self.radar, {}, 0, 'a')
         self.assertEqual({d: sum(b['engine']['direction'] == d for b in result['open_bots'])
                           for d in ('LONG', 'SHORT', 'NEUTRAL')},
-                         {'LONG': 2, 'SHORT': 2, 'NEUTRAL': 2})
-        self.assertEqual(len(events), 6)
+                         {'LONG': 2, 'SHORT': 1, 'NEUTRAL': 2})
+        self.assertEqual(len(events), 5)
         self.assertEqual((state, self.radar), before)
         self.assertEqual(result['open_bots'][2]['source_section'], 'turning_up')
 
     def test_only_longs_borrow_short_slots_with_neutral_movers_exempt(self):
         report = radar(long=[row(f'L{i}') for i in range(6)],
-                       movers=[row('M1'), row('M2')])
+                       movers=[row('M1', 'NEUTRAL', expected_grids_per_hour=20),
+                               row('M2', 'NEUTRAL', expected_grids_per_hour=20)])
         state, _ = policy.decide(policy.new_state(0), report, {}, 0, 'a')
-        self.assertEqual(sum(b['engine']['direction'] == 'LONG' for b in state['open_bots']), 4)
+        self.assertEqual(sum(b['engine']['direction'] == 'LONG' for b in state['open_bots']), 3)
         self.assertEqual(sum(b['engine']['direction'] == 'NEUTRAL' for b in state['open_bots']), 2)
 
     def test_movers_cap_trend_only_and_majors_any_profile(self):
@@ -55,7 +57,7 @@ class PolicyTests(unittest.TestCase):
         state['open_bots'][0]['engine']['symbol'] = 'SOLUSDTM'
         self.assertFalse(policy.eligible(state, row('ETHUSDTM'), 'NEUTRAL', 'neutral', 0))
 
-    def test_freed_short_slot_and_cooldown(self):
+    def test_short_close_keeps_cooldown_and_cannot_admit_bench(self):
         state, _ = policy.decide(policy.new_state(0), self.radar, {}, 0, 'a')
         victim = next(b for b in state['open_bots'] if b['engine']['direction'] == 'SHORT')
         symbol = victim['engine']['symbol']
@@ -64,7 +66,7 @@ class PolicyTests(unittest.TestCase):
         report['sections']['short'].append(row('REPLACE', 'SHORT'))
         state, events = policy.decide(state, report, {}, 300_000, 'b')
         self.assertEqual(state['closed_bots'][0]['engine']['reason'], 'RANGE_BREAK')
-        self.assertTrue(any(b['engine']['symbol'] == 'REPLACE' for b in state['open_bots']))
+        self.assertFalse(any(b['engine']['symbol'] == 'REPLACE' for b in state['open_bots']))
         self.assertFalse(policy.eligible(state, row(symbol), 'SHORT', 'short', 301_000))
         self.assertTrue(any(e['type'] == 'CLOSE' for e in events))
 
@@ -114,8 +116,11 @@ class PolicyTests(unittest.TestCase):
         state = policy.new_state(0)
         self.assertFalse(policy.eligible(state, row('A', passes_liquidity=False), 'LONG', 'long', 0))
         self.assertFalse(policy.eligible(state, row('A', atr_1h_pct=.01), 'LONG', 'long', 0))
-        report = radar(movers=[row('LOW', atr_1h_pct=2), row('HIGH', atr_1h_pct=8),
-                               row('MID', atr_1h_pct=5), row('FOUR', atr_1h_pct=4), row('FIVE')])
+        report = radar(movers=[row('LOW', 'NEUTRAL', atr_1h_pct=2), row('HIGH', 'NEUTRAL', atr_1h_pct=8),
+                               row('MID', 'NEUTRAL', atr_1h_pct=5), row('FOUR', 'NEUTRAL', atr_1h_pct=4),
+                               row('FIVE', 'NEUTRAL')])
+        for candidate in report['rows']:
+            candidate['position_7d'] = .8
         result, _ = policy.decide(state, report, {}, 0, 'a')
         self.assertEqual([w['engine']['symbol'] for w in result['open_bots']], ['HIGH', 'FIVE', 'MID', 'FOUR'])
         self.assertEqual(len(result['open_bots']), 4)

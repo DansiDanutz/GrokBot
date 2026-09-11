@@ -8,6 +8,8 @@ import math
 
 from trader.papergrid import open_bot, close_bot, step
 from trader.radar.rates import expected_grids_per_hour
+from trader.radar.scoring import score_row
+from trader.autopilot import watchlist
 from trader.autopilot.constants import (
     PAPER_EQUITY_USDT, MAX_BOTS, NOTIONAL_PER_BOT_USDT, SLOTS, DIRECTION_CAP,
     LEVERAGE_TREND, LEVERAGE_NEUTRAL, STEP_NEUTRAL_PCT, NEUTRAL_RESERVE_USDT,
@@ -22,7 +24,8 @@ RETENTION_MS = 30 * 24 * HOUR_MS
 def new_state(now_ms):
     return dict(schema_version=1, started_ms=now_ms, open_bots=[], closed_bots=[],
                 cooldowns={}, radar_seen={}, equity_curve=[], next_bot_id=1,
-                archived_net=0.0, peak_equity=PAPER_EQUITY_USDT, max_drawdown_pct=0.0)
+                archived_net=0.0, peak_equity=PAPER_EQUITY_USDT, max_drawdown_pct=0.0,
+                watchlist=watchlist.initial())
 
 
 def net(bot):
@@ -81,13 +84,50 @@ def eligible(state, row, direction, source_section, now_ms):
         return False
 
 
-def _candidates(radar, direction):
-    sections = {'LONG': ('turning_up', 'long'), 'SHORT': ('turning_down', 'short'),
-                'NEUTRAL': ('neutral', 'movers')}[direction]
-    for section in sections:
-        key = 'atr_1h_pct' if section == 'movers' else 'rank_score'
-        for row in sorted(radar.get('sections', {}).get(section, []), key=lambda r: (-r[key], r['symbol'])):
-            yield section, row
+def _candidate_sections(radar, rows):
+    """Use the full radar universe, not the presentation's top-eight truncation."""
+    sections = {name: {} for name in ('turning_up', 'long', 'turning_down', 'short', 'neutral', 'movers')}
+    mapping = {'LONG': 'long', 'SHORT': 'short', 'TURNING-UP': 'turning_up',
+               'TURNING-DOWN': 'turning_down', 'NEUTRAL': 'neutral'}
+    for row in rows:
+        section = mapping.get(row['direction'])
+        if section and (section != 'neutral' or .25 <= row['position_7d'] <= .75):
+            sections[section][row['symbol']] = row
+        if abs(row['change_24h_pct']) > 15:
+            sections['movers'][row['symbol']] = row
+    # Explicit section membership preserves the producer's Movers classification.
+    by_symbol = {r['symbol']: r for r in rows}
+    for row in radar.get('sections', {}).get('movers', []):
+        if row['symbol'] in by_symbol:
+            sections['movers'][row['symbol']] = by_symbol[row['symbol']]
+    return {name: list(items.values()) for name, items in sections.items()}
+
+
+def _candidates(sections, direction):
+    names = {'LONG': ('turning_up', 'long'), 'SHORT': ('turning_down', 'short'),
+             'NEUTRAL': ('neutral', 'movers')}[direction]
+    for name in names:
+        key = 'atr_1h_pct' if name == 'movers' else 'rank_score'
+        for row in sorted(sections.get(name, []), key=lambda r: (-r[key], r['symbol'])):
+            yield name, row
+
+
+def _qualified_rows(radar, rows):
+    scored = []
+    for row in rows:
+        if not row.get('passes_liquidity', False):
+            continue
+        try:
+            scored.append(dict(row, **score_row(row)))
+        except (KeyError, TypeError, ValueError, ZeroDivisionError):
+            continue
+    sections = _candidate_sections(radar, scored)
+    allowed = set()
+    for direction in SLOTS:
+        for section, row in _candidates(sections, direction):
+            if eligible(new_state(0), row, direction, section, 0):
+                allowed.add(row['symbol'])
+    return [r for r in scored if r['symbol'] in allowed]
 
 
 def _mark_wrapper(wrapper):
@@ -116,10 +156,19 @@ def _reason(wrapper, labels, missing, now_ms):
 
 def decide(state, radar, prices, now_ms, scan_id):
     result, events = deepcopy(state), []
+    if watchlist.is_older(scan_id, result.get('watchlist', {}).get('last_scan_id')):
+        radar = None
     radar_available = radar is not None
     radar = radar or {'rows': [], 'sections': {}}
     rows = radar.get('rows', [row for section in radar.get('sections', {}).values() for row in section])
     labels = {row['symbol']: row['direction'] for row in rows}
+    qualified = _qualified_rows(radar, rows) if radar_available else []
+    result.setdefault('watchlist', watchlist.initial())
+    if radar_available:
+        result['watchlist'], changes = watchlist.update(result['watchlist'], qualified, now_ms, scan_id)
+        events.extend(dict(event, bot_id=0) for event in changes)
+    core = {entry['symbol'] for entry in result['watchlist']['core']}
+    sections = _candidate_sections(radar, [r for r in qualified if r['symbol'] in core])
     for wrapper in list(result['open_bots']):
         bot = wrapper['engine']
         seen = result['radar_seen'].setdefault(bot['symbol'], [])
@@ -140,7 +189,7 @@ def decide(state, radar, prices, now_ms, scan_id):
                  for _ in range(count - sum(w['slot_direction'] == direction for w in result['open_bots']))]
     deferred = []
     def fill(slot, direction):
-        for section, row in _candidates(radar, direction):
+        for section, row in _candidates(sections, direction):
             marked = dict(row, price=prices.get(row['symbol'], row['price']))
             if not eligible(result, marked, direction, section, now_ms):
                 continue
@@ -249,4 +298,9 @@ def snapshot(state, now_ms, health):
                 peak_equity=state['peak_equity'], max_drawdown_pct=state['max_drawdown_pct'],
                 change_24h_pct=change(24), change_7d_pct=change(168),
                 open_bots=opened, closed_bots=visible_closed, groups=groups, totals=totals(opened+closed),
-                equity_curve=_downsample(state['equity_curve'], 2000), **health)
+                equity_curve=_downsample(state['equity_curve'], 2000),
+                watchlist={k: deepcopy(state.get('watchlist', watchlist.initial())[k]) for k in ('core', 'bench')},
+                watchlist_history=deepcopy(state.get('watchlist', {}).get('history', [])),
+                watchlist_scan_id=state.get('watchlist', {}).get('last_scan_id'),
+                watchlist_asof_ms=state.get('watchlist', {}).get('asof_ms'),
+                watchlist_swap_times=deepcopy(state.get('watchlist', {}).get('swap_times', [])), **health)

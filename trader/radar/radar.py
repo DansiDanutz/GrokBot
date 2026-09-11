@@ -7,6 +7,7 @@ import sqlite3
 import time
 
 from trader.radar.rates import K_STANDARD, K_MAJOR, expected_grids_per_hour
+from trader.radar.scoring import score_row
 
 
 HOUR_MS = 3_600_000
@@ -168,7 +169,7 @@ def analyse(database, asof_ms=None):
         else:
             low, high = low_7d, high_7d
         expected = round(expected_grids_per_hour(atr_1h_pct, step, turnover), 2)
-        rows.append({
+        row = {
             "symbol": symbol, "direction": direction, "price": price,
             "turnover_24h_usdt": turnover, "spread_pct": spread,
             "snapshot_age_min": snapshot_age_min,
@@ -184,7 +185,12 @@ def analyse(database, asof_ms=None):
             "passes_liquidity": turnover >= MIN_TURNOVER_USDT
                                 and spread <= MAX_SPREAD_PCT and age_days >= MIN_LISTING_AGE_DAYS
                                 and snapshot_age_min <= MAX_SNAPSHOT_AGE_MIN,
-        })
+        }
+        try:
+            row.update(score_row(row))
+        except ValueError:
+            continue
+        rows.append(row)
     rows.sort(key=lambda row: (-row["rank_score"], row["symbol"]))
     return {"schema_version": 1, "generated_at_ms": int(time.time() * 1000),
             "asof_ms": now, "constants": {"standard_step_pct": STANDARD_STEP_PCT,

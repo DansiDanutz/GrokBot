@@ -17,7 +17,12 @@
         "funding_pct": 0,
         "passes_liquidity": true,
         "symbol": "N1",
-        "direction": "NEUTRAL"
+        "direction": "NEUTRAL",
+        "spread_pct": 0.05,
+        "listing_age_days": 30,
+        "snapshot_age_min": 0,
+        "position_7d": 0.5,
+        "change_24h_pct": 0
       },
       {
         "price": 100,
@@ -35,7 +40,12 @@
         "funding_pct": 0,
         "passes_liquidity": true,
         "symbol": "N2",
-        "direction": "NEUTRAL"
+        "direction": "NEUTRAL",
+        "spread_pct": 0.05,
+        "listing_age_days": 30,
+        "snapshot_age_min": 0,
+        "position_7d": 0.5,
+        "change_24h_pct": 0
       }
     ],
     "turning_up": [
@@ -55,7 +65,12 @@
         "funding_pct": 0,
         "passes_liquidity": true,
         "symbol": "L1",
-        "direction": "TURNING-UP"
+        "direction": "TURNING-UP",
+        "spread_pct": 0.05,
+        "listing_age_days": 30,
+        "snapshot_age_min": 0,
+        "position_7d": 0.5,
+        "change_24h_pct": 0
       }
     ],
     "long": [
@@ -75,7 +90,12 @@
         "funding_pct": 0,
         "passes_liquidity": true,
         "symbol": "L2",
-        "direction": "LONG"
+        "direction": "LONG",
+        "spread_pct": 0.05,
+        "listing_age_days": 30,
+        "snapshot_age_min": 0,
+        "position_7d": 0.5,
+        "change_24h_pct": 0
       }
     ],
     "turning_down": [
@@ -95,7 +115,12 @@
         "funding_pct": 0,
         "passes_liquidity": true,
         "symbol": "S1",
-        "direction": "TURNING-DOWN"
+        "direction": "TURNING-DOWN",
+        "spread_pct": 0.05,
+        "listing_age_days": 30,
+        "snapshot_age_min": 0,
+        "position_7d": 0.5,
+        "change_24h_pct": 0
       }
     ],
     "short": [
@@ -115,7 +140,12 @@
         "funding_pct": 0,
         "passes_liquidity": true,
         "symbol": "S2",
-        "direction": "SHORT"
+        "direction": "SHORT",
+        "spread_pct": 0.05,
+        "listing_age_days": 30,
+        "snapshot_age_min": 0,
+        "position_7d": 0.5,
+        "change_24h_pct": 0
       }
     ]
   },
@@ -136,7 +166,12 @@
       "funding_pct": 0,
       "passes_liquidity": true,
       "symbol": "N1",
-      "direction": "NEUTRAL"
+      "direction": "NEUTRAL",
+      "spread_pct": 0.05,
+      "listing_age_days": 30,
+      "snapshot_age_min": 0,
+      "position_7d": 0.5,
+      "change_24h_pct": 0
     },
     {
       "price": 100,
@@ -154,7 +189,12 @@
       "funding_pct": 0,
       "passes_liquidity": true,
       "symbol": "N2",
-      "direction": "NEUTRAL"
+      "direction": "NEUTRAL",
+      "spread_pct": 0.05,
+      "listing_age_days": 30,
+      "snapshot_age_min": 0,
+      "position_7d": 0.5,
+      "change_24h_pct": 0
     },
     {
       "price": 100,
@@ -172,7 +212,12 @@
       "funding_pct": 0,
       "passes_liquidity": true,
       "symbol": "L1",
-      "direction": "TURNING-UP"
+      "direction": "TURNING-UP",
+      "spread_pct": 0.05,
+      "listing_age_days": 30,
+      "snapshot_age_min": 0,
+      "position_7d": 0.5,
+      "change_24h_pct": 0
     },
     {
       "price": 100,
@@ -190,7 +235,12 @@
       "funding_pct": 0,
       "passes_liquidity": true,
       "symbol": "L2",
-      "direction": "LONG"
+      "direction": "LONG",
+      "spread_pct": 0.05,
+      "listing_age_days": 30,
+      "snapshot_age_min": 0,
+      "position_7d": 0.5,
+      "change_24h_pct": 0
     },
     {
       "price": 100,
@@ -208,7 +258,12 @@
       "funding_pct": 0,
       "passes_liquidity": true,
       "symbol": "S1",
-      "direction": "TURNING-DOWN"
+      "direction": "TURNING-DOWN",
+      "spread_pct": 0.05,
+      "listing_age_days": 30,
+      "snapshot_age_min": 0,
+      "position_7d": 0.5,
+      "change_24h_pct": 0
     },
     {
       "price": 100,
@@ -226,7 +281,12 @@
       "funding_pct": 0,
       "passes_liquidity": true,
       "symbol": "S2",
-      "direction": "SHORT"
+      "direction": "SHORT",
+      "spread_pct": 0.05,
+      "listing_age_days": 30,
+      "snapshot_age_min": 0,
+      "position_7d": 0.5,
+      "change_24h_pct": 0
     }
   ]
 }
