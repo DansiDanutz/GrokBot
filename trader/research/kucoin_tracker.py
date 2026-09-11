@@ -98,15 +98,17 @@ def _hour_risk(summary, observations):
         known = [row[source] for row in observations if row[source] is not None]
         summary[target] = 0 if summary['liquidated'] else (min(known) if known else None)
     closest = summary['closest_liquidation_pct']
-    if closest is not None and closest <= 5:
+    if summary['liquidated'] or (summary['status'] not in TERMINAL and closest is not None and closest <= 5):
         summary['emergency'] = True
-        summary['emergency_action'] = _emergency_action(summary['adaptive_range_stops'])
+        summary['emergency_action'] = _emergency_action(summary['adaptive_range_stops'], summary['liquidated'])
 
 
-def _emergency_action(adaptive):
+def _emergency_action(adaptive, liquidated=False):
+    if liquidated:
+        return 'liquidation failure: stop the trial and review; no new allocation'
     if adaptive:
         return 'verify tightened 1% range protection or stop; no additional margin beyond fixed reserve'
-    return 'stop or add reserve before liquidation'
+    return 'close or review active exposure before liquidation; preserve range stops; no additional capital beyond fixed reserve'
 
 
 def _protection(state):
@@ -125,7 +127,8 @@ def track_summary(state, start_ms, asof_ms, expected_start_gph=0):
     if start_ms > asof_ms or state.timestamp_ms > asof_ms:
         raise ValueError('summary start/state must not be later than asof')
     distances = _distances(state)
-    emergency = distances['distance_liquidation_pct'] is not None and distances['distance_liquidation_pct'] <= 5
+    emergency = state.liquidated or (state.status not in TERMINAL and
+        distances['distance_liquidation_pct'] is not None and distances['distance_liquidation_pct'] <= 5)
     closed_fills = [event for event in state.fill_events if event.kind in ('stop_loss', 'replacement', 'liquidation')]
     config = state.config
     return dict(pair=config.pair, direction=config.direction, low=config.low, high=config.high,
@@ -142,7 +145,7 @@ def track_summary(state, start_ms, asof_ms, expected_start_gph=0):
                 stop_loss_hit=state.stop_reason == 'stop_loss', stop_reason=state.stop_reason,
                 stop_loss=config.stop_loss, stop_loss_high=config.stop_loss_high,
                 liquidated=state.liquidated, emergency=emergency,
-                emergency_action=_emergency_action(config.adaptive_range_stops) if emergency else None,
+                emergency_action=_emergency_action(config.adaptive_range_stops, state.liquidated) if emergency else None,
                 emergency_action_suggested_only=True, **distances, **_protection(state),
                 full_inventory_preview=preview(config))
 

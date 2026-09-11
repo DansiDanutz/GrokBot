@@ -162,10 +162,18 @@ def _emergencies(currents):
     rows = []
     for current in currents:
         distance = current.get('distance_liquidation_pct')
-        if current.get('status') == 'liquidated' or (_finite_number(distance) and distance <= 5):
+        failed = current.get('status') == 'liquidated' or current.get('liquidated') is True
+        if current.get('status') == 'stopped' and not failed:
+            continue
+        if failed or (_finite_number(distance) and distance <= 5):
+            action = ('liquidation failure: stop the trial and review; no new allocation' if failed else
+                'verify tightened 1% range protection or stop; no additional capital beyond 200 reserve'
+                if current.get('adaptive_range_stops') is True else
+                'close or review active exposure before liquidation; preserve range stops; no additional capital beyond 200 reserve')
             rows.append(dict(bot_id=current['bot_id'], pair=current['pair'],
-                distance_liquidation_pct=distance, action='verify tightened 1% range protection or stop; no additional capital beyond 200 reserve',
-                reason='liquidation early warning within 5 percent of liquidation price; separate from the 1 percent outside-range barrier'))
+                distance_liquidation_pct=distance, action=action,
+                reason='realized liquidation failure' if failed else
+                'active inventory within 5 percent of liquidation price; do not widen the configured range stops'))
     return rows
 
 

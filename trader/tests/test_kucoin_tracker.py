@@ -18,6 +18,28 @@ def bar(time=0, **changes):
 
 
 class TrackerTests(unittest.TestCase):
+    def test_closed_boundary_retains_risk_diagnostics_without_active_emergency(self):
+        initial = state(investment=200, leverage=10, range_exit_stop_pct=0)
+        result = track_bars(initial, [dict(timestamp_ms=0, open=100, high=100, low=90, close=95)])
+        for summary in (result['summary'], track_summary(result['state'], 0, HOUR)):
+            with self.subTest(asof=summary['asof_ms']):
+                self.assertEqual(summary['status'], 'stopped')
+                self.assertLess(summary['distance_liquidation_pct'], 5)
+                self.assertFalse(summary['emergency'])
+                self.assertIsNone(summary['emergency_action'])
+        self.assertLess(result['summary']['closest_liquidation_pct'], 5)
+        self.assertGreater(result['summary']['closest_liquidation_range_pct'], 0)
+
+    def test_boundary_active_risk_warning_preserves_fixed_capital_and_exact_stop(self):
+        active = advance(state(investment=200, leverage=10, range_exit_stop_pct=0), 91, 60000)
+        summary = track_summary(active, 0, HOUR)
+        self.assertTrue(summary['emergency'])
+        self.assertIn('close', summary['emergency_action'])
+        self.assertNotIn('add reserve', summary['emergency_action'])
+        self.assertNotIn('1%', summary['emergency_action'])
+        self.assertEqual(summary['effective_stop_loss_low'], 90)
+        self.assertEqual(summary['effective_stop_loss_high'], 110)
+
     def test_collects_seed_and_all_intrabar_fills_and_is_pure(self):
         initial = state()
         result = track_bars(initial, [bar()], start_ms=0)
@@ -46,7 +68,8 @@ class TrackerTests(unittest.TestCase):
         running = replace(running, price=83)
         summary = track_summary(running, 0, HOUR)
         self.assertTrue(summary['emergency'])
-        self.assertEqual(summary['emergency_action'], 'stop or add reserve before liquidation')
+        self.assertIn('close', summary['emergency_action'])
+        self.assertNotIn('add reserve', summary['emergency_action'])
         self.assertLess(summary['distance_liquidation_pct'], 5)
 
     def test_stop_loss_is_reported_and_remaining_bar_does_not_trade(self):
@@ -140,6 +163,8 @@ class TrackerTests(unittest.TestCase):
         result = track_bars(state(investment=200, leverage=10),
                  [dict(timestamp_ms=0, open=100, high=100, low=1, close=90)])
         self.assertTrue(result['summary']['liquidated'])
+        self.assertTrue(result['summary']['emergency'])
+        self.assertIn('liquidation failure', result['summary']['emergency_action'])
         self.assertEqual(result['summary']['closest_liquidation_range_pct'], 0)
         self.assertEqual(result['summary']['closest_liquidation_pct'], 0)
         self.assertEqual(result['equity_path'][-1], result['summary']['net_equity'])

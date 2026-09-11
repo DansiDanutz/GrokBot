@@ -282,3 +282,33 @@ class PositiveNetPolicyTests(unittest.TestCase):
                                                       {'available_cash': 100})
                 self.assertEqual(result['comparison']['current_net_per_grid'], expected)
                 self.assertIn(basis, result['comparison']['current_profit_basis'])
+
+
+class ClosedExposureEmergencyTests(unittest.TestCase):
+    def test_stopped_slot_with_historical_near_liquidation_can_be_replaced(self):
+        from trader.research.kucoin_replacement import decide_portfolio_replacement
+        closed = policy_current('STOPPED', 0, status='stopped', capital_released=True,
+            distance_liquidation_pct=2, closest_liquidation_pct=1,
+            switch_close_gross_pnl=-2, switch_close_fee_paid=.1)
+        result = decide_portfolio_replacement([closed], [policy_candidate(score=10)],
+                                              {'available_cash': 1200})
+        self.assertEqual(result['action'], 'replace')
+        self.assertEqual(result['emergency_actions'], [])
+        self.assertEqual(result['replacement']['pair'], 'NEW')
+        self.assertEqual(closed['closest_liquidation_pct'], 1)
+        self.assertEqual(result['comparison']['close_loss_cost'], 2.1)
+
+    def test_active_boundary_risk_and_liquidation_failure_remain_emergencies(self):
+        from trader.research.kucoin_replacement import decide_portfolio_replacement
+        for status in ('running', 'liquidated'):
+            with self.subTest(status=status):
+                row = policy_current('RISK', 0, status=status, distance_liquidation_pct=2,
+                                     adaptive_range_stops=False)
+                result = decide_portfolio_replacement([row], [policy_candidate(score=10)],
+                                                      {'available_cash': 1200})
+                self.assertEqual(result['action'], 'emergency')
+                action = result['emergency_actions'][0]['action']
+                self.assertNotIn('1%', action)
+                self.assertNotIn('add reserve', action)
+                self.assertIn('failure' if status == 'liquidated' else 'close', action)
+                self.assertIsNone(result['replacement'])
