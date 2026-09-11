@@ -91,7 +91,7 @@ after any tick that changed something, otherwise at most every 30 s with a fresh
 Decision pass (every 5 min, and whenever `radar.json` mtime changes):
 - Close first: on `RANGE_BREAK` or `STOP_LOSS`; when the symbol's radar label
   flips against the bot (LONG bot and label SHORT or TURNING-DOWN; SHORT bot and
-  label LONG or TURNING-UP; NEUTRAL bot and label LONG or SHORT); when the symbol
+  label LONG or TURNING-UP; NEUTRAL bot and label LONG or SHORT, unless that is the very label the bot was opened with: a neutral grid on a trending mover closes only when the trend label changes); when the symbol
   is absent from the radar for 2 consecutive scans (`DROPPED`); after
   `MAX_AGE_HOURS` (`MAX_AGE`). Closed symbol enters cooldown.
 - Then open: allocate `MAX_BOTS = 6` across LONG, SHORT and NEUTRAL slots, two

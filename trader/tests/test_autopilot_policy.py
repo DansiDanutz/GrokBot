@@ -86,6 +86,21 @@ class PolicyTests(unittest.TestCase):
                 state, _ = policy.decide(state, report, {}, 73 * HOUR if reason == 'MAX_AGE' else 1, 'b')
                 self.assertEqual(state['closed_bots'][0]['engine']['reason'], reason)
 
+    def test_neutral_bot_on_trending_mover_survives_its_opening_label(self):
+        mover = row('RAY', 'LONG', change_24h_pct=24, position_7d=.85)
+        state, _ = policy.decide(policy.new_state(0), radar(movers=[mover]), {}, 0, 'a')
+        bot = state['open_bots'][0]
+        self.assertEqual((bot['engine']['direction'], bot['open_label']), ('NEUTRAL', 'LONG'))
+        still, _ = policy.decide(state, radar(movers=[mover]), {}, 1, 'b')
+        self.assertEqual(len(still['open_bots']), 1)
+        flipped, _ = policy.decide(still, radar(movers=[row('RAY', 'SHORT', change_24h_pct=24, position_7d=.85)]), {}, 2, 'c')
+        self.assertEqual(flipped['closed_bots'][0]['engine']['reason'], 'LABEL_FLIP')
+        neutral = row('N', 'NEUTRAL')
+        state, _ = policy.decide(policy.new_state(0), radar(neutral=[neutral]), {}, 0, 'a')
+        self.assertEqual(state['open_bots'][0]['open_label'], 'NEUTRAL')
+        trending, _ = policy.decide(state, radar(long=[row('N', 'LONG')]), {}, 1, 'b')
+        self.assertEqual(trending['closed_bots'][0]['engine']['reason'], 'LABEL_FLIP')
+
     def test_profile_rates_and_reserve_no_double_count(self):
         spec, reserve = policy.profile(row('RAY'), 'NEUTRAL', 1)
         self.assertEqual((spec['leverage'], reserve, spec['step_pct']), (5, 200, .45))

@@ -1,7 +1,7 @@
 """Immutable portfolio rules. Wrappers preserve Phase A's accounting unchanged.
 
-Each open/closed wrapper has engine, reserve_usdt, source_section, slot_direction
-and latched signals. A borrowed slot retains its original direction until closed.
+Each open/closed wrapper has engine, reserve_usdt, source_section, slot_direction,
+the radar label at open and latched signals. A borrowed slot retains its original direction until closed.
 """
 from copy import deepcopy
 import math
@@ -145,8 +145,13 @@ def _reason(wrapper, labels, missing, now_ms):
             return signal
     opposing = {'LONG': ('SHORT', 'TURNING-DOWN'), 'SHORT': ('LONG', 'TURNING-UP'),
                 'NEUTRAL': ('LONG', 'SHORT')}
-    if labels.get(bot['symbol']) in opposing[bot['direction']]:
-        return 'LABEL_FLIP'
+    label = labels.get(bot['symbol'])
+    if label in opposing[bot['direction']]:
+        # A neutral grid opened on an already-trending coin (a mover ridden with a
+        # wide range) is only abandoned when that trend changes, not on the label
+        # it was opened with.
+        if bot['direction'] != 'NEUTRAL' or label != wrapper.get('open_label'):
+            return 'LABEL_FLIP'
     if missing >= 2:
         return 'DROPPED'
     if now_ms - bot['opened_ms'] >= MAX_AGE_HOURS * HOUR_MS:
@@ -196,7 +201,8 @@ def decide(state, radar, prices, now_ms, scan_id):
             spec, reserve = profile(marked, direction, result['next_bot_id'])
             bot = open_bot(spec, marked['price'], now_ms)
             result['open_bots'].append(dict(engine=bot, reserve_usdt=reserve,
-                                           source_section=section, slot_direction=slot, signals=[]))
+                                           source_section=section, slot_direction=slot, signals=[],
+                                           open_label=labels.get(bot['symbol'])))
             result['next_bot_id'] += 1
             result['radar_seen'][bot['symbol']] = [dict(scan_id=scan_id, present=True)]
             events.append(dict(ts_ms=now_ms, bot_id=bot['bot_id'], symbol=bot['symbol'], type='OPEN',
