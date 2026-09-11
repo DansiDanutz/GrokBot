@@ -24,7 +24,8 @@ snapshot; the local API provides ten-second updates.
 | Phase A paper accounting | PR #22 merged after PASS | `trader/papergrid/` |
 | Phase B daemon, shared scores, core/bench and Telegram | PR #23 merged at `8df06c2` after PASS on `fe1c5e6` | `trader/autopilot/` |
 | Phase C public DTO/API, paper page, publication routes | Implemented; final gate pending | `paper_grid/` |
-| Three LaunchAgent examples | Source only; not installed by Codex | `config/launchd/` |
+| Four LaunchAgent examples | Source only; not installed by Codex | `config/launchd/` |
+| Market-data collector (`com.danslab.trader-market-data`) | 24-hour sessions supervised by KeepAlive; Dan installs first | `config/launchd/com.danslab.market-data.plist.example` |
 | Historical research | Superseded by lean radar; no new runs | Retained reference branches |
 | Operator cutover | Dan-only, pending final gate | RUNBOOK below |
 
@@ -40,6 +41,68 @@ Telegram messages. They are instructions, not actions Codex performed. They
 assume the merged default checkout at `/Users/davidai/ZCodeProject/GrokBot`, the
 existing market database and existing private Telegram/Vercel credentials. Do not
 put tokens into a plist, command argument or repository file.
+
+### 0. Supervise the collector before starting the radar
+
+First update the checkout after the final gate, then prepare the collector logs:
+
+```sh
+cd /Users/davidai/ZCodeProject/GrokBot
+git switch codex/mac-studio-foundation
+git pull --ff-only
+npm run verify
+npm run verify:secrets
+mkdir -p ~/Sandbox/grokbot/market-data/logs
+ps -p 73444 -o pid=,command=
+```
+
+Confirm PID 73444 is still the hand-started `trader.data.updater` for
+`phase-2-20260911/market.sqlite3`. If it has exited or now identifies another
+process, do not kill that PID; inspect the current collector ownership first.
+Never use `pkill python`. Once the PID is confirmed, stop that exact process:
+
+```sh
+kill 73444
+ps -p 73444 -o pid=,command=
+```
+
+Wait for it to exit before continuing, so the database lock is released. Preserve
+the existing database; do not start a second hand-run collector. Install and
+bootstrap the collector before the radar/autopilot steps below:
+
+```sh
+cp config/launchd/com.danslab.market-data.plist.example ~/Library/LaunchAgents/com.danslab.trader-market-data.plist
+plutil -lint ~/Library/LaunchAgents/com.danslab.trader-market-data.plist
+market_before=$(/usr/bin/sqlite3 -readonly ~/Sandbox/grokbot/market-data/phase-2-20260911/market.sqlite3 'SELECT COALESCE(MAX(time_ms),0) FROM ticker_snapshots;')
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.danslab.trader-market-data.plist
+launchctl print gui/$(id -u)/com.danslab.trader-market-data
+/opt/homebrew/bin/python3 - "$market_before" <<'CHECK'
+from pathlib import Path
+import sqlite3, sys, time
+path = Path.home() / 'Sandbox/grokbot/market-data/phase-2-20260911/market.sqlite3'
+before = int(sys.argv[1])
+deadline = time.monotonic() + 300
+while True:
+    connection = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)
+    try:
+        newest = connection.execute('SELECT MAX(time_ms) FROM ticker_snapshots').fetchone()[0]
+    finally:
+        connection.close()
+    age = (time.time()*1000-newest)/1000 if newest is not None else None
+    if newest is not None and newest > before and 0 <= age <= 300:
+        print(f'Collector fresh: max(time_ms)={newest}, age={age:.1f}s')
+        break
+    if time.monotonic() >= deadline:
+        raise SystemExit('Collector freshness failed; inspect updater logs before starting radar')
+    time.sleep(5)
+CHECK
+```
+
+The example uses the existing `--duration-hours 24` mode, `KeepAlive=true`,
+`ThrottleInterval=10`, and `RunAtLoad=false`. Launchd supervises successive
+24-hour sessions; this is not a new continuous CLI mode. No credentials are
+needed. KeepAlive starts the supervised process on bootstrap. If this label is
+already registered, inspect it before replacing it rather than running duplicates.
 
 ### 1. Prepare and preserve rollback
 
@@ -146,6 +209,29 @@ See the [official Serve command reference](https://tailscale.com/docs/reference/
 
 ### 5. Verify publication, freshness and logs
 
+Check the market database as well as the page. A successful web response alone
+does not prove collection is current. This read-only query must show ticker data
+no older than five minutes (and a later max timestamp on the next collector cycle):
+
+```sh
+/opt/homebrew/bin/python3 - <<'CHECK'
+from pathlib import Path
+import sqlite3, time
+path = Path.home() / 'Sandbox/grokbot/market-data/phase-2-20260911/market.sqlite3'
+connection = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)
+try:
+    newest = connection.execute('SELECT MAX(time_ms) FROM ticker_snapshots').fetchone()[0]
+finally:
+    connection.close()
+age = (time.time()*1000-newest)/1000 if newest is not None else None
+print(f'ticker_snapshots max(time_ms)={newest}, age_seconds={age}')
+if age is None or not 0 <= age <= 300:
+    raise SystemExit('Market data is stale or unavailable')
+CHECK
+launchctl print gui/$(id -u)/com.danslab.trader-market-data
+tail -n 30 ~/Sandbox/grokbot/market-data/logs/updater.out.log ~/Sandbox/grokbot/market-data/logs/updater.err.log
+```
+
 ```sh
 curl -fsS http://127.0.0.1:8875/api/autopilot
 curl -fsS 'http://127.0.0.1:8875/api/events?since=0'
@@ -180,7 +266,8 @@ launchctl kickstart gui/$(id -u)/com.danslab.trader-publisher
 
 The public site changes back after the restored publisher succeeds; bootstrapping
 alone does not undo an already-published deployment. This rollback changes only
-the publisher. If you also want to stop the paper autopilot, boot out its exact
+the publisher. The supervised market-data collector is safe to leave running;
+keep it collecting for the radar and paper autopilot. If you also want to stop the paper autopilot, boot out its exact
 label separately. Do not delete its state, the market DB or the control runtime.
 
 ## Boundaries

@@ -99,3 +99,28 @@ count, these three example paths and Dan's manual steps before closing #16:
 
 Until then, port 8873 and the public deployment remain the existing control view.
 The implementation is reviewable source; it has not been cut over.
+
+## Conditional gate C-1 correction
+
+Applied issue #16 comments 5638003293 and 5638035811. This correction changes only
+committed documentation and the market-data plist example; no updater code or
+installed service is changed. The new frozen head identifies this correction.
+
+The collector example now names `com.danslab.trader-market-data`, uses the real
+GrokBot checkout and `phase-2-20260911/market.sqlite3`, and runs the existing
+`--duration-hours 24` command under KeepAlive with ThrottleInterval 10 and
+RunAtLoad false. Logs remain under `market-data/logs/`; no credentials are needed.
+
+STATUS lists four service examples. RUNBOOK step 0 checks the exact hand-started
+PID 73444 before documenting its termination, waits for exit, installs/bootstrap
+instructions for the collector, and polls a read-only MAX(time_ms) query for an
+advancing ticker timestamp no older than five minutes before radar startup.
+Step 5 repeats the data freshness check and adds collector status/log commands.
+Publisher rollback explicitly leaves the collector safely running.
+
+An offline assertion first failed on the old label/template, then passed for the
+exact command, paths, KeepAlive/ThrottleInterval, log paths and RUNBOOK ordering.
+Both full gates pass unchanged at **563 tests (38 + 315 + 210)**, secrets clean.
+C-2 remains unchanged: the publisher wrapper is already explained in the RUNBOOK.
+No PID was signalled, no installed plist was read or written, no database was
+opened, and no agent was bootstrapped. Await Claude's re-gate before any merge.
