@@ -53,6 +53,7 @@ class Runner:
         self.state.setdefault('runtime', dict(quotes={}, kucoin_ok=False,
                               kucoin_down_since_ms=None, alert_active=False, last_write_ms=0,
                               last_decision_ms=0, radar_scan_id=None))
+        self.state['runtime'].setdefault('last_tick_ms', self.state['started_ms'])
         for key, value in [('event_seq', 0), ('pending_events', []), ('pending_notifications', []), ('pending_watchlists', [])]:
             self.state.setdefault(key, value)
         directory = self.state_path.parent
@@ -120,10 +121,9 @@ class Runner:
 
     def _health(self, now):
         meta = self.state['runtime']
-        required = set(MAJORS) | {w['engine']['symbol'] for w in self.state['open_bots']}
-        opened = {w['engine']['symbol']: w['engine']['opened_ms'] for w in self.state['open_bots']}
-        stamps = [meta['quotes'].get(s, {}).get('ts_ms', opened.get(s, self.state['started_ms'])) for s in required]
-        return dict(heartbeat_ms=now, tick_age_s=max(0, (now - min(stamps)) / 1000),
+        # Tick age measures the last successful allTickers pass, not the last trade
+        # of the thinnest coin: a quiet contract must not read as a dead feed.
+        return dict(heartbeat_ms=now, tick_age_s=max(0, (now - meta['last_tick_ms']) / 1000),
                     kucoin_ok=meta['kucoin_ok'], kucoin_down_since_ms=meta['kucoin_down_since_ms'],
                     radar_age_min=max(0, (now - self.radar['asof_ms']) / 60000) if self.radar else None,
                     recovery_pending=not self.recovered)
@@ -209,7 +209,7 @@ class Runner:
                 events.extend(self._apply(quotes))
             meta = self.state['runtime']
             meta['quotes'] = {s: quotes.get(s, previous.get(s)) for s in required if s in quotes or s in previous}
-            meta.update(kucoin_ok=True, kucoin_down_since_ms=None)
+            meta.update(kucoin_ok=True, kucoin_down_since_ms=None, last_tick_ms=now)
         except (OSError, ValueError, RuntimeError, DatabaseError):
             now = self.now_ms()
             meta = self.state['runtime']
