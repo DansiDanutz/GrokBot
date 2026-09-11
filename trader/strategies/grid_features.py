@@ -10,7 +10,7 @@ candles enter the trailing window; missing leading prices require a prior seed.
 import math
 from statistics import median
 
-from trader.strategies.candle_coverage import PreparedHistory, prepare
+from trader.strategies.candle_coverage import is_prepared_history, prepare
 
 
 def _sign(value):
@@ -110,7 +110,7 @@ def features(candles, funding_rate=0., asof_ms=None, prior_seed=None):
                     'coverage':prepared.get('coverage',{})}
         if len(prepared['bars']) != 10080:
             raise ValueError('Features require a seven-day prepared window')
-        if type(prepared) is PreparedHistory:
+        if is_prepared_history(prepared):
             bars = prepared['bars']
         else:
             bars = []

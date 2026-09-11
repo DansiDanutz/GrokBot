@@ -213,14 +213,16 @@ def _snapshot(value):
 
 class PreparedHistory(_FrozenDict):
     """Immutable, JSON-compatible output authenticated by prepare_validated."""
-    __slots__ = ('_identity','_observed_rows')
+    __slots__ = ('_identity','_observed_rows','_membership','_factory_marker')
 
-    def __init__(self, value, identity=None, observed_rows=(), *, _token=None):
+    def __init__(self, value, identity=None, observed_rows=(), membership=None, *, _token=None):
         if _token is not _VALIDATED_TOKEN:
             raise TypeError('Use prepare_validated to construct PreparedHistory')
         dict.__init__(self,_freeze(value))
         object.__setattr__(self,'_identity',identity)
+        object.__setattr__(self,'_factory_marker',_VALIDATED_TOKEN)
         object.__setattr__(self,'_observed_rows',tuple(observed_rows))
+        object.__setattr__(self,'_membership',tuple(membership) if membership is not None else None)
         object.__setattr__(self,'_sealed',True)
 
     @property
@@ -228,6 +230,15 @@ class PreparedHistory(_FrozenDict):
         return self._observed_rows
 
     __setattr__ = _immutable
+
+
+def is_prepared_history(value):
+    """Cheap factory-provenance check, including bypassed __init__ rejection.
+
+    This guards optimization contracts, not hostile in-process Python: explicit
+    base-dict mutation of an already issued object can bypass Python overrides.
+    """
+    return type(value) is PreparedHistory and getattr(value,'_factory_marker',None) is _VALIDATED_TOKEN
 
 
 class ValidatedHistory:
@@ -349,7 +360,8 @@ def combine_histories(histories):
 def prepare_validated(history, asof_ms, window_minutes=MAX_WINDOW_MINUTES, prior_seed=None, previous=None):
     """Exact prepare output with cached validation and safe forward-window reuse.
 
-    Reuse requires the same immutable underlying history. Leading candles are
+    Reuse requires the same immutable history and actual-candle membership in
+    the overlapping time span. Leading candles are
     rebuilt until an actual observation establishes the current window's seed;
     an older prepared window can never backfill a newly unseeded leading gap.
     """
@@ -382,11 +394,23 @@ def prepare_validated(history, asof_ms, window_minutes=MAX_WINDOW_MINUTES, prior
         return reference()
     previous_close = seed['close'] if seed is not None else None
     previous_actual = seed['timestamp_ms'] if seed is not None else None
-    reuse = (type(previous) is PreparedHistory and previous._identity is history._identity
+    reuse = (is_prepared_history(previous) and getattr(previous,'_identity',None) is history._identity
+             and getattr(previous,'_membership',None) is not None
              and previous['coverage']['window_start_ms'] <= start
              and previous['coverage']['window_end_ms'] <= end)
     prior_start = previous['coverage']['window_start_ms'] if reuse else 0
     prior_end = previous['coverage']['window_end_ms'] if reuse else 0
+    if reuse:
+        # Shared storage does not imply shared membership: a view may expose or
+        # hide actual candles inside a previously prepared timestamp window.
+        overlap_first = bisect_left(times,max(start,prior_start))
+        overlap_stop = bisect_left(times,min(end,prior_end))
+        old_first,old_stop = previous._membership
+        old_span = (max(old_first,overlap_first),min(old_stop,overlap_stop))
+        new_span = (max(first,overlap_first),min(stop,overlap_stop))
+        old_span = old_span if old_span[0] < old_span[1] else None
+        new_span = new_span if new_span[0] < new_span[1] else None
+        reuse = old_span == new_span
     dense, missing_seed, established, cursor = [], False, False, first
     for timestamp in range(start,end,MINUTE_MS):
         observed = cursor < stop and times[cursor] == timestamp
@@ -421,4 +445,4 @@ def prepare_validated(history, asof_ms, window_minutes=MAX_WINDOW_MINUTES, prior
     reason = ('Leading gap has no earlier actual seed; indicators cannot use future backfill' if missing_seed else
               f'Observed candle coverage {actual}/{window_minutes} is below 95%' if not eligible else '')
     return PreparedHistory(dict(bars=dense,coverage=coverage,valid=eligible and not missing_seed,reason=reason),
-                           history._identity,records[first:stop],_token=_VALIDATED_TOKEN)
+                           history._identity,records[first:stop],membership=(first,stop),_token=_VALIDATED_TOKEN)

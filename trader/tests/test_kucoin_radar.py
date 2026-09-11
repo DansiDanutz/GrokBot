@@ -282,10 +282,13 @@ class RadarTests(unittest.TestCase):
     @patch('trader.research.kucoin_radar.build_setup', setup)
     @patch('trader.research.kucoin_radar.features', return_value={})
     def test_forged_or_wrong_asof_prepared_metadata_cannot_bypass_raw_validation(self, unused):
-        from trader.strategies.candle_coverage import prepare, validate_history, prepare_validated
+        from trader.strategies.candle_coverage import PreparedHistory, prepare, validate_history, prepare_validated
         bars = candles()
+        forged_subclass = dict.__new__(PreparedHistory)
+        for key,value in prepare(bars,NOW).items():
+            dict.__setitem__(forged_subclass,key,value)
         trusted_future = prepare_validated(validate_history(bars), NOW+HOUR)
-        for claimed in ({'valid': True, 'coverage': {'actual': 10080}, 'bars': bars}, trusted_future):
+        for claimed in ({'valid': True, 'coverage': {'actual': 10080}, 'bars': bars}, trusted_future, forged_subclass):
             with self.subTest(claimed_type=type(claimed).__name__):
                 record = dict(pair='T', bars=bars[:1], market=market(), prepared=claimed)
                 with patch('trader.research.kucoin_radar.prepare', wraps=prepare) as normalize:

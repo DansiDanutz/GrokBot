@@ -125,3 +125,15 @@ class FeatureTests(unittest.TestCase):
         self.assertEqual(features(trusted,funding_rate=None),features(raw,funding_rate=None))
         forged = dict(raw,coverage=dict(raw['coverage'],actual=10080))
         self.assertFalse(features(forged)['valid'])
+
+    def test_uninitialized_prepared_subclass_does_not_skip_indicator_validation(self):
+        from trader.strategies.candle_coverage import PreparedHistory,prepare
+        bars = candles()
+        for index,bar in enumerate(bars):
+            bar['timestamp_ms'] = index*60000
+        raw = prepare(bars,10080*60000)
+        raw['bars'][-1]['close'] = float('nan')
+        forged = dict.__new__(PreparedHistory)
+        for key,value in raw.items():
+            dict.__setitem__(forged,key,value)
+        self.assertFalse(features(forged)['valid'])

@@ -208,3 +208,38 @@ class ValidatedCoverageTests(unittest.TestCase):
             value['bars'][0].__init__({'close':0.})
         with self.assertRaises(TypeError):
             value['bars'].__init__([])
+
+    def test_cached_same_time_view_membership_changes_match_reference(self):
+        from trader.strategies.candle_coverage import validate_history,prepare_validated
+        source = [bar(i,100.+i) for i in range(40)]
+        history = validate_history(source)
+        for before,after in (((0,19),(0,20)),((0,20),(0,19)),
+                             ((2,20),(0,20)),((0,20),(2,20))):
+            with self.subTest(before=before,after=after):
+                old_view = history.window(BASE+before[0]*MINUTE,BASE+before[1]*MINUTE)
+                new_view = history.window(BASE+after[0]*MINUTE,BASE+after[1]*MINUTE)
+                previous = prepare_validated(old_view,BASE+20*MINUTE,20)
+                current = prepare_validated(new_view,BASE+20*MINUTE,20,previous=previous)
+                expected_rows = [row for row in source if BASE+after[0]*MINUTE <= row['timestamp_ms'] < BASE+after[1]*MINUTE]
+                self.assertEqual(current,prepare(expected_rows,BASE+20*MINUTE,20))
+                self.assertEqual(sum(not row['synthetic'] for row in current['bars']),current['coverage']['actual'])
+
+    def test_future_only_view_extension_preserves_safe_overlap_reuse(self):
+        from trader.strategies.candle_coverage import validate_history,prepare_validated
+        history = validate_history([bar(i) for i in range(40)])
+        previous = prepare_validated(history.window(BASE,BASE+20*MINUTE),BASE+20*MINUTE,20)
+        current = prepare_validated(history.window(BASE,BASE+40*MINUTE),BASE+20*MINUTE,20,previous=previous)
+        self.assertEqual(current,previous)
+        self.assertIs(current['bars'][5],previous['bars'][5])
+
+    def test_factory_provenance_rejects_uninitialized_dict_subclass_forgery(self):
+        from trader.strategies.candle_coverage import PreparedHistory,is_prepared_history,prepare_validated,validate_history
+        forged = dict.__new__(PreparedHistory)
+        dict.__setitem__(forged,'valid',True)
+        dict.__setitem__(forged,'coverage',{'eligible':True})
+        self.assertFalse(is_prepared_history(forged))
+        actual = prepare_validated(validate_history([bar(i) for i in range(20)]),BASE+20*MINUTE,20)
+        self.assertTrue(is_prepared_history(actual))
+        self.assertFalse(is_prepared_history(dict(actual)))
+        current = prepare_validated(validate_history([bar(i) for i in range(20)]),BASE+20*MINUTE,20,previous=forged)
+        self.assertEqual(current,actual)

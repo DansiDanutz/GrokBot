@@ -2,7 +2,7 @@
 import math
 from trader.strategies.grid_features import features
 from trader.strategies.grid_setup import build_setup
-from trader.strategies.candle_coverage import prepare, PreparedHistory
+from trader.strategies.candle_coverage import prepare, is_prepared_history
 
 HOUR_MS = 3_600_000
 DAY_MS = 24 * HOUR_MS
@@ -258,7 +258,7 @@ def _rejection_coverage(record, asof_ms, reason, market):
 
 
 def _observed_prepared(prepared):
-    if type(prepared) is PreparedHistory:
+    if is_prepared_history(prepared):
         return prepared.observed_bars
     return [row for row in prepared['bars'] if not row.get('synthetic')]
 
@@ -266,7 +266,7 @@ def _observed_prepared(prepared):
 def _prepared_record(record, asof_ms):
     candidate = record.get('prepared')
     end = asof_ms//MINUTE_MS*MINUTE_MS
-    if type(candidate) is PreparedHistory:
+    if is_prepared_history(candidate):
         coverage = candidate['coverage']
         if (coverage.get('expected') == 10080 and coverage.get('window_end_ms') == end
                 and coverage.get('window_start_ms') == end-7*DAY_MS):
@@ -276,7 +276,7 @@ def _prepared_record(record, asof_ms):
 
 def _volatility_context(record, asof_ms):
     prepared = record.get('prepared')
-    if type(prepared) is PreparedHistory:
+    if is_prepared_history(prepared):
         bars = [row for row in prepared.observed_bars if row['timestamp_ms'] >= asof_ms-DAY_MS]
     else:
         bars = [row for row in completed_bars(record['bars'], asof_ms, 24) if not row.get('synthetic')]
