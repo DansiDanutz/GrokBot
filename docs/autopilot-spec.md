@@ -174,8 +174,10 @@ sentence templates and fills the numbers.
   >=20 grids/hour.
 - TREND_CLARITY, weight 20: LONG/SHORT with daily and 4h agreeing =20; TURNING =14;
   NEUTRAL with price in the middle 25..75% of the 7d range =16; otherwise 6.
-- LIQUIDITY, weight 15: turnover scaled 0..10 (10 at >=30M USDT), plus spread
-  0..5 (5 at <=0.05%).
+- LIQUIDITY_TURNOVER: value is 24h turnover in USDT; 0 points at <=3M,
+  linear to 10 at 30M, capped at 10 above.
+- LIQUIDITY_SPREAD: value is spread in percent; 5 points at <=0.05%,
+  linear to 0 at 0.15%, 0 above. Each code gets its own Phase C template.
 - ROOM, weight 15: distance to the nearest range edge in ATR4h units, scaled
   0..15, reaching 15 at >=2 ATR.
 - FUNDING, weight 10: 10 when funding favours the bot side (short and positive,
@@ -207,7 +209,10 @@ replaced_symbol, replaced_score, margin}`. Keep the last 48 in the snapshot as
 `watchlist_history`.
 
 Bots open from core only. The direction slots (2 NEUTRAL, 2 LONG, 2 SHORT,
-cap 4 of one kind) stay as upper bounds. A demoted coin's open bot keeps running
+cap 4 of one kind) are preferred slots, borrowing up to 4 of one direction.
+Fill preferred slots first; lend an unavailable direction’s slots to NEUTRAL
+first, then the other trend side. Total MAX_BOTS is five, one bot per symbol.
+With five LONG core coins, open four LONG and leave one seat empty. A demoted coin's open bot keeps running
 under its own close rules (label flip, range break, stop, max age); it is just
 not reopened. Bench coins never get a bot.
 
