@@ -3,7 +3,8 @@
 ``asof_ms`` is exclusive: its current minute is never included. Candle timestamps
 are minute-open times in milliseconds (timestamp_ms or time_ms). Coverage counts
 unique actual candles only; exactly 95% qualifies. Missing minutes get flat OHLC
-at the last earlier actual close and zero volume. An unseeded leading gap remains
+at the last earlier actual close with zero volume and turnover. Observed volume
+and turnover keep their supplied units; preparation performs no currency conversion. An unseeded leading gap remains
 None, making indicators invalid, even when the coverage threshold qualifies.
 
 Synthetic rows AND the first actual row after a gap have crossing_eligible=False.
@@ -42,11 +43,12 @@ def _actual_bar(bar, timestamp):
         result[key] = value
     if not result['low'] <= min(result['open'],result['close']) <= max(result['open'],result['close']) <= result['high']:
         raise ValueError('Invalid OHLC ordering')
-    if 'volume' in bar:
-        volume = float(bar['volume'])
-        if isinstance(bar['volume'],bool) or not math.isfinite(volume) or volume < 0:
-            raise ValueError('Volume must be finite and nonnegative')
-        result['volume'] = volume
+    for key in ('volume','turnover'):
+        if key in bar:
+            value = float(bar[key])
+            if isinstance(bar[key],bool) or not math.isfinite(value) or value < 0:
+                raise ValueError(f'{key} must be finite and nonnegative')
+            result[key] = value
     return result
 
 
@@ -118,7 +120,7 @@ def prepare(bars, asof_ms, window_minutes=MAX_WINDOW_MINUTES, prior_seed=None):
                 previous_actual_time = timestamp
             else:
                 value = {'timestamp_ms':timestamp,'open':previous_close,'high':previous_close,
-                         'low':previous_close,'close':previous_close,'volume':0.,
+                         'low':previous_close,'close':previous_close,'volume':0.,'turnover':0.,
                          'synthetic':True,'crossing_eligible':False}
                 if previous_close is None:
                     missing_seed = True

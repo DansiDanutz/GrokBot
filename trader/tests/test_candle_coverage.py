@@ -86,3 +86,40 @@ class CoverageTests(unittest.TestCase):
         self.assertEqual(len(result['bars']),10080)
         self.assertEqual(source[0],before)
         self.assertFalse(prepare(source,BASE+10080*MINUTE,window_minutes=10081)['valid'])
+
+    def test_observed_turnover_survives_preparation_and_identical_deduplication(self):
+        source = [dict(bar(index),turnover=1000.) for index in range(20)]
+        result = prepare(source+[dict(source[8])],BASE+20*MINUTE,window_minutes=20)
+        self.assertTrue(result['valid'],result['reason'])
+        self.assertEqual([row['turnover'] for row in result['bars']],[1000.]*20)
+        self.assertEqual(result['coverage']['actual'],20)
+        self.assertEqual(result['coverage']['duplicates'],1)
+        gappy = prepare(source[:8]+source[9:],BASE+20*MINUTE,window_minutes=20)
+        self.assertEqual(gappy['bars'][8]['turnover'],0.)
+        self.assertEqual(sum(row['turnover'] for row in gappy['bars']),19000.)
+
+    def test_invalid_or_conflicting_turnover_rejects_prepared_history(self):
+        for turnover in (-1.,float('nan'),float('inf'),True,None):
+            with self.subTest(turnover=turnover):
+                source = [dict(bar(index),turnover=1000.) for index in range(20)]
+                source[5]['turnover'] = turnover
+                result = prepare(source,BASE+20*MINUTE,window_minutes=20)
+                self.assertFalse(result['valid'])
+        source = [dict(bar(index),turnover=1000.) for index in range(20)]
+        conflict = prepare(source+[dict(source[8],turnover=999.)],BASE+20*MINUTE,window_minutes=20)
+        self.assertFalse(conflict['valid'])
+        self.assertIn('Conflicting duplicate',conflict['reason'])
+
+    def test_quote_turnover_reaches_radar_after_full_window_preparation(self):
+        from unittest.mock import patch
+        from trader.research.kucoin_radar import radar
+        from trader.tests.test_kucoin_radar import candles,market,setup,NOW
+        source = [dict(row,turnover=1000.) for row in candles()]
+        metadata = market(filter_mode='candle-only filters',quote_turnover_24h=None,
+                          candle_turnover_unit='quote_usdt')
+        with patch('trader.research.kucoin_radar.features',return_value={}), \
+                patch('trader.research.kucoin_radar.build_setup',setup):
+            result = radar([dict(pair='TURNOVER',bars=source,market=metadata)],NOW)
+        self.assertEqual(len(result['radar']),1,result['rejected'])
+        self.assertEqual(result['radar'][0]['quote_turnover_24h'],1440000.)
+        self.assertEqual(result['radar'][0]['candle_coverage']['actual'],10080)
