@@ -1,6 +1,7 @@
 """Only temporary detached fixtures and pure mocked replay chunks are used."""
 import contextlib
 import gzip
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -26,6 +27,8 @@ class ChartReplayCliTests(unittest.TestCase):
         self.funding.write_text('{"XBTUSDTM":[]}')
         self.registration = self.root/'registration.json'
         self.document = dict(id='grid-kucoin-v3-income-chart', random_seed=7,
+            baselines=['four_observed_long_forms_unchanged', 'same_four_symbols_system_setup',
+                       'random_radar_identical_rules'],
             fixed_parameters=dict(strategy='income_chart_v3',historical_candle_only=True,
                                   minimum_grid_net_usdt=0,range_exit_stop_pct=0,adaptive_range_stops=False),
             sweep={'bias_mode':['4h-only','1d+4h'],'regime_gate':[False,True]})
@@ -106,6 +109,63 @@ class ChartReplayCliTests(unittest.TestCase):
         self.assertEqual(options['identity']['source'], SOURCE)
         self.assertEqual(len(options['identity']['data']), 64)
         self.assertEqual(progress['cursor_ms'], 4*HOUR)
+
+    def test_four_symbol_modes_forward_explicit_fixture_and_bind_its_bytes(self):
+        fixture = self.root/'forms.json'
+        document = {'running_bots':[{'symbol':pair} for pair in ('SOLUSDT','HEMIUSDT','RAYUSDT','ETHUSDT')]}
+        fixture.write_text(json.dumps(document))
+        for mode in self.document['baselines'][:2]:
+            with self.subTest(mode=mode):
+                output = self.root/mode
+                code, calls, _ = self.invoke(self.runner, mode=mode, fixtures=fixture, output=output)
+                self.assertEqual(code, 0)
+                self.assertEqual(calls.call_args.kwargs['mode'], mode)
+                self.assertEqual(calls.call_args.kwargs['fixtures'], document)
+                with gzip.open(output/'checkpoint.json.gz', 'rt') as stream:
+                    packet = json.load(stream)
+                self.assertEqual(packet['binding']['fixture_sha256'], hashlib.sha256(fixture.read_bytes()).hexdigest())
+                fixture.write_text(fixture.read_text()+' ')
+                code, calls, error = self.invoke(self.runner, mode=mode, fixtures=fixture, output=output)
+                self.assertEqual(code, 2)
+                calls.assert_not_called()
+                self.assertIn('binding', error['error'])
+
+    def test_four_symbol_modes_require_fixture_before_creating_output(self):
+        for mode in self.document['baselines'][:2]:
+            code, calls, error = self.invoke(self.runner, mode=mode)
+            self.assertEqual(code, 2)
+            calls.assert_not_called()
+            self.assertIn('fixture', error['error'])
+            self.assertFalse(self.output.exists())
+
+    def test_undeclared_baseline_is_rejected_before_creating_output(self):
+        self.document['baselines'] = []
+        code, calls, error = self.invoke(self.runner, mode='random_radar_identical_rules')
+        self.assertEqual(code, 2)
+        calls.assert_not_called()
+        self.assertIn('baseline', error['error'])
+        self.assertFalse(self.output.exists())
+
+    def test_other_modes_have_no_fixture_binding_and_reject_unused_fixture(self):
+        code, calls, _ = self.invoke(self.runner)
+        self.assertEqual(code, 0)
+        self.assertIsNone(calls.call_args.kwargs['fixtures'])
+        with gzip.open(self.output/'checkpoint.json.gz', 'rt') as stream:
+            self.assertIsNone(json.load(stream)['binding']['fixture_sha256'])
+        code, calls, _ = self.invoke(self.runner, fixtures=self.registration)
+        self.assertEqual(code, 2)
+        calls.assert_not_called()
+
+    def test_fixture_reader_rejects_unbounded_duplicate_and_symlink_inputs(self):
+        fixture = self.root/'forms.json'
+        link = self.root/'link.json'
+        link.symlink_to(fixture)
+        for contents, path in ((' '*1_048_577, fixture), ('{"running_bots":[],"running_bots":[]}', fixture), ('{}', link)):
+            fixture.write_text(contents)
+            code, calls, _ = self.invoke(self.runner, mode=self.document['baselines'][0], fixtures=path)
+            self.assertEqual(code, 2)
+            calls.assert_not_called()
+            self.assertFalse(self.output.exists())
 
     def test_changed_input_or_variant_cannot_resume_before_runner(self):
         self.invoke(self.runner)

@@ -354,7 +354,7 @@ def sweep(snapshot, registration, calibration, volatility, runner=None, fixtures
     """Train on prior seven days, freeze choices, then evaluate untouched months."""
     document = _registered(registration)
     if document['id'] == 'grid-kucoin-v3-income-chart':
-        return _chart_registered(snapshot, document, calibration, volatility, runner)
+        return _chart_registered(snapshot, document, calibration, volatility, runner, fixtures)
     if document['id'] in ('grid-kucoin-v3', 'grid-kucoin-v3-positive'):
         return _single_registered(snapshot, document, calibration, volatility, runner)
     if runner is None and document['id'] != 'grid-kucoin-v3':
@@ -397,7 +397,7 @@ def _single_registered(snapshot, document, calibration, volatility, runner):
                 volatility=volatility, decision=decision(windows, calibration, volatility, document))
 
 
-def _chart_registered(snapshot, document, calibration, volatility, runner):
+def _chart_registered(snapshot, document, calibration, volatility, runner, fixtures=None):
     """Report the four prespecified variants; do not select on holdout outcomes."""
     if runner is None:
         from trader.research.kucoin_replay import run_window
@@ -411,8 +411,12 @@ def _chart_registered(snapshot, document, calibration, volatility, runner):
             window = runner(snapshot, start, end, parameters=parameters)
             window.update(start_ms=start, end_ms=end, selected_parameters=parameters, baselines={})
             for mode in document['baselines']:
+                if mode != 'random_radar_identical_rules' and fixtures is None:
+                    window['baselines'][mode] = dict(_skip(start, end, 'explicit observed bot forms were not supplied'),
+                                                     status='not_run_inputs')
+                    continue
                 window['baselines'][mode] = runner(snapshot, start, end, parameters=parameters,
-                    mode=mode, seed=document['random_seed'])
+                    mode=mode, seed=document['random_seed'], fixtures=fixtures)
             windows.append(window)
         variants.append(dict(parameters=parameters, holdouts=windows,
             decision=decision(windows, calibration, volatility, document)))

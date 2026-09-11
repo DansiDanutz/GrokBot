@@ -1,7 +1,7 @@
 """Bounded, explicitly requested offline chart replay; no scheduling or retrieval.
 
 Each invocation advances a limited number of chunks. A new process may resume
-only the same source, data, funding, registration, variant, window and mode.
+only the same source, data, funding, registration, fixtures, variant, window and mode.
 """
 import argparse
 import gzip
@@ -21,7 +21,7 @@ from trader.research import kucoin_cli as offline_cli
 from trader.research.kucoin_cli import _safe_location, _read_json, _encoded, _asof, _wrap_snapshot, load_funding_history
 from trader.research.kucoin_portfolio import ROOT, _registered
 from trader.research.kucoin_snapshot import Snapshot, SnapshotError
-from trader.research.kucoin_replay import run_chunk, range_policy_parameters
+from trader.research.kucoin_replay import MODES, run_chunk, range_policy_parameters
 
 HOUR = 3600000
 MARKER = '.offline-chart-replay.json'
@@ -29,6 +29,7 @@ PURPOSE = 'offline-income-chart-replay'
 ARTIFACTS = {MARKER, 'checkpoint.json.gz', 'result.json.gz', 'summary.json.gz'}
 MAX_COMPRESSED = 512*1024*1024
 MAX_EXPANDED = 2*1024*1024*1024
+FIXTURE_MODES = ('four_observed_long_forms_unchanged', 'same_four_symbols_system_setup')
 
 
 def _source_revision():
@@ -57,6 +58,9 @@ def _digest(value):
 def _parameters(document, args):
     if document.get('id') != 'grid-kucoin-v3-income-chart':
         raise ValueError('the committed income-chart registration is required')
+    if args.mode != 'system' and (not isinstance(document.get('baselines'), list)
+                                  or args.mode not in document['baselines']):
+        raise ValueError('baseline mode is not declared in the committed registration')
     variants = dict(bias_mode=args.bias_mode, regime_gate=args.regime_gate == 'on')
     for key, value in variants.items():
         if value not in document.get('sweep', {}).get(key, []):
@@ -69,6 +73,21 @@ def _parameters(document, args):
     return range_policy_parameters(dict(fixed, **variants))
 
 
+def _fixtures(args):
+    if args.mode not in FIXTURE_MODES:
+        if args.fixtures is not None:
+            raise ValueError('--fixtures is only supported for four-symbol baseline modes')
+        return None, None
+    if args.fixtures is None:
+        raise ValueError('four-symbol baseline modes require explicit --fixtures')
+    document = _read_json(args.fixtures)
+    rows = document.get('running_bots') if isinstance(document, dict) else document
+    if (not isinstance(rows, list) or len(rows) != 4 or any(not isinstance(row, dict)
+            or not isinstance(row.get('symbol'), str) or not row['symbol'] for row in rows)):
+        raise ValueError('fixtures require exactly four observed bot forms with symbols')
+    return document, _hash_file(args.fixtures)
+
+
 def _inputs(args):
     start, end = _asof(args.start), _asof(args.end)
     if min(start, end) < 0 or start % HOUR or end % HOUR or start >= end:
@@ -78,18 +97,19 @@ def _inputs(args):
     paths = {key: _safe_location(getattr(args, key)) for key in ('snapshot', 'funding_history', 'registration', 'output')}
     document = _registered(paths['registration'])
     parameters = _parameters(document, args)
+    fixtures, fixture_hash = _fixtures(args)
     funding = load_funding_history(paths['funding_history'])
     offline_cli._load_membership()
     manifest = _safe_location(paths['snapshot'].with_name('snapshot.json'))
     _read_json(manifest)
-    hashes = dict(membership_sha256=_hash_file(offline_cli.MEMBERSHIP_PATH), snapshot_sha256=_hash_file(paths['snapshot']), funding_sha256=_hash_file(paths['funding_history']),
+    hashes = dict(fixture_sha256=fixture_hash, membership_sha256=_hash_file(offline_cli.MEMBERSHIP_PATH), snapshot_sha256=_hash_file(paths['snapshot']), funding_sha256=_hash_file(paths['funding_history']),
                   registration_sha256=_hash_file(paths['registration']), snapshot_manifest_sha256=_hash_file(manifest))
     seed = document.get('random_seed')
     if type(seed) is not int:
         raise ValueError('registration requires an integer random seed')
     binding = dict(schema_version=1, source_revision=_source_revision(), **hashes,
                    start_ms=start, end_ms=end, parameters=parameters, mode=args.mode, seed=seed)
-    return paths, funding, binding
+    return paths, funding, binding, fixtures
 
 
 def _fsync_directory(path):
@@ -232,7 +252,7 @@ def _progress(output, packet, chunks):
 
 
 def _execute(args):
-    paths, funding, binding = _inputs(args)
+    paths, funding, binding, fixtures = _inputs(args)
     packet = _existing(paths['output'], binding)
     if packet is not None and packet['complete']:
         return _progress(paths['output'], packet, 0)
@@ -243,7 +263,7 @@ def _execute(args):
         output = _own_output(paths['output'], binding)
         for count in range(1, args.max_chunks+1):
             chunk = run_chunk(snapshot, binding['start_ms'], binding['end_ms'], parameters=binding['parameters'],
-                mode=binding['mode'], seed=binding['seed'], max_hours=args.chunk_hours,
+                mode=binding['mode'], fixtures=fixtures, seed=binding['seed'], max_hours=args.chunk_hours,
                 checkpoint=packet['replay_checkpoint'] if packet else None, identity=identity)
             packet = _save_chunk(output, binding, chunk)
             if packet['complete']:
@@ -257,7 +277,8 @@ def _arguments(argv):
         parser.add_argument('--'+name, required=True)
     parser.add_argument('--bias-mode', choices=('4h-only', '1d+4h'), required=True)
     parser.add_argument('--regime-gate', choices=('on', 'off'), required=True)
-    parser.add_argument('--mode', choices=('system', 'random_radar_identical_rules'), default='system')
+    parser.add_argument('--mode', choices=MODES, default='system')
+    parser.add_argument('--fixtures', help='Explicit bounded JSON forms for a four-symbol baseline')
     parser.add_argument('--chunk-hours', type=int, default=6)
     parser.add_argument('--max-chunks', type=int, default=1)
     return parser.parse_args(argv)

@@ -28,3 +28,17 @@ class IncomeChartRegistrationTests(unittest.TestCase):
     def test_new_registration_has_zero_cash_floor_and_exact_edge_stops(self):
         self.assertEqual(portfolio._minimum_grid_net({'id':'grid-kucoin-v3-income-chart'}),0)
         self.assertEqual(portfolio._registered_range_exit({'id':'grid-kucoin-v3-income-chart'}),0)
+
+    def test_preserved_four_symbol_controls_receive_explicit_original_fixtures(self):
+        document=json.loads((Path(__file__).resolve().parents[2]/'research/preregistration/grid-kucoin-v3-income-chart.json').read_text())
+        fixture={'bots':[{'symbol':symbol} for symbol in ('HEMIUSDT','BTRUSDT','MOVRUSDT','SOLUSDT')]}
+        calls=[]
+        def runner(snapshot,start,end,**kwargs):
+            calls.append(kwargs)
+            return dict(coverage={'complete':False},metrics={'net':None},status='partial_coverage')
+        result=portfolio._chart_registered(object(),document,{}, {},runner,fixtures=fixture)
+        self.assertEqual(len(calls),32)
+        controls=[row for row in calls if row.get('mode') in ('four_observed_long_forms_unchanged','same_four_symbols_system_setup')]
+        self.assertEqual(len(controls),16)
+        self.assertTrue(all(row['fixtures']==fixture for row in controls))
+        self.assertTrue(all(len(window['baselines'])==3 for variant in result['variants'] for window in variant['holdouts']))

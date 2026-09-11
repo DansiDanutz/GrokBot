@@ -133,6 +133,8 @@
     "deployment": "No deployment or exchange execution authorized; evidence and separateaudit required."
   },
   "baselines": [
+    "four_observed_long_forms_unchanged",
+    "same_four_symbols_system_setup",
     "random_radar_identical_rules"
   ],
   "research_status": "July/August data and earlier-policy outputs have already been inspected. This registration precedes the amended strategy sweep, but these months are not claimed to be pristine unseen holdouts.",
@@ -159,5 +161,6 @@
     "funding_absolute_fraction_per_8h_max": 0.001,
     "top_of_book_depth": "at least one grid notional on both sides",
     "source": "Dan consolidated spec, preserved by v3 keep-everything-else instruction. These replace the earlier5M/.05% draft thresholds. Historical candle-only skips unavailable spread/depth/funding-window checks."
-  }
+  },
+  "baseline_reporting": "Preserve the consolidated-spec controls. Unchanged observed forms are independent of chart/regime variants and may be reported once per window with shared references. The same-four-symbol rule control and random radar control use each registered variant. Missing original inventory or required inputs is explicitly partial/not run, never zero verified performance."
 }
