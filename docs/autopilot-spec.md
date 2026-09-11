@@ -78,6 +78,10 @@ Constants (one module, `trader/autopilot/constants.py`):
 `TICK_INTERVAL_S = 10`, `DECISION_INTERVAL_S = 300`, `SNAPSHOT_MAX_INTERVAL_S = 30`,
 `TICK_STALE_ALERT_S = 180`, `KUCOIN_DOWN_ALERT_S = 300`.
 
+- `MOVERS_MAX`: max trend-profile bots whose radar source section is `movers`.
+- `MAJORS_MAX`: max bots on major symbols, any profile.
+- Neutral-profile bots sourced from `movers` fill NEUTRAL slots and are exempt from `MOVERS_MAX`.
+
 Tick loop (every 10 s): one KuCoin public allTickers call; keep open-bot symbols
 plus BTC/ETH/SOL. Feed each open bot `step(bot, tick)`. Update live mark,
 unrealized PnL, portfolio equity, drawdown. Write state and snapshot atomically
@@ -123,6 +127,8 @@ Decision pass (every 5 min, and whenever `radar.json` mtime changes):
 - Tests: balanced eligible radar opens 2/2/2; only-long trend candidates open at
   most four LONG and fill remaining slots with NEUTRAL from movers; freed SHORT
   slot refills with SHORT when available.
+- Test that an additional movers candidate as a LONG bot is refused when
+  MOVERS_MAX is already reached while neutral-profile movers remain eligible.
 
 Restart backfill: on start, replay 1m candles from the market DB from each bot's
 `last_ts_ms` to now (add 1m klines ingestion to the data layer for open symbols,
