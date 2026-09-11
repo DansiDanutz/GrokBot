@@ -105,6 +105,37 @@ def _finite_number(value):
     return type(value) in (int, float) and math.isfinite(value)
 
 
+def _income_strategy(parameters):
+    return (parameters or {}).get('strategy') == 'income_chart_v3'
+
+
+def _income_candidate(candidate, horizon):
+    """Use the chosen funding-adjusted forecast; never reconstruct a fee-only one."""
+    form = candidate.get('setup', {})
+    income = candidate.get('grid_income_per_hour', form.get('grid_income_per_hour'))
+    rate = candidate.get('expected_gph', form.get('expected_gph'))
+    fee = form.get('opening_fee_budget')
+    reason = None
+    if (form.get('can_arm') is not True or form.get('funded_economics_eligible') is not True
+            or form.get('funded_entry_eligible', True) is not True
+            or candidate.get('funded_entry_eligible', True) is not True):
+        reason = 'setup must be armable with eligible funded economics'
+    elif (form.get('used_margin'), form.get('reserved_margin'), form.get('leverage')) != (1000, 200, 5):
+        reason = 'setup must use 1000 margin plus 200 reserve at exactly 5x'
+    elif not _finite_number(income) or income <= 0 or not _finite_number(rate) or rate <= 0:
+        reason = 'chosen funding-adjusted income and expected GPH must be known and positive'
+    elif not _finite_number(fee) or fee < 0 or not _finite_number(horizon) or horizon <= 0:
+        reason = 'opening fee budget and positive forecast horizon must be known'
+    projected = income*horizon if reason is None else None
+    if projected is not None and (not math.isfinite(projected) or not math.isfinite(projected-fee)):
+        reason, projected = 'chosen income forecast exceeds finite cash bounds', None
+    return dict(eligible=reason is None, reason=reason, horizon_hours=horizon,
+                expected_gph=rate, grid_income_per_hour=income, net_profit_floor=None,
+                opening_fee_budget=fee, projected_grid_income=projected,
+                projected_net_income=None if projected is None else projected-fee,
+                forecast_basis='chosen funding-adjusted setup income per hour; modeled forecast')
+
+
 def _cash_requirement(form, parameters):
     declared = [minimum_grid_net_usdt({'minimum_grid_net_usdt': form[key]})
                 for key in ('minimum_grid_net_usdt', 'target_profit_per_grid') if key in form]
@@ -116,7 +147,9 @@ def _cash_requirement(form, parameters):
 
 
 def candidate_economics(candidate, horizon_hours=6, parameters=None):
-    """Transparent forecast using the crossing proxy, net floor and entry budget."""
+    """Forecast selected income, or preserve the legacy crossing/floor economics."""
+    if _income_strategy(parameters):
+        return _income_candidate(candidate, horizon_hours)
     form = candidate.get('setup', {})
     score = candidate.get('score', candidate.get('expected_gph'))
     floor = form.get('preview', {}).get('profit_per_grid_min')
@@ -158,6 +191,50 @@ def _current_economics(row, horizon):
                 profit_basis='observed mean grid net' if observed else 'supplied actual setup cash estimate; no completed history')
 
 
+def _income_current_status(row):
+    start, now = row.get('start_ms'), row.get('asof_ms')
+    if type(start) is not int or type(now) is not int or start < 0 or now < start:
+        return 'unknown elapsed bot lifetime'
+    if now-start < 6*HOUR_MS:
+        return 'warmup: six elapsed hours required'
+    if row.get('income_coverage_6h_known') is not True:
+        return 'unknown trailing six-hour income coverage'
+    income, rate = row.get('realized_grid_income_per_hour_6h'), row.get('realized_gph_6h')
+    if not _finite_number(income) or not _finite_number(rate) or rate < 0:
+        return 'unknown trailing six-hour income or grid rate'
+    return None
+
+
+def _income_current_economics(row, horizon):
+    if _income_current_status(row) is not None:
+        return None
+    cost = _switch_cost(row)
+    if not cost['known']:
+        return None
+    income, rate = row['realized_grid_income_per_hour_6h'], row['realized_gph_6h']
+    projected = income*horizon
+    if not math.isfinite(projected) or not math.isfinite(projected+cost['net_realized_on_close']):
+        return None
+    return dict(current_realized_gph=rate, current_net_per_grid=None,
+                current_realized_income_per_hour=income,
+                current_projected_income=projected, switch_cost=cost,
+                worst_score=projected+cost['net_realized_on_close'],
+                profit_basis='known realized grid income per hour over the trailing six hours')
+
+
+def _income_underperformance(row, economics):
+    if economics is None:
+        return []
+    triggers = []
+    expected = row.get('expected_start_income_per_hour')
+    if (_finite_number(expected) and expected > 0
+            and economics['current_realized_income_per_hour'] < expected*.5):
+        triggers.append('underperforming_income_6h')
+    if economics['current_realized_gph'] < 2:
+        triggers.append('underperforming_gph_6h')
+    return triggers
+
+
 def _emergencies(currents):
     rows = []
     for current in currents:
@@ -190,7 +267,10 @@ def _comparison(current, candidate, economics, horizon, options):
         challenger_projected_income=proposed['projected_grid_income'], opening_fee_budget=proposed['opening_fee_budget'],
         close_loss_cost=loss, net_advantage_usdt=advantage,
         forecast_basis=proposed['forecast_basis'], worst_incumbent_score=economics['worst_score'])
-    if proposed['expected_gph'] <= economics['current_realized_gph']:
+    if _income_strategy(options):
+        result['current_realized_income_per_hour'] = economics['current_realized_income_per_hour']
+        result['challenger_grid_income_per_hour'] = proposed['grid_income_per_hour']
+    elif proposed['expected_gph'] <= economics['current_realized_gph']:
         return result, 'challenger must have strictly more expected grids per hour'
     if advantage <= 0:
         return result, 'closing loss and opening fees exceed the projected grid-income improvement'
@@ -216,7 +296,8 @@ def _portfolio_verdicts(currents, result):
         rows.append(dict(bot_id=current['bot_id'], pair=current['pair'], action=action,
             reason=result['reason'] if selected or emergency else 'not selected for the single hourly replacement',
             replacement=result['replacement'] if selected else None, switch_cost=_switch_cost(current),
-            triggers=result['triggers'] if selected else [], refresh_radar=selected))
+            triggers=result['triggers'] if selected else result.get('underperformance_by_bot', {}).get(current['bot_id'], []),
+            refresh_radar=selected))
     return rows
 
 
@@ -243,6 +324,8 @@ def decide_portfolio_replacement(currents, radar, parameters=None):
     Worst = six-hour realized-rate grid-income forecast + executable close net.
     A challenger must improve GPH and recover closing loss plus entry fee budget
     over the horizon. Positive inventory profit never subsidizes replacement.
+    income_chart_v3 instead compares measured six-hour income once its coverage
+    and elapsed window are known; a better income need not have a higher GPH.
     """
     options, currents = parameters or {}, list(currents)
     horizon = options.get('replacement_horizon_hours', options.get('horizon_hours', 6))
@@ -253,7 +336,18 @@ def decide_portfolio_replacement(currents, radar, parameters=None):
     result = dict(action='keep', worst_bot_id=None, replacement=None, switch_cost=None, comparison=None,
         rejected_candidates=[], triggers=[], emergency_actions=_emergencies(currents),
         reason='no qualifying cost-adjusted improvement', refresh_radar=False, horizon_hours=horizon)
-    evaluated = [(row, _current_economics(row, horizon)) for row in currents]
+    income_strategy = _income_strategy(options)
+    measure = _income_current_economics if income_strategy else _current_economics
+    evaluated = [(row, measure(row, horizon)) for row in currents]
+    if income_strategy:
+        result['underperformance_by_bot'] = {
+            row['bot_id']: _income_underperformance(row, value) for row, value in evaluated}
+        result['incumbent_observations'] = [dict(bot_id=row['bot_id'],
+            status=_income_current_status(row) or ('known' if value is not None else 'unknown income forecast or executable close costs'),
+            expected_start_income_per_hour=row.get('expected_start_income_per_hour'))
+            for row, value in evaluated]
+        # Unknown slots remain untouched; they are neither zero-income nor ranked worse.
+        evaluated = [(row, value) for row, value in evaluated if value is not None]
     if result['emergency_actions']:
         result.update(action='emergency', reason='resolve liquidation emergency before an ordinary replacement')
     elif not evaluated or any(value is None for row, value in evaluated):
@@ -263,12 +357,16 @@ def decide_portfolio_replacement(currents, radar, parameters=None):
                                          item[1]['worst_score'], item[0]['bot_id']))
         current, economics = evaluated[0]
         result.update(worst_bot_id=current['bot_id'], switch_cost=economics['switch_cost'])
+        if income_strategy:
+            result.update(triggers=list(result['underperformance_by_bot'][current['bot_id']]),
+                          expected_start_income_per_hour=current.get('expected_start_income_per_hour'))
         accepted, rejected = _rank_challengers(currents, radar, current, economics, horizon, options)
         result['rejected_candidates'] = rejected
         if accepted:
             result.update(action='replace', replacement=accepted[0][0], comparison=accepted[0][1],
-                triggers=['better_cost_adjusted_grid_income'], refresh_radar=True,
-                reason='higher grid rate recovers closing loss and entry fee budget over the forecast horizon')
+                triggers=result['triggers']+['better_cost_adjusted_grid_income'], refresh_radar=True,
+                reason=('higher income' if income_strategy else 'higher grid rate')+
+                       ' recovers closing loss and entry fee budget over the forecast horizon')
     result['verdicts'] = _portfolio_verdicts(currents, result)
     return result
 
