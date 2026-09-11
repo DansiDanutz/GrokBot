@@ -1,6 +1,7 @@
 """Deterministic replay checks; no provider, account or runtime access."""
 from copy import deepcopy
 import json
+import hashlib
 from pathlib import Path
 import sys
 import tempfile
@@ -109,6 +110,14 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(sum(arm['close_reasons'].values()), 1)
         self.assertLess(arm['net_equity_change'], 0)
 
+    def test_dependency_hashes_cover_day_and_rejection_semantics(self):
+        hashes = replay.replay_fixture(fixture())['provenance']['code_hashes']
+        for name in ('calendar_day.py', 'telemetry_constants.py'):
+            with self.subTest(name=name):
+                self.assertIn(name, hashes)
+                expected = hashlib.sha256((Path(replay.__file__).parent/name).read_bytes()).hexdigest()
+                self.assertEqual(hashes[name], expected)
+
     def test_explicit_override_changes_provenance_without_mutation(self):
         doc = fixture()
         before = deepcopy(doc)
@@ -129,7 +138,7 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(arm['entries'], 0)
         self.assertEqual(arm['execution_fees'], 0)
         self.assertEqual(arm['buy_rejections'], 2)
-        self.assertEqual(arm['buy_rejection_reasons'], {'insufficient_ask_depth': 2})
+        self.assertEqual(arm['buy_rejection_reasons'], {'thin_ask_depth': 2})
         self.assertTrue(all(e['type'] == 'buy_rejected' for e in arm['events']))
 
     def test_invalid_checkpoint_mode_timestamp_nan_and_size(self):

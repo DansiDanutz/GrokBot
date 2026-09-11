@@ -80,6 +80,23 @@ class PublicSnapshotTests(unittest.TestCase):
         self.rows.append(dict(id=audit['id'], summary=SECRET, html_url='/Users/private/.env'))
         return audit
 
+    def test_audit_discloses_only_allowlisted_boundary_conventions(self):
+        for boundary in ('[start, end)', '(start, end]', None, SECRET, ['invalid']):
+            with self.subTest(boundary=boundary):
+                source = audit_fixture()
+                if boundary is not None:
+                    source['window']['boundary_convention'] = boundary
+                value = public._audit(source, source['id'], AT)
+                expected = boundary if boundary in ('[start, end)', '(start, end]') else 'unknown'
+                self.assertEqual(value['window']['boundary_convention'], expected)
+                self.assertNotIn(SECRET, json.dumps(value))
+
+    def test_daily_chart_labels_match_bucharest_buckets(self):
+        for path in ('dashboard.html', 'public/index.html'):
+            source = (Path(__file__).parent / path).read_text()
+            self.assertNotIn('UTC day', source)
+            self.assertIn('Bucharest day', source)
+
     def test_explicit_dto_excludes_private_and_provider_data(self):
         metadata = self.export()
         text = self.contents()

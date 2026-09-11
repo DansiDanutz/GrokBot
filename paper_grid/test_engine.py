@@ -5,8 +5,8 @@ from pathlib import Path
 import sys
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from engine import default_config, initial_state, step, status
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from paper_grid.engine import default_config, initial_state, step, status
 
 
 T = 1_800_000_000.0
@@ -317,15 +317,16 @@ class TelemetryTests(unittest.TestCase):
     def test_execution_rejections_are_finite_and_do_not_mutate_state(self):
         from copy import deepcopy
         from unittest.mock import patch
-        import engine
+        from paper_grid import engine
         c = default_config()
         cases = [
             ('invalid_unit_cost', quote(ask=1e308, multiplier=1e308), {}, None),
-            ('below_minimum_lot', quote(multiplier=100), {}, None),
-            ('insufficient_ask_depth', quote(ask_size=float('nan')), {}, None),
-            ('cash_or_position_cap', quote(), {}, 1000000),
-            ('immediate_risk_limit', quote(), {'max_position_loss': .001}, None),
-            ('insufficient_expected_net', quote(entry_edge_pct=1), {}, None),
+            ('lots_lt_1', quote(multiplier=100), {}, None),
+            ('thin_ask_depth', quote(ask_size=float('nan')), {}, None),
+            ('insufficient_cash', quote(), {}, 1000000),
+            ('position_notional_cap', quote(), {'position_notional_cap': .01}, 1),
+            ('stop_inside_range', quote(), {'max_position_loss': .001}, None),
+            ('expected_net_lt_target', quote(entry_edge_pct=1), {}, None),
         ]
         for reason, record, overrides, fake_lots in cases:
             with self.subTest(reason=reason):
@@ -336,13 +337,15 @@ class TelemetryTests(unittest.TestCase):
                     result = engine._buy(state, 'A', record, T, dict(c, **overrides), events)
                 else:
                     with patch.object(engine.math, 'floor', return_value=fake_lots):
-                        result = engine._buy(state, 'A', record, T, c, events)
+                        result = engine._buy(state, 'A', record, T, dict(c, **overrides), events)
                 self.assertFalse(result)
                 self.assertEqual(state, before)
                 self.assertEqual(len(events), 1)
                 self.assertEqual(events[0]['type'], 'buy_rejected')
                 self.assertEqual(events[0]['reason'], reason)
                 self.assertEqual(events[0]['action'], 'open')
+                self.assertTrue(events[0]['context'])
+                if reason == 'lots_lt_1': self.assertEqual(events[0]['context']['lots'], 0)
                 json.dumps(events, allow_nan=False)
 
     def test_add_rejection_and_failed_rotation_never_emit_trial_fills(self):
@@ -357,7 +360,7 @@ class TelemetryTests(unittest.TestCase):
         self.assertEqual(set(state['positions']), {'A', 'B'})
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]['stage'], 'rotation_trial')
-        self.assertEqual(events[0]['reason'], 'insufficient_ask_depth')
+        self.assertEqual(events[0]['reason'], 'thin_ask_depth')
         state, events = step(state, {'A': quote(price=98, now=T+2101, add_eligible=True, ask_size=1),
                                     'B': quote('B', now=T+2101)}, T+2101, c)
         self.assertEqual(events[0]['action'], 'add')
@@ -367,13 +370,13 @@ class TelemetryTests(unittest.TestCase):
         c = default_config()
         state, events = step(initial_state(c, T), {'A': quote(score=59),
                              'B': quote('B', eligible=False)}, T, c)
-        self.assertEqual([(e['symbol'], e['reason']) for e in events], [('A', 'below_min_score')])
+        self.assertEqual([(e['symbol'], e['reason']) for e in events], [('A', 'score_below_min')])
         _, events = step(state, {'A': quote(score=59)}, T, c)
         self.assertEqual(events, [])
 
     def test_decision_state_and_fills_match_pre_telemetry_golden(self):
         import hashlib
-        import engine
+        from paper_grid import engine
         digest = hashlib.sha256(json.dumps(parity_scenarios(engine), sort_keys=True,
                                           allow_nan=False).encode()).hexdigest()
         self.assertEqual(digest, '9e148504954a84064a492fd1b79eb035595a46d73a903d35625b253235d370e9')

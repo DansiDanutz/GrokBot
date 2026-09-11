@@ -53,6 +53,17 @@ class TelemetryReportingTests(unittest.TestCase):
 
 
 class PublicRejectionTests(unittest.TestCase):
+    def test_roadmap_reason_and_lot_context_are_public_but_extra_fields_are_not(self):
+        source = fixture()
+        at = source['experiment']['report_at']
+        source['events'] = [dict(type='buy_rejected', account='baseline', symbol='TESTUSDTM',
+            time=at, reason='lots_lt_1', action='open', stage='execution',
+            context={'lots': 0, 'budget': 50, 'unit_cost': 100, 'private': 'omit'})]
+        row = public_snapshot._report(source, at)['events'][0]
+        self.assertEqual(row['reason'], 'lots_lt_1')
+        self.assertEqual(row['context']['lots'], 0)
+        self.assertNotIn('private', row['context'])
+
     def test_rejection_context_is_explicitly_allowlisted(self):
         source=fixture();at=source['experiment']['report_at']
         source['events']=[dict(type='buy_rejected',account='baseline',symbol='TESTUSDTM',time=at,

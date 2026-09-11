@@ -12,6 +12,7 @@ import math
 import os
 from pathlib import Path
 import re
+import stat
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -19,6 +20,9 @@ import urllib.request
 URL = 'https://open-api-v4.coinglass.com/api/futures/liquidation/aggregated-history'
 DEFAULT_SECRETS_FILE = '~/.openclaw-secrets/paper-grid.env'
 SECRETS_FILE_ENV = 'PAPER_GRID_SECRETS_FILE'
+MAX_SECRETS_BYTES = 16_384
+PRIVATE_FILE_MODE = 0o600
+ICLOUD_CONTAINERS = frozenset({'mobile documents', 'com~apple~clouddocs'})
 HOUR = 3600
 CACHE_SECONDS = 1800
 MAX_HISTORY_AGE = 2 * HOUR
@@ -69,35 +73,78 @@ def underlying(symbol):
     return 'BTC' if name == 'XBT' else name
 
 
+def _icloud_path(path):
+    parts = tuple(part.casefold() for part in path.parts)
+    return (bool(ICLOUD_CONTAINERS.intersection(parts))
+            or any(parent == 'cloudstorage' and child.startswith('icloud')
+                   for parent, child in zip(parts, parts[1:])))
+
+
 def secrets_path(path=None):
     value = os.environ.get(SECRETS_FILE_ENV, DEFAULT_SECRETS_FILE) if path is None else path
     if not isinstance(value, (str, Path)) or not str(value).strip():
         raise CoinGlassError('invalid secrets-file configuration')
     try:
-        configured = Path(value).expanduser()
+        configured = Path(value).expanduser().absolute()
         resolved = configured.resolve()
     except (OSError, RuntimeError, ValueError):
         raise CoinGlassError('invalid secrets-file configuration') from None
     if any(part.casefold() == 'desktop' for part in (*configured.parts, *resolved.parts)):
         raise CoinGlassError('Desktop secrets files are not allowed; use a private local path')
-    return resolved
+    if any(_icloud_path(candidate) for candidate in (configured, resolved)):
+        raise CoinGlassError('iCloud secrets files are not allowed; use a private local path')
+    # Retain lexical components so descriptor traversal refuses any symlink.
+    return configured
+
+
+def _private_descriptor(path):
+    directory = os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    descriptor = None
+    try:
+        for component in path.parts[1:-1]:
+            following = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                dir_fd=directory)
+            os.close(directory)
+            directory = following
+        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                             dir_fd=directory)
+        metadata = os.fstat(descriptor)
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+                or stat.S_IMODE(metadata.st_mode) != PRIVATE_FILE_MODE
+                or not 0 <= metadata.st_size <= MAX_SECRETS_BYTES):
+            raise CoinGlassError('API key unavailable')
+        return descriptor
+    except BaseException:
+        if descriptor is not None:
+            os.close(descriptor)
+        raise
+    finally:
+        os.close(directory)
+
+
+def _secret_text(path):
+    try:
+        descriptor = _private_descriptor(path)
+        with os.fdopen(descriptor, 'rb') as handle:
+            payload = handle.read(MAX_SECRETS_BYTES + 1)
+        if len(payload) > MAX_SECRETS_BYTES:
+            raise CoinGlassError('API key unavailable')
+        return payload.decode('utf-8')
+    except (OSError, UnicodeError, ValueError):
+        raise CoinGlassError('API key unavailable') from None
 
 
 def read_api_key(path=None):
-    """Read only the exact key assignment; never return file contents."""
-    path = secrets_path(path)
+    """Read a bounded owned 0600 regular file, without following symlinks."""
+    text = _secret_text(secrets_path(path))
     found = None
-    try:
-        with path.open(encoding='utf-8') as handle:
-            for line in handle:
-                if line.startswith('COINGLASS_API_KEY='):
-                    if found is not None:
-                        raise CoinGlassError('ambiguous API key configuration')
-                    found = line.split('=', 1)[1].strip()
-                    if len(found) >= 2 and found[0] == found[-1] and found[0] in ('"', "'"):
-                        found = found[1:-1]
-    except (OSError, UnicodeError):
-        raise CoinGlassError('API key unavailable') from None
+    for line in text.splitlines():
+        if line.startswith('COINGLASS_API_KEY='):
+            if found is not None:
+                raise CoinGlassError('ambiguous API key configuration')
+            found = line.split('=', 1)[1].strip()
+            if len(found) >= 2 and found[0] == found[-1] and found[0] in ('"', "'"):
+                found = found[1:-1]
     return _validate_key(found)
 
 

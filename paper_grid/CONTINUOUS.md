@@ -5,7 +5,28 @@ paper accounts continue without resetting balances, positions, costs or history.
 An audit boundary never liquidates or freezes a position. Existing position loss,
 daily equity loss, stale-data and implementation-integrity controls still apply.
 
-## Cadence (Europe/Bucharest)
+## Development convention (Phase 1)
+
+New runs from this checkout use one civil-day convention: Europe/Bucharest
+00:00 to the following 00:00. The engine halt day, completed daily audit and
+daily chart buckets use the shared `calendar_day.py` contract. Other configured
+time zones are rejected, and this helper is included in the experiment seal.
+
+Daily event, observation and error windows are `[start, end)`: an event stamped
+exactly at midnight belongs to the new day. Equity valuation still uses the last
+available post-tick mark at or before each boundary and discloses its timestamp;
+that valuation convention can put midnight execution costs into an adjacent
+window's equity change. Closed-event totals follow the civil-day convention.
+Weekly reports remain Monday at 09:00 with `(start, end]` membership, and full
+audits remain 48 elapsed hours with `(start, end]` membership. Civil days across
+Bucharest daylight-saving changes contain 23 or 25 hours, not always 24.
+
+Archive filenames and retention cutoffs remain **UTC**, independently of the
+reporting day. A local daily report can therefore load parts of two UTC archives.
+The historical v1 service remains untouched and continues its original 09:00
+daily reporting schedule below; these development rules do not migrate or reseal it.
+
+## Existing v1 cadence (Europe/Bucharest)
 
 | Work | Schedule |
 |---|---|

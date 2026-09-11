@@ -1,6 +1,6 @@
 import copy
-import io
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -27,9 +27,9 @@ class CoinGlassTests(unittest.TestCase):
             self.assertEqual(c.secrets_path(), Path.home() / '.openclaw-secrets/paper-grid.env')
         with patch.dict('os.environ', {'PAPER_GRID_SECRETS_FILE': '/fixture/private/paper.env'}):
             self.assertEqual(c.secrets_path(), Path('/fixture/private/paper.env'))
-            with patch.object(Path, 'open', return_value=io.StringIO('COINGLASS_API_KEY=fixture\n')) as opened:
+            with patch.object(c, '_secret_text', return_value='COINGLASS_API_KEY=fixture\n') as reader:
                 self.assertEqual(c.read_api_key(), 'fixture')
-                opened.assert_called_once()
+                reader.assert_called_once_with(Path('/fixture/private/paper.env'))
 
     def test_desktop_paths_are_rejected_before_open(self):
         paths = ('~/Desktop/key.env', '/fixture/desktop/key.env',
@@ -162,13 +162,16 @@ class CoinGlassTests(unittest.TestCase):
             with self.subTest(field=field, value=value):
                 self.assertFalse(c.apply_filter(quotes, invalid, NOW)[0]['eligible'])
 
-    def test_key_parser_only_exact_assignment_no_real_file_reads(self):
-        text = 'UNRELATED=hidden\nOTHER_COINGLASS_API_KEY=ignored\nCOINGLASS_API_KEY="fixture"\n'
-        with patch.object(c.Path, 'open', return_value=io.StringIO(text)):
-            self.assertEqual(c.read_api_key('/test/only'), 'fixture')
-        for text in ('COINGLASS_API_KEY=\n', 'COINGLASS_API_KEY=a\nCOINGLASS_API_KEY=b\n'):
-            with patch.object(c.Path, 'open', return_value=io.StringIO(text)), self.assertRaises(c.CoinGlassError):
-                c.read_api_key('/test/only')
+    def test_key_parser_only_exact_assignment_with_private_fake_fixture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory).resolve() / 'fake-fixture.env'
+            path.write_text('UNRELATED=fake\nOTHER_COINGLASS_API_KEY=ignored\nCOINGLASS_API_KEY="fixture"\n')
+            path.chmod(0o600)
+            self.assertEqual(c.read_api_key(path), 'fixture')
+            for text in ('COINGLASS_API_KEY=\n', 'COINGLASS_API_KEY=a\nCOINGLASS_API_KEY=b\n'):
+                path.write_text(text)
+                with self.assertRaises(c.CoinGlassError):
+                    c.read_api_key(path)
 
     def test_fixed_official_request_header_query_and_bounded_read(self):
         response = Mock()

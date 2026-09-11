@@ -8,13 +8,13 @@ Only full orders fitting the displayed top-of-book contract size may fill.
 Thin/missing depth defers exits, including stops; partial fills are not modeled.
 """
 from copy import deepcopy
-from datetime import datetime
 import math
-from zoneinfo import ZoneInfo
+from paper_grid import calendar_day
+from paper_grid.telemetry_constants import BUY_REJECTION_REASONS, POSITION_CAP_EPSILON
 
 
 def default_config():
-    return dict(initial_balance=1000.0, max_positions=2, leverage=1, timezone='Europe/Bucharest',
+    return dict(initial_balance=1000.0, max_positions=2, leverage=1, timezone=calendar_day.ZONE_NAME,
                 position_notional_cap=200.0, tranches=[50.0, 65.0, 85.0],
                 add_drop_pct=[1.0, 2.0], target_net_profit=1.0,
                 fee_rate=0.0006, slippage_rate=0.0002, max_quote_age=90.0,
@@ -37,7 +37,8 @@ def _config(config):
         raise ValueError('paper mode supports only 1x and at most two positions')
     for key, value in c.items():
         if key == 'timezone':
-            ZoneInfo(value)
+            if value != calendar_day.ZONE_NAME:
+                raise ValueError('timezone must be Europe/Bucharest')
         elif key in ('tranches', 'add_drop_pct'):
             if not isinstance(value, list) or not all(_number(v, True) for v in value):
                 raise ValueError('invalid ' + key)
@@ -51,7 +52,7 @@ def _config(config):
 
 
 def _day(now, c):
-    return datetime.fromtimestamp(now, ZoneInfo(c['timezone'])).date().isoformat()
+    return calendar_day.day_label(now)
 
 
 def initial_state(config, now):
@@ -162,13 +163,6 @@ def _close(state, symbol, record, now, c, reason, events):
     return True
 
 
-BUY_REJECTION_REASONS = frozenset({
-    'invalid_unit_cost', 'below_minimum_lot', 'insufficient_ask_depth',
-    'cash_or_position_cap', 'immediate_risk_limit', 'insufficient_expected_net',
-    'below_min_score', 'symbol_cooldown', 'position_capacity',
-})
-
-
 def _reject_buy(events, symbol, now, reason, *, add=False, stage='execution', **context):
     """Closed vocabulary and finite numeric context only; never a fill."""
     if reason not in BUY_REJECTION_REASONS or stage not in ('execution', 'selection', 'rotation_trial'):
@@ -187,8 +181,7 @@ def _buy(state, symbol, record, now, c, events, add=False, stage='execution'):
     tranche_index = p['adds'] + 1 if add else 0
     fill = record['ask'] * (1 + c['slippage_rate'])
     existing = p['cost_basis'] if p else 0
-    budget = min(c['tranches'][tranche_index],
-                 c['position_notional_cap'] - existing,
+    budget = min(c['tranches'][tranche_index], c['position_notional_cap'] - existing,
                  state['cash'] / (1 + c['fee_rate']))
     unit_cost = fill * record['multiplier'] * record['lot_size']
     if not _number(unit_cost, True) or not math.isfinite(budget / unit_cost):
@@ -196,38 +189,55 @@ def _buy(state, symbol, record, now, c, events, add=False, stage='execution'):
                            unit_cost=unit_cost, budget=budget)
     lots = math.floor(budget / unit_cost)
     if lots < 1:
-        return _reject_buy(events, symbol, now, 'below_minimum_lot', add=add, stage=stage,
-                           unit_cost=unit_cost, budget=budget)
+        return _reject_buy(events, symbol, now, 'lots_lt_1', add=add, stage=stage,
+                           lots=lots, unit_cost=unit_cost, budget=budget)
     contracts = lots * record['lot_size']
     if not _full_depth(record, 'ask', contracts):
-        return _reject_buy(events, symbol, now, 'insufficient_ask_depth', add=add, stage=stage,
+        return _reject_buy(events, symbol, now, 'thin_ask_depth', add=add, stage=stage,
                            required_contracts=contracts, ask_size=record.get('ask_size'))
     quantity = contracts * record['multiplier']
-    cost = quantity * fill
-    fee = cost * c['fee_rate']
-    if cost + fee > state['cash'] or existing + cost > c['position_notional_cap'] + 1e-9:
-        return _reject_buy(events, symbol, now, 'cash_or_position_cap', add=add, stage=stage,
-                           cost=cost, fee=fee, cash=state['cash'], existing_cost=existing,
-                           position_cap=c['position_notional_cap'])
+    cost, fee = quantity * fill, quantity * fill * c['fee_rate']
+    if cost + fee > state['cash']:
+        return _reject_buy(events, symbol, now, 'insufficient_cash', add=add, stage=stage,
+                           cost=cost, fee=fee, cash=state['cash'])
+    if existing + cost > c['position_notional_cap'] + POSITION_CAP_EPSILON:
+        return _reject_buy(events, symbol, now, 'position_notional_cap', add=add, stage=stage,
+                           existing_cost=existing, cost=cost, position_cap=c['position_notional_cap'])
+    order = dict(quantity=quantity, cost=cost, fee=fee, fill=fill,
+                 contracts=contracts, tranche_index=tranche_index)
+    rejection = _buy_risk(p, record, c, order, add)
+    if rejection:
+        reason, context = rejection
+        return _reject_buy(events, symbol, now, reason, add=add, stage=stage, **context)
+    return _record_buy_fill(state, symbol, record, now, c, events, order, add)
+
+
+def _buy_risk(p, record, c, order, add):
+    quantity, cost, fee = order['quantity'], order['cost'], order['fee']
     total_quantity = quantity + (p['quantity'] if p else 0)
-    total_cost = existing + cost
+    total_cost = cost + (p['cost_basis'] if p else 0)
     total_fees = fee + (p['entry_fees'] if p else 0)
     immediate_exit = total_quantity * _exit_price(record, c)
     immediate_net = (immediate_exit * (1 - c['fee_rate']) - total_cost - total_fees
                      - (p['funding_accrued'] if p else 0))
     weighted_drop = (1 - record['bid'] / (total_cost / total_quantity)) * 100
     if immediate_net <= -c['max_position_loss'] or weighted_drop >= c['max_price_drop_pct']:
-        return _reject_buy(events, symbol, now, 'immediate_risk_limit', add=add, stage=stage,
-                           immediate_net=immediate_net, weighted_drop_pct=weighted_drop,
-                           max_position_loss=c['max_position_loss'], max_price_drop_pct=c['max_price_drop_pct'])
+        return 'stop_inside_range', dict(immediate_net=immediate_net, weighted_drop_pct=weighted_drop,
+                        max_position_loss=c['max_position_loss'], max_price_drop_pct=c['max_price_drop_pct'])
     if not add:
         hypothetical_bid = record['bid'] * (1 + record['entry_edge_pct'] / 100)
         exit_proceeds = quantity * hypothetical_bid * (1 - c['slippage_rate'])
         expected_net = exit_proceeds * (1 - c['fee_rate']) - cost - fee
         # Declared price edge is a scanner heuristic, never a profit guarantee.
         if expected_net < c['target_net_profit']:
-            return _reject_buy(events, symbol, now, 'insufficient_expected_net', add=add, stage=stage,
-                               expected_net=expected_net, target_net_profit=c['target_net_profit'])
+            return 'expected_net_lt_target', dict(expected_net=expected_net, target_net_profit=c['target_net_profit'])
+    return None
+
+
+def _record_buy_fill(state, symbol, record, now, c, events, order, add):
+    p = state['positions'].get(symbol)
+    cost, fee, quantity = order['cost'], order['fee'], order['quantity']
+    contracts, fill, tranche_index = order['contracts'], order['fill'], order['tranche_index']
     state['cash'] -= cost + fee
     if p is None:
         p = dict(contracts=0, quantity=0.0, cost_basis=0.0, entry_fees=0.0,
@@ -368,7 +378,7 @@ def step(state, market, now, config):
             if not r['eligible'] or symbol in s['positions'] or symbol in closed_this_tick:
                 continue
             if r['score'] < c['min_score']:
-                _reject_buy(events, symbol, now, 'below_min_score', stage='selection',
+                _reject_buy(events, symbol, now, 'score_below_min', stage='selection',
                             score=r['score'], min_score=c['min_score'])
             elif now - s['symbol_closed_at'].get(symbol, -math.inf) < c['cooldown_seconds']:
                 _reject_buy(events, symbol, now, 'symbol_cooldown', stage='selection',

@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 import time
 
-from paper_grid import audits, coinglass, retention, telemetry_metrics
+from paper_grid import calendar_day, audits, coinglass, retention, telemetry_metrics, trade_metrics
 
 ARMS = ('baseline', 'liquidation_filter')
 MAX_BYTES = 200 * 1024 * 1024
@@ -33,7 +33,7 @@ DEFINITIONS = [
     'Good trades are closes with positive net PnL. Profit and loss include entry fees, exit fees and modeled funding already.',
     'Fees paid counts entry/add fees and exit fees paid inside the window; it must not be subtracted again from net PnL.',
     'Add cohorts classify completed position lifecycles. Unknown means the opening history is unavailable.',
-    'Daily chart buckets use UTC dates; weekly and daily audit schedules retain their own local-time boundaries.',
+    'Daily chart buckets and halt days use Europe/Bucharest midnight boundaries; archive files retain UTC dates.',
 ]
 LIMITATIONS = [
     'Paper results are simulated and do not establish future profitability or live execution quality.',
@@ -163,39 +163,7 @@ def _load(runtime, now):
     return doc
 
 
-def _trades(events, end):
-    active, closed = {}, {arm: [] for arm in ARMS}
-    for event in events:
-        if event['time'] > end:
-            continue
-        arm, kind = event.get('account'), event.get('type')
-        if arm not in ARMS or kind not in ('open', 'add', 'close'):
-            continue
-        symbol = _symbol(event.get('symbol'))
-        key = (arm, symbol)
-        if kind == 'open':
-            if key in active:
-                raise ValueError('conflicting open analytics lifecycle')
-            active[key] = dict(opened_at=event['time'], adds=0,
-                               entry_notional=_number(event.get('notional'), nonnegative=True))
-        elif kind == 'add':
-            _number(event.get('notional'), nonnegative=True)
-            if key in active:
-                active[key]['adds'] += 1
-                active[key]['entry_notional'] += event['notional']
-        else:
-            position = active.pop(key, {})
-            pnl = _number(event.get('net_pnl'))
-            opened = position.get('opened_at')
-            closed[arm].append(dict(opened_at=opened, closed_at=event['time'], symbol=symbol,
-                adds=position.get('adds'), entry_notional=position.get('entry_notional'),
-                net_pnl=pnl, entry_fees=_number(event.get('entry_fees'), nonnegative=True),
-                exit_fee=_number(event.get('exit_fee'), nonnegative=True),
-                funding_cost=_number(event.get('funding_model_cost'), nonnegative=True),
-                hold_seconds=event['time']-opened if opened is not None else None,
-                reason=event.get('reason') if event.get('reason') in REASONS else 'unknown',
-                result='win' if pnl > 0 else 'loss' if pnl < 0 else 'breakeven'))
-    return closed
+_trades = trade_metrics.closed_trades
 
 
 def _counts():
@@ -240,6 +208,11 @@ def _account(doc, arm, start, end, events, trades):
         items = [t for t in closes if (t['adds'] if t['adds'] in (0, 1, 2) else None) == adds]
         cohorts.append(dict(adds=adds, closes=len(items), wins=sum(t['net_pnl'] > 0 for t in items),
                             losses=sum(t['net_pnl'] < 0 for t in items), net_pnl=sum(t['net_pnl'] for t in items)))
+    performance = (trade_metrics.report(doc,arm,start,end,include_start=True)
+                   if any(t['closed_at']==start for t in trades) else marked['performance'])
+    excursions = {(t['symbol'],t['closed_at']):t for t in performance['trades']}
+    closes = [dict(t,**{k:v for k,v in excursions.get((t['symbol'],t['closed_at']),{}).items()
+                       if k.startswith('observed_') or k.startswith('excursion_')}) for t in closes]
     first, last = marked['start_mark'], marked['end_mark']
     result.update(fills=result['entries']+result['adds']+result['closes'],
         breakeven=len(closes)-result['wins']-result['losses'],
@@ -256,7 +229,7 @@ def _account(doc, arm, start, end, events, trades):
         expectancy=result['net_closed_pnl']/len(closes) if closes else None,
         close_reasons=reasons, add_cohorts=cohorts,
         buy_rejections=telemetry_metrics.rejections(events, [o for o in doc['observations'] if start <= o['time'] <= end], arm),
-        equity_sampling=marked['equity_sampling'],
+        equity_sampling=marked['equity_sampling'], performance=performance,
         journal=list(reversed(closes[-200:])), journal_total=len(closes))
     return result
 
@@ -268,7 +241,7 @@ def _window(doc, start, end, trades):
     days, coins, shortlist, scans = {}, {}, set(), {}
 
     def day(at):
-        stamp = retention._day(at)
+        stamp = calendar_day.day_label(at)
         return days.setdefault(stamp, dict(day=stamp, checks=0, **{a: _counts() for a in ARMS}))
 
     def coin(symbol):
@@ -277,8 +250,8 @@ def _window(doc, start, end, trades):
                                              filtered_eligible=0, **{a: _counts() for a in ARMS}))
 
     # Preserve zero-count days for honest chart spacing, bounded to the run.
-    for at in range(int(start)//DAY, int(end)//DAY+1):
-        day(max(start, at*DAY))
+    for at in calendar_day.day_samples(start, end):
+        day(at)
     for obs in success:
         day(obs['time'])['checks'] += 1
         market = obs.get('market', {})

@@ -16,7 +16,8 @@ import re
 import tempfile
 import time
 
-from paper_grid import audits, engine, experiment, analytics
+from paper_grid import audits, engine, experiment, analytics, public_trade_metrics
+from paper_grid.telemetry_constants import READABLE_BUY_REJECTION_REASONS
 
 MAX_BYTES = 5 * 1024 * 1024
 MAX_REPORTS = 100
@@ -176,10 +177,10 @@ def _report(source, published_at):
         event = dict(type=row['type'], account=row['account'], time=_stamp(row.get('time'), True),
                      **_numbers(row, ('net_pnl', 'fee', 'entry_fees', 'exit_fee', 'funding_model_cost')))
         if row['type'] == 'buy_rejected':
-            event.update(reason=row.get('reason') if row.get('reason') in engine.BUY_REJECTION_REASONS else 'unknown',
+            event.update(reason=row.get('reason') if row.get('reason') in READABLE_BUY_REJECTION_REASONS else 'unknown',
                 action=row.get('action') if row.get('action') in ('open', 'add') else 'unknown',
                 stage=row.get('stage') if row.get('stage') in ('execution', 'selection', 'rotation_trial') else 'unknown',
-                context=_numbers(_object(row.get('context')), ('unit_cost budget required_contracts ask_size cost fee cash existing_cost position_cap immediate_net weighted_drop_pct max_position_loss max_price_drop_pct expected_net target_net_profit score min_score elapsed_seconds cooldown_seconds positions max_positions').split()))
+                context=_numbers(_object(row.get('context')), ('lots unit_cost budget required_contracts ask_size cost fee cash existing_cost position_cap immediate_net weighted_drop_pct max_position_loss max_price_drop_pct expected_net target_net_profit score min_score elapsed_seconds cooldown_seconds positions max_positions').split()))
         if row.get('symbol') is not None:
             event['symbol'] = _symbol(row['symbol'])
         result['events'].append(event)
@@ -223,11 +224,14 @@ def _audit(source, identifier, published_at):
         raise ValueError('invalid audit window')
     result = dict(schema=1, id=identifier, kind=source['kind'], mode='paper', published_at=published_at,
                   generated_at=_stamp(source.get('generated_at'), True),
-                  window=dict(start_at=start, end_at=end, duration_seconds=end-start), accounts={},
+                  window=dict(start_at=start, end_at=end, duration_seconds=end-start,
+                      boundary_convention=window.get('boundary_convention')
+                      if window.get('boundary_convention') in ('[start, end)', '(start, end]') else 'unknown'), accounts={},
                   severity=source.get('severity') if source.get('severity') in ('critical', 'warning', 'info') else 'warning')
     for arm in experiment.ARMS:
         row = _object(_object(source.get('accounts')).get(arm))
         result['accounts'][arm] = _numbers(row, AUDIT_NUMBERS)
+        result['accounts'][arm]['performance'] = public_trade_metrics.safe(row.get('performance'),_number,_symbol)
         for key in ('start_mark', 'end_mark'):
             mark = _object(row.get(key))
             result['accounts'][arm][key] = dict(time=_stamp(mark.get('time')), equity=_number(mark.get('equity')))
@@ -238,7 +242,7 @@ def _audit(source, identifier, published_at):
         safe['reasons'] = []
         for entry in _array(rejection.get('reasons'))[:40]:
             entry = _object(entry)
-            safe['reasons'].append(dict(reason=entry.get('reason') if entry.get('reason') in engine.BUY_REJECTION_REASONS else 'unknown',
+            safe['reasons'].append(dict(reason=entry.get('reason') if entry.get('reason') in READABLE_BUY_REJECTION_REASONS else 'unknown',
                 action=entry.get('action') if entry.get('action') in ('open', 'add') else 'unknown',
                 stage=entry.get('stage') if entry.get('stage') in ('execution', 'selection', 'rotation_trial') else 'unknown', count=_number(entry.get('count'))))
         result['accounts'][arm]['buy_rejections'] = safe
