@@ -135,6 +135,25 @@ class PublicSnapshotTests(unittest.TestCase):
         self.assertEqual(json.loads((self.root / 'site/data/analytics.json').read_text()), value)
         self.assertNotIn(SECRET, self.contents())
 
+    def test_radar_is_allowlisted_and_exported_as_a_page(self):
+        radar = self.runtime.parent / 'radar'
+        radar.mkdir()
+        payload = dict(schema_version=1, generated_at_ms=AT * 1000, asof_ms=AT * 1000,
+            constants={}, filters={}, rows=[], sections={'long': [dict(symbol='BTCUSDTM',
+            direction='LONG', price=50_000, turnover_24h_usdt=10_000_000,
+            spread_pct=.01, funding_pct=.01, listing_age_days=30, atr_1h_pct=1,
+            atr_4h_pct=2, slope_4h_pct=.3, position_7d=.5, change_24h_pct=2,
+            low_7d=40_000, high_7d=55_000, range_low=48_000, range_high=55_000,
+            step_pct=.8, grids=17, expected_grids_per_hour=2.4, rank_score=2.4,
+            passes_liquidity=True)]})
+        payload['private'] = SECRET
+        (radar / 'radar.json').write_text(json.dumps(payload))
+        self.export()
+        self.assertTrue((self.root / 'site/radar/index.html').is_file())
+        exported = json.loads((self.root / 'site/data/radar.json').read_text())
+        self.assertEqual(exported['sections']['long'][0]['direction'], 'LONG')
+        self.assertNotIn(SECRET, json.dumps(exported))
+
     def test_audits_regenerated_from_numeric_dto(self):
         audit = self.add_audit()
         for ext in ('.html', '.md'):
