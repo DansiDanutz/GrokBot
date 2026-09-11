@@ -1,0 +1,90 @@
+{
+  "all_hourly_history_validated": false,
+  "assumptions": [
+    "Stored timestamps denote candle opens; asof is the final stored candle end.",
+    "Only complete 60-observed-minute buckets are comparable.",
+    "No indicator fills, interpolation, tolerance, or contract conversion.",
+    "Minute history may cover a shorter period than hourly history.",
+    "Turnover is not compared; contract volume is compared exactly."
+  ],
+  "comparison_success": false,
+  "complete_source_hours_without_stored_hour": 660,
+  "completed_symbols": 522,
+  "database": "/Users/davidai/Sandbox/grokbot/grid-kucoin-offline/20260911/attempt-2/market.sqlite3",
+  "database_sha256": "3e9ad565528747996e675f4b0fc07c7aef5c7e4f2802a672616136b4a1db90d1",
+  "examples": [
+    {
+      "derived": {
+        "close": 6.222,
+        "closed": true,
+        "coverage_fraction": 1.0,
+        "crossing_eligible": true,
+        "end_ms": 1782486000000,
+        "expected_minutes": 60,
+        "high": 6.281,
+        "indicator_only": false,
+        "low": 6.201,
+        "missing_minutes": 0,
+        "observed": true,
+        "observed_minutes": 60,
+        "observed_volume": 375562.0,
+        "open": 6.246,
+        "source": "aggregated_observed_1m",
+        "synthetic": false,
+        "timestamp_ms": 1782482400000,
+        "unfillable": false,
+        "volume": 375562.0
+      },
+      "differences": {
+        "volume": {
+          "delta": 83.0,
+          "derived": 375562.0,
+          "stored": 375479.0
+        }
+      },
+      "reasons": [],
+      "status": "mismatch",
+      "stored": {
+        "close": 6.222,
+        "high": 6.281,
+        "low": 6.201,
+        "open": 6.246,
+        "timestamp_ms": 1782482400000,
+        "volume": 375479.0
+      },
+      "symbol": "AVAXUSDTM",
+      "timestamp_ms": 1782482400000
+    }
+  ],
+  "expected_symbols": 522,
+  "max_absolute_deltas": {
+    "volume": 83.0
+  },
+  "mismatch_fields": {
+    "volume": 1
+  },
+  "per_symbol_checkpoint_directory": "/Users/davidai/Sandbox/grokbot/grid-kucoin-offline/timeframe-check-20260911/checkpoints",
+  "price_tolerance": 0,
+  "source_commit": "12403d9",
+  "source_sha256": "2627243bcb80b2597c0ba4d89d30fba77f7df3db22732571d442114c177523b0",
+  "status": "complete",
+  "stored_hours_without_complete_minute_source": 316093,
+  "symbols_with_comparable_hours": 247,
+  "symbols_without_comparable_hours": 275,
+  "totals": {
+    "actual_1h": 378560,
+    "actual_1m": 11189229,
+    "compared_window_hours": 406849,
+    "excluded_unfinished_hour_minutes": 7311,
+    "gaps": 344382,
+    "jointly_comparable_hours": 62467,
+    "matches": 62466,
+    "mismatches": 1,
+    "missing_stored_1h": 28289,
+    "observed_minutes_in_completed_hours": 11181918,
+    "source_absent_hours": 25063,
+    "source_complete_hours": 63127,
+    "source_partial_hours": 318659
+  },
+  "volume_tolerance": 0
+}
