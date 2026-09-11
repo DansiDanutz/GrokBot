@@ -130,8 +130,25 @@ class ValidationTests(unittest.TestCase):
         registered.return_value = document
         snapshot = unittest.mock.Mock()
         snapshot.market_bounds.return_value = (1, 2)
-        result = sweep(snapshot, path, {}, {})
+        result = sweep(snapshot, path, {}, {}, runner=unittest.mock.Mock())
         self.assertEqual(len(result['training_trials']), 24)
         self.assertEqual(result['registration']['total_bankroll_usdt'], 2400)
         self.assertTrue(all('leverage_cap' not in row['parameters'] for row in result['training_trials']))
+        self.assertEqual(result['decision']['decision'], 'shelve')
+
+
+    @patch('trader.research.kucoin_portfolio._registered')
+    def test_v3_runs_only_two_prespecified_months_and_keeps_verification_blocked(self, registered):
+        document = dict(id='grid-kucoin-v3', fixed_parameters=dict(historical_spread_bps=10),
+            holdouts=[dict(start='2026-07-01T00:00:00Z', end='2026-08-01T00:00:00Z'),
+                      dict(start='2026-08-01T00:00:00Z', end='2026-09-01T00:00:00Z')])
+        registered.return_value = document
+        runner = unittest.mock.Mock(side_effect=lambda *args, **kwargs: dict(
+            coverage={'complete': False}, metrics={'net': 5}, modeled_metrics={'net': 5}))
+        result = sweep(object(), 'v3', {}, {}, runner=runner)
+        self.assertEqual(runner.call_count, 2)
+        self.assertEqual(result['training_trials'], [])
+        self.assertFalse(result['parameter_search_performed'])
+        self.assertTrue(all(call.kwargs['parameters']['historical_candle_only'] for call in runner.call_args_list))
+        self.assertEqual(result['holdouts'][0]['modeled_metrics']['net'], 5)
         self.assertEqual(result['decision']['decision'], 'shelve')

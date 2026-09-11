@@ -1,6 +1,8 @@
 """Read an explicitly attested, detached SQLite copy; never a collection DB."""
 
 import json
+import math
+from bisect import bisect_left
 import os
 import sqlite3
 import stat
@@ -107,8 +109,8 @@ class Snapshot:
         """Completed one-minute candles with open times in [start, end)."""
         return [dict(row) for row in self.connection.execute(
             "SELECT * FROM klines WHERE symbol=? AND interval='1m' "
-            'AND time_ms>=? AND time_ms+60000<=? ORDER BY time_ms',
-            (pair, start_ms, end_ms))]
+            'AND time_ms>=? AND time_ms<=? ORDER BY time_ms',
+            (pair, start_ms, end_ms-60000))]
 
     def funding(self, pair, start_ms, end_ms):
         """Actual eight-hour settlements in (start, end], never predictions."""
@@ -206,3 +208,197 @@ def _scanner_market(row):
     known = 'expireDate' in raw and 'isInverse' in raw
     result['perpetual'] = (raw['expireDate'] in (None, 0) and raw['isInverse'] is False) if known else None
     return result
+
+
+
+MINUTE_MS = 60000
+DAY_MS = 86400000
+WEEK_MS = 7*DAY_MS
+
+
+def _positive_number(value):
+    return type(value) in (int, float) and math.isfinite(value) and value > 0
+
+
+def _observed_time(row):
+    return row.get('timestamp_ms', row.get('time_ms'))
+
+
+def _indicator_history(rows, start, end):
+    """Carry only already observed closes; placeholders are never executions."""
+    observed = {int(_observed_time(row)): row for row in rows if start <= _observed_time(row) < end}
+    earlier = [row for row in rows if _observed_time(row) < start]
+    last = earlier[-1]['close'] if earlier else None
+    result = []
+    for timestamp in range(start, end, MINUTE_MS):
+        row = observed.get(timestamp)
+        if row is not None:
+            last = row['close']
+            result.append(dict(row, timestamp_ms=timestamp, indicator_only=False))
+        elif last is not None:
+            result.append(dict(timestamp_ms=timestamp, time_ms=timestamp, open=last,
+                high=last, low=last, close=last, volume=0, turnover=0,
+                indicator_only=True, synthetic=True))
+    expected = (end-start)//MINUTE_MS
+    return result, dict(observed=len(observed), expected=expected,
+                        ratio=len(observed)/expected if expected else 0)
+
+
+def _quote_turnover(bars, metadata, volume_unit):
+    rows = [row for row in bars if not row.get('indicator_only')]
+    if rows and all(type(row.get('turnover')) in (int, float) and math.isfinite(row['turnover'])
+                    and (row['turnover'] > 0 or row['turnover'] == 0 and row.get('volume') == 0) for row in rows):
+        return sum(row['turnover'] for row in rows), 'observed candle quote turnover sum (USDT)'
+    multiplier = metadata.get('multiplier')
+    if not rows or volume_unit not in ('contracts', 'base', 'quote_usdt'):
+        return None, 'candle volume units are unknown'
+    if volume_unit == 'contracts' and not _positive_number(multiplier):
+        return None, 'contract multiplier is unknown; volume is not quote turnover'
+    total = 0.
+    for row in rows:
+        volume = row.get('volume')
+        if type(volume) not in (int, float) or not math.isfinite(volume) or volume < 0:
+            return None, 'candle volume is unknown'
+        value = volume if volume_unit == 'quote_usdt' else volume*row['close']
+        total += value*multiplier if volume_unit == 'contracts' else value
+    return total, 'estimated quote turnover from '+volume_unit+' volume and candle close'+(
+        '; retrospective contract multiplier' if volume_unit == 'contracts' else '')
+
+
+class HistoricalSnapshot:
+    """Explicit candle-only adapter; keeps current metadata assumptions visible.
+
+    Daily prefetch is an IO cache only: every returned series and membership list
+    is sliced at the requested completed-candle time. Indicator gaps are carried
+    forward; ``candles`` always returns actual observations only.
+    """
+    historical_candle_only = True
+
+    def __init__(self, source, parameters=None):
+        self.source, self.parameters = source, dict(parameters or {})
+        self.manifest = dict(source.manifest, replay_filter_mode='candle-only filters')
+        self.connection = source.connection
+        self._cache, self._history, self._metadata_cache = {}, {}, {}
+        self._index = {row[0]: (row[1], row[2]+MINUTE_MS) for row in self.connection.execute(
+            "SELECT symbol,MIN(time_ms),MAX(time_ms) FROM klines WHERE interval='1m' GROUP BY symbol")}
+        self._market_bounds = source.market_bounds()
+        self.stats = dict(history_block_reads=0, historical_market_reads=0)
+        self.volume_unit = self.parameters.get('candle_volume_unit', source.manifest.get('candle_volume_unit', 'contracts'))
+        spread = self.parameters.get('historical_spread_bps', 10)
+        if not _positive_number(spread) and spread != 0:
+            raise ValueError('historical_spread_bps must be finite and nonnegative')
+        self.spread_bps = spread
+
+    def bounds(self):
+        return (min((row[0] for row in self._index.values()), default=None),
+                max((row[1] for row in self._index.values()), default=None))
+
+    def market_bounds(self):
+        return self._market_bounds
+
+    def symbols(self, at_ms):
+        return sorted(pair for pair, (first, last) in self._index.items()
+                      if first+MINUTE_MS <= at_ms and pair.endswith('USDTM'))
+
+    def _block(self, pair, at_ms):
+        start, end = at_ms//DAY_MS*DAY_MS-WEEK_MS-DAY_MS, (at_ms//DAY_MS+1)*DAY_MS
+        previous = self._cache.get(pair)
+        if previous and previous['start'] <= start and previous['end'] >= end:
+            return previous
+        retained = [] if previous is None else [row for row in previous['rows']
+                    if start <= _observed_time(row) < min(end, previous['end'])]
+        read_start = max(start, previous['end']) if previous and previous['start'] <= start else start
+        fresh = self.source.candles(pair, read_start, end)
+        self.stats['history_block_reads'] += 1
+        rows = retained+fresh if read_start > start else fresh
+        block = dict(start=start, end=end, rows=rows, times=[_observed_time(row) for row in rows])
+        self._cache[pair] = block
+        return block
+
+    def history(self, pair, at_ms):
+        previous = self._history.get(pair)
+        if previous and previous[0] == at_ms:
+            return previous[1], previous[2]
+        block = self._block(pair, at_ms)
+        cutoff = bisect_left(block['times'], at_ms)
+        beginning = bisect_left(block['times'], at_ms-WEEK_MS)
+        rows = block['rows'][max(0, beginning-1):cutoff]
+        bars, coverage = _indicator_history(rows, at_ms-WEEK_MS, at_ms)
+        self._history[pair] = at_ms, bars, coverage
+        return bars, coverage
+
+    def candles(self, pair, start_ms, end_ms):
+        block = self._block(pair, end_ms)
+        low, high = bisect_left(block['times'], start_ms), bisect_left(block['times'], end_ms)
+        return [dict(row) for row in block['rows'][low:high]]
+
+    def funding(self, pair, start_ms, end_ms):
+        return self.source.funding(pair, start_ms, end_ms)
+
+    def metadata(self, pair):
+        if pair not in self._metadata_cache:
+            row = self.connection.execute('SELECT raw_json, observed_at_ms FROM ticker_snapshots '
+                'WHERE symbol=? ORDER BY observed_at_ms DESC LIMIT 1', (pair,)).fetchone()
+            raw = _raw_contract(row['raw_json']) if row else {}
+            allowed = ('tickSize', 'lotSize', 'multiplier', 'quoteCurrency', 'expireDate', 'isInverse', 'assetClass')
+            values = {key: raw.get(key) for key in allowed}
+            for key in ('tickSize', 'lotSize', 'multiplier'):
+                try:
+                    value = float(values[key])
+                    values[key] = value if math.isfinite(value) and value > 0 else None
+                except (TypeError, ValueError):
+                    values[key] = None
+            self._metadata_cache[pair] = dict(values,
+                metadata_observed_at_ms=row['observed_at_ms'] if row else None,
+                metadata_basis='retrospective copied contract specifications')
+        return self._metadata_cache[pair]
+
+    def _scanner_market(self, pair, at_ms, bars, coverage):
+        specs = self.metadata(pair)
+        daily = [row for row in bars if row['timestamp_ms'] >= at_ms-DAY_MS]
+        turnover, basis = _quote_turnover(daily, specs, self.volume_unit)
+        ratios = [coverage['ratio']] + [sum(not row['indicator_only'] for row in bars[-n:])/n
+                                       for n in (1440, 240)]
+        perpetual = specs['expireDate'] in (None, 0) and specs['isInverse'] is False
+        asset = specs.get('assetClass')
+        return dict(specs, filter_mode='candle-only filters', active=True, perpetual=perpetual,
+            quote_currency=specs.get('quoteCurrency'), asset_class=asset.lower() if isinstance(asset, str) else None,
+            membership_basis='observed_candles',
+            listed_at_ms=self._index[pair][0], observed_at_ms=at_ms,
+            price=bars[-1]['close'] if bars else None, quote_turnover_24h=turnover,
+            turnover_basis=basis, candle_volume_unit=self.volume_unit,
+            candle_coverage_ratio=min(ratios), candle_coverage=coverage,
+            tick_size=specs.get('tickSize'), lot_size=specs.get('lotSize'),
+            funding_rate=0., funding_rate_8h=0., funding_interval_hours=8,
+            funding_signal_basis='unknown historical funding sign assumed neutral',
+            filter_assumptions=['spread, book depth and funding filters unavailable',
+                                'copied contract metadata is retrospective, not historical observation'])
+
+    def iter_records(self, at_ms, pairs=None):
+        wanted = None if pairs is None else set(pairs)
+        for pair in self.symbols(at_ms):
+            if wanted is not None and pair not in wanted:
+                continue
+            bars, coverage = self.history(pair, at_ms)
+            yield dict(pair=pair, bars=bars, market=self._scanner_market(pair, at_ms, bars, coverage))
+
+    def records(self, at_ms, pairs=None):
+        return list(self.iter_records(at_ms, pairs))
+
+    def market(self, pair, at_ms):
+        first, last = self._market_bounds
+        actual = self.source.market(pair, at_ms) if first is not None and first <= at_ms <= last else None
+        if actual and all(actual.get(key) is not None for key in ('bid', 'ask', 'book_observed_at_ms')):
+            if 0 <= at_ms-actual['book_observed_at_ms'] <= 3600000:
+                return actual
+        block = self._block(pair, at_ms)
+        index = bisect_left(block['times'], at_ms)-1
+        if index < 0:
+            return None
+        row, half = block['rows'][index], self.spread_bps/20000
+        price = row['close']
+        self.stats['historical_market_reads'] += 1
+        return dict(bid=price*(1-half), ask=price*(1+half), observed_at_ms=at_ms,
+            book_observed_at_ms=at_ms, candle_observed_at_ms=_observed_time(row)+MINUTE_MS,
+            assumed=True, assumption='modeled bid/ask around last observed candle close',
+            assumed_spread_bps=self.spread_bps, raw=self.metadata(pair))

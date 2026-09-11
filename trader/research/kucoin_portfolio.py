@@ -112,22 +112,28 @@ def _bot_record(bot):
 
 def summarize(report):
     """Unknown coverage invalidates performance, while retaining observed diagnostics."""
+    report.pop('_scan_cache', None)
     bots = report['bots']
     measured = _metrics(report, bots)
     report['partial_metrics'] = measured if bots else None
-    report['metrics'] = measured if report['coverage']['complete'] else dict.fromkeys(METRICS)
+    historical = report.get('filter_mode') == 'candle-only filters'
+    modeled = historical and report.get('model_executed', False)
+    report['modeled_metrics'] = measured if modeled else None
+    report['verified_metrics'] = measured if report['coverage']['complete'] else dict.fromkeys(METRICS)
+    report['metrics'] = measured if modeled or report['coverage']['complete'] else dict.fromkeys(METRICS)
+    report['metric_basis'] = 'modeled with execution and retrospective-metadata assumptions' if historical else 'strict observed-input OHLC model'
     report['status'] = ('failed_liquidation' if measured['liquidations'] else
-                        'complete' if report['coverage']['complete'] else 'partial_coverage')
+                        'modeled_with_assumptions' if modeled else 'complete' if report['coverage']['complete'] else 'partial_coverage')
     for pair in sorted({bot['state'].config.pair for bot in bots}):
         selected = [bot for bot in bots if bot['state'].config.pair == pair]
-        report['per_coin'][pair] = _metrics(report, selected) if report['coverage']['complete'] else dict.fromkeys(METRICS)
+        report['per_coin'][pair] = _metrics(report, selected) if modeled or report['coverage']['complete'] else dict.fromkeys(METRICS)
     for direction in ('long', 'short', 'neutral'):
         selected = [bot for bot in bots if bot['state'].config.direction == direction]
         hours = sum(bot['exposure_hours'] for bot in selected)
         values = _metrics(report, selected)
         report['direction_mix'][direction] = dict(bot_count=len(selected), exposure_hours=hours,
             grids_per_hour=values['completed_grids']/hours if hours else None,
-            net=values['net'] if report['coverage']['complete'] else None)
+            net=values['net'] if modeled or report['coverage']['complete'] else None)
     report['bots'] = [_bot_record(bot) for bot in bots]
     return report
 
@@ -145,7 +151,7 @@ def _registered(registration):
     if current != committed:
         raise ValueError('preregistration differs from committed HEAD; sweep forbidden')
     document = json.loads(current)
-    if document.get('id') not in ('grid-kucoin', 'grid-kucoin-policy-v2') or not document.get('sweep'):
+    if document.get('id') not in ('grid-kucoin', 'grid-kucoin-policy-v2', 'grid-kucoin-v3') or not (document.get('sweep') or document.get('fixed_parameters')):
         raise ValueError('invalid grid-kucoin preregistration')
     return document
 
@@ -274,7 +280,9 @@ def _holdout(snapshot, registration, span, parameters, runner, fixtures):
 def sweep(snapshot, registration, calibration, volatility, runner=None, fixtures=None):
     """Train on prior seven days, freeze choices, then evaluate untouched months."""
     document = _registered(registration)
-    if runner is None and document['id'] != 'grid-kucoin-policy-v2':
+    if document['id'] == 'grid-kucoin-v3':
+        return _single_registered(snapshot, document, calibration, volatility, runner)
+    if runner is None and document['id'] != 'grid-kucoin-v3':
         raise ValueError('archived registration cannot authorize a sweep of the revised portfolio policy')
     if runner is None:
         from trader.research.kucoin_replay import run_window
@@ -290,3 +298,23 @@ def sweep(snapshot, registration, calibration, volatility, runner=None, fixtures
         report['holdouts'].append(_holdout(snapshot, document, span, selected, runner, fixtures))
     report['decision'] = decision(report['holdouts'], calibration, volatility, document)
     return report
+
+
+
+def _single_registered(snapshot, document, calibration, volatility, runner):
+    """V3 runs one prespecified model per month; parameter search is not implied."""
+    if runner is None:
+        from trader.research.kucoin_replay import run_window
+        runner = run_window
+    parameters = dict(document.get('fixed_parameters', {}), historical_candle_only=True)
+    if not parameters:
+        raise ValueError('fixed v3 parameters required')
+    windows = []
+    for span in document['holdouts']:
+        start, end = _time(span['start']), _time(span['end'])
+        window = runner(snapshot, start, end, parameters=parameters)
+        window.update(start_ms=start, end_ms=end, selected_parameters=parameters)
+        windows.append(window)
+    return dict(registration=document, mode='prespecified_candle_only_replay', training_trials=[],
+                parameter_search_performed=False, holdouts=windows, calibration=calibration,
+                volatility=volatility, decision=decision(windows, calibration, volatility, document))

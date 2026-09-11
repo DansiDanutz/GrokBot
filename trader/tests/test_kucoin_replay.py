@@ -273,3 +273,55 @@ class ReplayTests(unittest.TestCase):
             result = run_window(MemorySnapshot(), START, START+HOUR)
         self.assertEqual(result['bots'], [])
         self.assertEqual(result['initial_capital'], 2400)
+
+    def test_candle_only_replay_runs_without_book_envelope_and_retains_modeled_results(self):
+        class HistoricalMemory(MemorySnapshot):
+            historical_candle_only = True
+            def bounds(self):
+                return START, START+10*HOUR
+            def market_bounds(self):
+                return None, None
+            def funding(self, pair, start, end):
+                return []
+        with patch('trader.research.kucoin_replay.radar', side_effect=scan):
+            result = run_window(HistoricalMemory(), START, START+HOUR,
+                                {'historical_candle_only': True})
+        self.assertFalse(result['coverage']['complete'])
+        self.assertEqual(result['filter_mode'], 'candle-only filters')
+        self.assertIsInstance(result['metrics']['net'], (int, float))
+        self.assertEqual(len(result['bots']), 2)
+        self.assertIsNone(result['verified_metrics']['net'])
+        self.assertEqual(result['modeled_metrics']['net'], result['metrics']['net'])
+
+    def test_historical_sparse_execution_does_not_create_fills_for_indicator_gap(self):
+        class HistoricalMemory(MemorySnapshot):
+            historical_candle_only = True
+            def bounds(self):
+                return START, START+10*HOUR
+            def market_bounds(self):
+                return None, None
+            def candles(self, pair, start, end):
+                return [dict(timestamp_ms=start+30*60000, open=100, high=100, low=100, close=100)]
+            def funding(self, pair, start, end):
+                return []
+        with patch('trader.research.kucoin_replay.radar', side_effect=scan):
+            result = run_window(HistoricalMemory(), START, START+HOUR,
+                                {'historical_candle_only': True})
+        self.assertEqual(result['modeled_metrics']['completed_grids'], 0)
+        self.assertGreater(result['coverage']['execution_missing_minutes'], 0)
+        self.assertTrue(all(row['kind'] != 'grid_close' for row in result['ledger']))
+
+    def test_same_asof_radar_cache_is_exact_and_refreshes_after_running_set_changes(self):
+        from types import SimpleNamespace
+        from trader.research.kucoin_replay import _scan
+        report = dict(bots=[], hourly_radar=[], coverage={'complete': True, 'reasons': []})
+        fixed = dict(radar=[candidate('A'), candidate('B')], rejected=[], coverage={'observed': 3})
+        with patch('trader.research.kucoin_replay.radar', return_value=fixed) as scan_call:
+            first, _ = _scan(MemorySnapshot(), report, START, {})
+            first.pop()
+            second, _ = _scan(MemorySnapshot(), report, START, {})
+            self.assertEqual(scan_call.call_count, 1)
+            self.assertEqual(len(second), 2)
+            report['bots'] = [dict(active=True, state=SimpleNamespace(status='running', config=SimpleNamespace(pair='A')))]
+            _scan(MemorySnapshot(), report, START, {})
+            self.assertEqual(scan_call.call_count, 2)

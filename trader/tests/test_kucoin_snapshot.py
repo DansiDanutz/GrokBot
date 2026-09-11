@@ -172,5 +172,86 @@ class SnapshotTests(unittest.TestCase):
             self.assertEqual(records[0]['rate'], 0.0002)
 
 
+    def test_historical_membership_is_causal_and_metadata_does_not_supply_future_prices(self):
+        from trader.research.kucoin_snapshot import HistoricalSnapshot
+        day = 86400000
+        raw = dict(tickSize=.01, lotSize=1, multiplier=2, quoteCurrency='USDT',
+                   expireDate=None, isInverse=False, assetClass='CRYPTO')
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
+                [('AAAUSDTM', '1m', t, 10, 11, 9, 10, 2, 40) for t in range(0, 9*day, 60000)])
+            db.execute('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
+                       ('FUTUREUSDTM', '1m', 9*day, 999, 999, 999, 999, 1, 999))
+            db.execute('INSERT INTO ticker_snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                ('AAAUSDTM', 10*day, 10*day, None, 999, 999, 999, 1, 999, 1, .1, json.dumps(raw)))
+        with Snapshot(self.path) as source:
+            historical = HistoricalSnapshot(source, {'historical_spread_bps': 0})
+            self.assertEqual(historical.symbols(8*day), ['AAAUSDTM'])
+            record = historical.records(8*day)[0]
+            self.assertEqual(record['market']['filter_mode'], 'candle-only filters')
+            self.assertEqual(record['market']['price'], 10)
+            self.assertEqual(record['market']['quote_turnover_24h'], 40*1440)
+            self.assertEqual(record['market']['metadata_basis'], 'retrospective copied contract specifications')
+            self.assertEqual(historical.market('AAAUSDTM', 8*day)['bid'], 10)
+            self.assertEqual(record['market']['membership_basis'], 'observed_candles')
+
+    def test_indicator_gaps_are_flagged_but_never_appear_in_execution_candles(self):
+        from trader.research.kucoin_snapshot import HistoricalSnapshot
+        day = 86400000
+        missing = 8*day-60000
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
+                [('AAAUSDTM', '1m', t, 10, 11, 9, 10, 2, 40)
+                 for t in range(day, 8*day, 60000) if t != missing])
+        with Snapshot(self.path) as source:
+            historical = HistoricalSnapshot(source)
+            bars, coverage = historical.history('AAAUSDTM', 8*day)
+            self.assertEqual(len(bars), 10080)
+            self.assertTrue(bars[-1]['indicator_only'])
+            self.assertEqual(coverage['observed'], 10079)
+            execution = historical.candles('AAAUSDTM', 8*day-3600000, 8*day)
+            self.assertEqual(len(execution), 59)
+            self.assertTrue(all(row.get('time_ms') != missing for row in execution))
+
+    def test_daily_history_cache_avoids_reloading_the_same_seven_days_each_hour(self):
+        from trader.research.kucoin_snapshot import HistoricalSnapshot
+        from unittest.mock import patch
+        day = 86400000
+        with Snapshot(self.path) as source, patch.object(source, 'candles', return_value=[]) as reads:
+            historical = HistoricalSnapshot(source)
+            historical.history('A', 8*day)
+            historical.history('A', 8*day+3600000)
+            self.assertEqual(reads.call_count, 1)
+            historical.history('A', 9*day)
+            self.assertEqual(reads.call_count, 2)
+            self.assertEqual(reads.call_args.args[1:], (9*day, 10*day))
+
+
+    def test_contract_count_turnover_uses_multiplier_once_and_does_not_treat_missing_zero_as_quote(self):
+        from trader.research.kucoin_snapshot import _quote_turnover
+        bars = [dict(volume=1000, close=60000, turnover=0)]
+        value, basis = _quote_turnover(bars, {'multiplier': .001}, 'contracts')
+        self.assertEqual(value, 60000)
+        self.assertIn('contracts', basis)
+        self.assertIn('multiplier', basis)
+        self.assertIsNone(_quote_turnover(bars, {}, 'contracts')[0])
+        self.assertEqual(_quote_turnover(bars, {}, 'base')[0], 60000000)
+
+    def test_prefetched_future_prices_do_not_enter_an_earlier_history_window(self):
+        from trader.research.kucoin_snapshot import HistoricalSnapshot
+        day = 86400000
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
+                [('AAAUSDTM', '1m', t, 10, 10, 10, 10, 1, 10) for t in range(day, 8*day, 60000)])
+            db.execute('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
+                ('AAAUSDTM', '1m', 8*day+60000, 999, 999, 999, 999, 1, 999))
+        with Snapshot(self.path) as source:
+            historical = HistoricalSnapshot(source)
+            bars, coverage = historical.history('AAAUSDTM', 8*day)
+            self.assertTrue(all(row['close'] == 10 for row in bars))
+            self.assertTrue(all(row['timestamp_ms'] < 8*day for row in bars))
+            self.assertEqual(coverage['ratio'], 1)
+
+
 if __name__ == '__main__':
     unittest.main()
