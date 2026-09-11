@@ -42,9 +42,11 @@ class CollectorLock:
         _safe_path(self.database)
         descriptor = os.open(self.path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
                              0o600)
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        info = os.fstat(descriptor)
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or info.st_uid != os.getuid()):
             os.close(descriptor)
-            raise OSError('collector lock must be a regular file')
+            raise OSError('collector lock must be an owned single-link regular file')
         os.fchmod(descriptor, 0o600)
         self.handle = os.fdopen(descriptor, 'r+')
         try:

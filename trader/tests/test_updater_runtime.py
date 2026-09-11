@@ -1,5 +1,6 @@
 """Offline scheduler, timestamp and ownership regression tests."""
 import multiprocessing
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -108,6 +109,20 @@ class LockPathTests(unittest.TestCase):
                 with CollectorLock(alias / 'market.sqlite3'):
                     pass
             self.assertEqual(list(actual.iterdir()), [])
+
+    def test_hardlinked_lock_does_not_overwrite_or_chmod_its_other_name(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            target = root / 'original'
+            target.write_text('untouched')
+            target.chmod(0o640)
+            database = root / 'market.sqlite3'
+            os.link(target, str(database) + '.updater.lock')
+            with self.assertRaises(OSError):
+                with CollectorLock(database):
+                    pass
+            self.assertEqual(target.read_text(), 'untouched')
+            self.assertEqual(target.stat().st_mode & 0o777, 0o640)
 
     def test_new_collector_directory_is_private(self):
         with tempfile.TemporaryDirectory() as folder:
