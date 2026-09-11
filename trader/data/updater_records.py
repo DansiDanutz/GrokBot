@@ -1,7 +1,7 @@
 """Normalize current public snapshots without inventing event timestamps."""
 import json
 
-from trader.data.kucoin_public import number
+from trader.data.kucoin_public import MAX_CANDLES, number
 from trader.data.validation import validate
 from trader.data.updater_runtime import epoch_ms
 
@@ -10,7 +10,7 @@ HOUR_MS = 3600000
 DAY_MS = 24 * HOUR_MS
 INITIAL_MINUTES = 5
 MAX_PAGES = 2
-MAX_CANDLE_SLOTS = 500
+MAX_CANDLE_SLOTS = MAX_CANDLES
 WORKER_COUNT = 4
 UPDATER_WEIGHT_RATE = 30
 SOURCE_CANDLES = 'updater-klines'

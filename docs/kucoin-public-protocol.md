@@ -20,7 +20,7 @@ Candle rows: `[open_time_ms, open, high, low, close, volume_lots, turnover_usdt]
 
 ## Pagination and availability
 
-For an internal half-open interval `[start,end)`, request `from=start`, `to=end-1`. Advance by a fixed window no longer than500 candle slots, independent of returned count. Validate/sort/deduplicate rows by opening timestamp and reject conflicts. Never fabricate zero-volume bars to make a gap look complete. Missing no-tick intervals are explicitly allowed by provider docs. Exclude unfinished current candles using floor(now / interval).
+For an internal half-open interval `[start,end)`, request `from=start`, `to=end-1`. Advance by a fixed window no longer than 200 candle slots, independent of returned count. Validate/sort/deduplicate rows by opening timestamp and reject conflicts. Never fabricate zero-volume bars to make a gap look complete. Missing no-tick intervals are explicitly allowed by provider docs. Exclude unfinished current candles using floor(now / interval).
 
 Two live requests at90days ago established inclusive provider bounds: `from=T,to=T+120000` yielded3 one-minute rows; `to=T+119999` yielded2. A90-day-old one-hour request yielded2 rows. These demonstrate sampled availability, not every-symbol or full90-day completeness.
 
@@ -74,3 +74,13 @@ the deadline before and after each chunk and after decoding; late results are
 discarded. An in-flight socket operation can overrun the deadline by its existing
 socket timeout; this is not kernel-level cancellation. Error bodies are never read.
 No raw response bodies or exception text are printed in CLI failure output.
+
+## Observed page limit correction
+
+A later 2026-09-11 public probe requested 500 XBTUSDTM minute slots and
+received 200 rows. A 200-slot request returned 198 rows (two actual missing
+intervals). The implementation therefore caps both backfill and updater pages
+at 200 slots, below the documented maximum. Checkpoint identity includes this
+page bound so the earlier oversized-page experiment cannot skip repair windows.
+The earlier rows remain intact and are compared on refetch. Provider omissions
+are still gaps; smaller pages do not justify manufacturing absent candles.

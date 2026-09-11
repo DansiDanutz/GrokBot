@@ -67,13 +67,23 @@ class BackfillTests(unittest.TestCase):
         first = run(store, client, 0, 60000 * 502 + 12345, now_ms=60000 * 502 + 12345,
                     max_pages=1)
         self.assertFalse(first['complete'])
-        self.assertEqual(len(store.tables['klines']), 500)
+        self.assertEqual(len(store.tables['klines']), 200)
         second = run(store, client, 0, 60000 * 502 + 12345,
                      now_ms=60000 * 502 + 12345)
         self.assertTrue(second['complete'])
         self.assertEqual(second['series'][0]['missing_count'], 0)
-        self.assertEqual(client.calls[1][2], 60000 * 500)
+        self.assertEqual(client.calls[1][2], 60000 * 200)
         self.assertTrue(all(row['time_ms'] < 60000 * 502 for row in store.tables['klines']))
+
+    def test_effective_200_row_provider_limit_does_not_skip_requested_slots(self):
+        class CappedClient(Client):
+            def klines(self, symbol, interval, start, end):
+                return super().klines(symbol, interval, start, end)[:200]
+        store, client = FakeStore(), CappedClient()
+        report = run(store, client, 0, 60000*600, now_ms=60000*600)
+        self.assertTrue(report['gap_free'])
+        self.assertTrue(all(end-start <= 200*(60000 if interval == '1m' else 3600000)
+                            for _, interval, start, end in client.calls))
 
     def test_different_requested_start_does_not_reuse_later_checkpoint(self):
         store, client = FakeStore(), Client()

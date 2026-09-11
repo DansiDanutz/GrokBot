@@ -11,7 +11,8 @@ from trader.data.ratelimit import PUBLIC_LIMITER
 BASE = 'https://api-futures.kucoin.com'
 INTERVALS = {'1m': 60000, '1h': 3600000}
 MAX_BODY = 2000000
-MAX_CANDLES = 500
+# The Classic docs say 500; a public probe returned at most 200.
+MAX_CANDLES = 200
 PATH_WEIGHTS = {'/api/v1/contracts/active': 3, '/api/v1/kline/query': 3,
                 '/api/v1/contract/funding-rates': 5, '/api/v1/ticker': 2,
                 '/api/v1/level2/depth20': 5}

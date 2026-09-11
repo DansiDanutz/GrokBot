@@ -50,7 +50,7 @@ def _collect_series(store, client, contract, interval, start, end, max_pages, re
     symbol = contract['symbol']
     if begin >= finish:
         return _inapplicable(symbol, interval, end, max(0, listed - start))
-    source = f'kucoin:klines:{start}:{end}'
+    source = f'kucoin:klines:{MAX_CANDLES}:{start}:{end}'
     checkpoint = store.query('SELECT * FROM checkpoints WHERE source=? AND symbol=? AND interval=?',
                              (source, symbol, interval))
     cursor = _cursor(checkpoint, begin, finish, step)
