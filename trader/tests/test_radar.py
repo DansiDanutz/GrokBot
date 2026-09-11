@@ -72,8 +72,8 @@ class RadarTests(unittest.TestCase):
         self.assertEqual(rows["TURNUSDTM"]["direction"], "TURNING-UP")
         self.assertEqual(rows["NEUTRALUSDTM"]["direction"], "NEUTRAL")
         self.assertFalse(rows["ILLIQUIDUSDTM"]["passes_liquidity"])
-        self.assertGreaterEqual(rows["UPUSDTM"]["step_pct"], 0.8)
-        self.assertGreaterEqual(rows["XBTUSDTM"]["step_pct"], 0.52)
+        self.assertGreater(rows["UPUSDTM"]["profit_pct_min"], 1)
+        self.assertGreater(rows["XBTUSDTM"]["profit_pct_min"], 1)
         self.assertAlmostEqual(rows["UPUSDTM"]["expected_grids_per_hour"],
                                round(expected_grids_per_hour(rows["UPUSDTM"]["atr_1h_pct"], rows["UPUSDTM"]["step_pct"], rows["UPUSDTM"]["turnover_24h_usdt"]), 2))
         self.assertAlmostEqual(rows["XBTUSDTM"]["expected_grids_per_hour"],

@@ -12,7 +12,7 @@ CODES = ('OSCILLATION', 'TREND_CLARITY', 'LIQUIDITY_TURNOVER', 'LIQUIDITY_SPREAD
          'ROOM', 'FUNDING', 'STABILITY', 'MOVER_RISK', 'YOUNG_LISTING',
          'STALE_DATA', 'MAJOR_LOW_YIELD')
 WATCH_EVENTS = ('PROMOTE', 'DEMOTE', 'DROP', 'DIRECTION_CHANGE')
-BOT_NUMBERS = ('bot_id price range_low range_high step_pct grids completed_grids '
+BOT_NUMBERS = ('grid_interval profit_pct_min profit_pct_max bot_id price range_low range_high step_pct grids completed_grids '
     'realized_pnl unrealized_pnl grid_profit fees_paid funding_paid opened_ms closed_ms '
     'notional_usdt leverage reserve_usdt equity peak_equity max_drawdown_pct '
     'net grids_per_hour position_contracts avg_entry fills funding_pct contracts_per_line empty_line range_verified').split()

@@ -8,15 +8,15 @@ class SpacingTests(unittest.TestCase):
         result = economics(100, 102, 70)
         self.assertFalse(result['viable'])
         self.assertLess(result['net_per_unit_low'], 0)
-        self.assertAlmostEqual(result['step_pct'], .028293, places=5)
+        self.assertAlmostEqual(result['step_pct'], .028571, places=5)
 
     def test_count_fits_fixed_range_and_twenty_percent_fee_cushion(self):
-        count = choose_count(100, 102, .8)
-        self.assertEqual(count, 2)
+        count = choose_count(100, 102)
+        self.assertEqual(count, 6)
         result = economics(100, 102, count)
         self.assertTrue(result['viable'])
         self.assertGreaterEqual(result['net_per_unit_low'], .2*result['fees_per_unit_low'])
-        self.assertEqual(choose_count(100, 100.1, .8), 0)
+        self.assertEqual(choose_count(100, 100.1), 0)
 
     def test_admission_uses_actual_lines_not_claimed_step(self):
         candidate = row('A', price=101, range_low=100, range_high=102, grids=70, step_pct=.8)

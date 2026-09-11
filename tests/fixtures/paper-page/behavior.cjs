@@ -57,3 +57,5 @@ assert.equal(run('gridLadder({range_low:1,range_high:4,grids:2,empty_line:1})[2]
 assert.equal(run('gridLadder({range_low:1,range_high:4,grids:2,empty_line:1})[1].side'), 'EMPTY');
 assert.equal(run('openingPrice({notional_usdt:1000,leverage:5,grids:100,contracts_per_line:25})'),2);
 assert.equal(run('pairNet(10,1,2)'),9.982);
+
+assert.ok(Math.abs(run('gridLadder({range_low:1.4,range_high:2,grids:70,empty_line:18,grid_interval:.0085})[70].price')-1.995)<1e-10);

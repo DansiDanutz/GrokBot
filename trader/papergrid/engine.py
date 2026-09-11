@@ -74,12 +74,20 @@ def open_bot(spec, price, now_ms):
         raise ValueError('invalid paper bot identifier')
     lines = [low * math.exp(math.log(high / low) * i / grids) for i in range(grids + 1)]
     lines[0], lines[-1] = low, high
+    if 'grid_interval' in spec:
+        interval = _number(spec['grid_interval'], positive=True)
+        if low + grids * interval > high + high*1e-12:
+            raise ValueError('arithmetic grid exceeds configured range')
+        lines = [low + i * interval for i in range(grids + 1)]
     empty = min(range(len(lines)), key=lambda i: abs(lines[i] - price))
     quantity = spec['notional_usdt'] * spec['leverage'] / grids / price
     _number(quantity, positive=True)
     bot = {key: deepcopy(spec[key]) for key in (
         'bot_id', 'symbol', 'direction', 'range_low', 'range_high', 'step_pct', 'grids',
         'notional_usdt', 'leverage', 'funding_pct')}
+    for key in ('grid_interval', 'profit_pct_min', 'profit_pct_max'):
+        if key in spec:
+            bot[key] = _number(spec[key], positive=True)
     bot.update(lines=lines, orders=[], empty_line=empty, contracts_per_line=quantity,
                fills=0, completed_grids=0, grid_profit=0.0, realized_pnl=0.0,
                unrealized_pnl=0.0, position_contracts=0.0, avg_entry=0.0,

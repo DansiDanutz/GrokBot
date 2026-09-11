@@ -59,13 +59,15 @@ def profile(row, direction, bot_id):
         step_pct, leverage, reserve = STEP_NEUTRAL_PCT, LEVERAGE_NEUTRAL, NEUTRAL_RESERVE_USDT
         if low <= 0 or high <= low:
             raise ValueError('invalid neutral range')
-        grids = choose_count(low, high, step_pct)
-    spacing = economics(low, high, grids)
+        grids = choose_count(low, high, tick_size=row.get("tick_size", 0), leverage=leverage, direction=direction)
+    spacing = economics(low, high, grids, tick_size=row.get("tick_size", 0), leverage=leverage, direction=direction)
     if not spacing['viable']:
-        raise ValueError('grid spacing does not cover both fees plus safety margin')
-    step_pct = spacing['step_pct']
+        raise ValueError('minimum grid return must exceed 1 percent after both fees')
+    step_pct = spacing['interval'] / price * 100
     return dict(bot_id=bot_id, symbol=row['symbol'], direction=direction,
                 range_low=low, range_high=high, step_pct=step_pct, grids=grids,
+                grid_interval=spacing["interval"], profit_pct_min=spacing["profit_pct_min"],
+                profit_pct_max=spacing["profit_pct_max"],
                 notional_usdt=NOTIONAL_PER_BOT_USDT, leverage=leverage,
                 funding_pct=row['funding_pct']), reserve
 

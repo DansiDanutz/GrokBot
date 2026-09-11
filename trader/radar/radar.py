@@ -5,11 +5,12 @@ from pathlib import Path
 import math
 import sqlite3
 import time
+import json
 
 from trader.radar.rates import K_STANDARD, K_MAJOR, expected_grids_per_hour
 from trader.radar.scoring import score_row
 from trader.radar.support import levels
-from trader.radar.spacing import economics, choose_count
+from trader.radar.spacing import economics, choose_count, align_bounds
 
 
 HOUR_MS = 3_600_000
@@ -130,6 +131,8 @@ def analyse(database, asof_ms=None):
         books = _latest(connection, "top_of_book", ("time_ms", "bid", "ask"))
         universe = {row[0]: row[1:] for row in connection.execute(
             "SELECT symbol,first_candle_ms,listed_at_ms,active FROM universe")}
+        columns = {r[1] for r in connection.execute("PRAGMA table_info(ticker_snapshots)")}
+        raw_contracts = _latest(connection, "ticker_snapshots", ("raw_json",)) if "raw_json" in columns else {}
         by_symbol = defaultdict(list)
         since = now - 60 * DAY_MS
         for row in connection.execute(
@@ -175,10 +178,24 @@ def analyse(database, asof_ms=None):
         verified = support is not None and resistance is not None
         if verified:
             low, high = support, resistance
-        grids = choose_count(low, high, step)
+        try:
+            raw = raw_contracts[symbol][0]
+            contract = json.loads(raw) if len(raw) <= 65536 else {}
+            tick_size = float(contract.get('tickSize', 0))
+            if not math.isfinite(tick_size) or tick_size < 0:
+                tick_size = 0
+        except (ValueError, TypeError, KeyError, AttributeError):
+            tick_size = 0
+        if verified:
+            low, high = align_bounds(low, high, tick_size)
+            structure.update(support=low, resistance=high)
+            verified = low < price < high
+        side = 'NEUTRAL' if direction == 'NEUTRAL' else ('SHORT' if direction in ('SHORT','TURNING-DOWN') else 'LONG')
+        grids = choose_count(low, high, tick_size=tick_size, direction=side)
         viable = grids > 0
         if viable:
-            step = economics(low, high, grids)['step_pct']
+            spacing = economics(low, high, grids, tick_size=tick_size, direction=side)
+            step = spacing['interval'] / price * 100
         expected = round(expected_grids_per_hour(atr_1h_pct, step, turnover), 2)
         row = {
             "symbol": symbol, "direction": direction, "price": price,
@@ -191,8 +208,11 @@ def analyse(database, asof_ms=None):
             "low_7d": low_7d, "high_7d": high_7d,
             "range_low": low, "range_high": high, "step_pct": step,
             "range_verified": int(verified), **structure,
-            "grids": grids, "spacing_viable": int(viable),
-            "setup_rejection": "MISSING_STRUCTURE" if not verified else ("GRID_FEES" if not viable else ""),
+            "grids": grids, "spacing_viable": int(viable), "tick_size": tick_size,
+            "grid_interval": spacing["interval"] if viable else 0,
+            "profit_pct_min": spacing["profit_pct_min"] if viable else 0,
+            "profit_pct_max": spacing["profit_pct_max"] if viable else 0,
+            "setup_rejection": "MISSING_STRUCTURE" if not verified else ("GRID_RETURN_BELOW_1_PERCENT" if not viable else ""),
             "expected_grids_per_hour": expected,
             "rank_score": expected * min(1.0, turnover / 8_000_000),
             "passes_liquidity": turnover >= MIN_TURNOVER_USDT
