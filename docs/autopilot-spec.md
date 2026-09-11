@@ -158,6 +158,78 @@ order, `MAX_BOTS`, majors and movers caps, cooldown, each close rule, tick fill
 semantics, restart backfill, idempotency, snapshot atomicity (no partial file
 readable mid-write), state file free of tokens.
 
+## Phase B amendment: dynamic two-tier watchlist (Dan)
+
+This amendment supersedes the earlier six-bot admission rule. Implement in Phase B;
+render in Phase C. No real orders or deployment is authorized.
+
+### Shared radar score
+
+Score every radar row from 0 to 100 in `trader/radar`, shared by radar and autopilot.
+Each row carries `score` and `score_parts: [{code, value, points}]`; value is the
+measured number used by the rule. No free text in the data; the page maps codes to
+sentence templates and fills the numbers.
+
+- OSCILLATION, weight 30: expected_grids_per_hour scaled 0..30, reaching 30 at
+  >=20 grids/hour.
+- TREND_CLARITY, weight 20: LONG/SHORT with daily and 4h agreeing =20; TURNING =14;
+  NEUTRAL with price in the middle 25..75% of the 7d range =16; otherwise 6.
+- LIQUIDITY, weight 15: turnover scaled 0..10 (10 at >=30M USDT), plus spread
+  0..5 (5 at <=0.05%).
+- ROOM, weight 15: distance to the nearest range edge in ATR4h units, scaled
+  0..15, reaching 15 at >=2 ATR.
+- FUNDING, weight 10: 10 when funding favours the bot side (short and positive,
+  long and negative); 5 when absolute rate <0.01%; 0 against.
+- STABILITY, weight 10: 10 when atr_1h / (atr_4h / 2) is between 0.6 and 1.4;
+  4 outside.
+- Penalties are separate reason codes: MOVER_RISK -15 when absolute change_24h
+  >30%; YOUNG_LISTING -10 when listed <14 days; STALE_DATA -20 when snapshot
+  age >60 minutes; MAJOR_LOW_YIELD -10 on BTC/ETH/SOL.
+
+### Persistent core and bench
+
+Constants: `CORE_SIZE=5`, `BENCH_SIZE=5`, `PROMOTION_MARGIN=10`,
+`CORE_MIN_HOLD_HOURS=2`, `MAX_SWAPS_PER_SCAN=1`, `MAX_BOTS=CORE_SIZE=5`.
+Persist core and bench in state and snapshot. Each entry is
+`{symbol, direction, score, score_parts, since_ms, rank}`.
+
+Every hourly radar scan, bench is the five best-scoring qualifying rows not in
+core. Then at most one swap: the top bench coin replaces the lowest-scoring core
+coin if its score is at least core_score + PROMOTION_MARGIN and the core coin has
+been in core for at least CORE_MIN_HOLD_HOURS. A core coin absent from the radar
+entirely (fails filters two scans in a row) is removed regardless, and the top
+bench coin fills the seat. Same-symbol direction changes update the entry in
+place with a DIRECTION_CHANGE event. Cold start: core is the top five by score.
+
+Every swap writes a WATCHLIST event with
+`{ts_ms, type: PROMOTE|DEMOTE|DROP|DIRECTION_CHANGE, symbol, score,
+replaced_symbol, replaced_score, margin}`. Keep the last 48 in the snapshot as
+`watchlist_history`.
+
+Bots open from core only. The direction slots (2 NEUTRAL, 2 LONG, 2 SHORT,
+cap 4 of one kind) stay as upper bounds. A demoted coin's open bot keeps running
+under its own close rules (label flip, range break, stop, max age); it is just
+not reopened. Bench coins never get a bot.
+
+### Telegram and Phase C rendering
+
+Telegram sends one message per hourly scan only when core or bench changed:
+"Core: SYM dir score (top reason) …", then "Bench: …", then the swap line with
+both scores and the margin. Daily summary adds the number of swaps.
+
+Phase C adds a Watchlist section above the bots on `/paper`: Core and Bench
+columns, one card per coin with symbol, direction chip, a 0..100 score bar, small
+labelled score-part bars with measured values, and a why-list built from code
+templates. Examples: OSCILLATION "18.4 expected grids/h", ROOM "1.6 ATR to the
+nearest edge", MOVER_RISK "up 31% in 24h, hit-and-run". Below, display the last
+24 watchlist events (for example "RAY promoted over SAGA, 71 vs 52"). Same CSP
+rules; sentence templates live in the page script, only codes and numbers in JSON
+apart from the prescribed symbol/direction fields.
+
+Tests: known-number score fixtures; promotion margin and minimum-hold hysteresis;
+at most one swap per scan; drop after two missed scans; no bots from bench;
+watchlist and history in snapshots; Telegram silent when nothing changed.
+
 ## Phase C: reporting, `/paper` page, LaunchAgent
 
 `paper.html` is a NEW public page, served at `/paper`, next to `/radar`.
