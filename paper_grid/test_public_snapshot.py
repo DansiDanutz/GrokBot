@@ -200,6 +200,7 @@ class PublicSnapshotTests(unittest.TestCase):
             atr_4h_pct=2, slope_4h_pct=.3, position_7d=.5, change_24h_pct=2,
             low_7d=40_000, high_7d=55_000, range_low=48_000, range_high=55_000,
             step_pct=.8, grids=17, expected_grids_per_hour=2.4, rank_score=2.4,
+            grid_interval=400, profit_pct_min=1.01, profit_pct_max=1.5,
             passes_liquidity=True)]})
         payload['private'] = SECRET
         (radar / 'radar.json').write_text(json.dumps(payload))
@@ -208,6 +209,8 @@ class PublicSnapshotTests(unittest.TestCase):
         exported = json.loads((self.root / 'site/data/radar.json').read_text())
         self.assertEqual(exported['sections']['long'][0]['direction'], 'LONG')
         self.assertEqual(exported['sections']['long'][0]['snapshot_age_min'], 4)
+        self.assertEqual(exported['sections']['long'][0]['profit_pct_min'], 1.01)
+        self.assertEqual(exported['sections']['long'][0]['grid_interval'], 400)
         self.assertNotIn(SECRET, json.dumps(exported))
 
     def test_audits_regenerated_from_numeric_dto(self):

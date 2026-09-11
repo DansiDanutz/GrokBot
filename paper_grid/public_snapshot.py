@@ -279,7 +279,8 @@ def _radar(source):
     directions = ('LONG', 'SHORT', 'TURNING-UP', 'TURNING-DOWN', 'NEUTRAL')
     numeric = ('price turnover_24h_usdt spread_pct snapshot_age_min funding_pct listing_age_days atr_1h_pct '
                'atr_4h_pct slope_4h_pct position_7d change_24h_pct low_7d high_7d range_low '
-               'range_high step_pct grids expected_grids_per_hour rank_score').split()
+               'range_high step_pct grids expected_grids_per_hour rank_score grid_interval '
+               'profit_pct_min profit_pct_max tick_size').split()
     result = dict(schema_version=1, generated_at_ms=_number(source.get('generated_at_ms')),
                   asof_ms=_number(source.get('asof_ms')), sections={})
     for section, rows in _object(source.get('sections')).items():
