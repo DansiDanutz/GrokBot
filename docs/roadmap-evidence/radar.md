@@ -1,6 +1,6 @@
 # Lean KuCoin radar handoff
 
-Date: 11 September 2026. Status: source complete for audit at the fixed, unmerged PR head. Base: `07af3ae` on `codex/roadmap-phase-2`. Branch: `codex/lean-kucoin-radar`. Tracking: [issue #16](https://github.com/DansiDanutz/GrokBot/issues/16).
+Date: 11 September 2026. PR #17 passed Claude's gate and merged unchanged as `5f09b10`. The two-commit follow-up is on `codex/radar-followup`; its final PR head identifies this document's own commit. Tracking: [issue #16](https://github.com/DansiDanutz/GrokBot/issues/16).
 
 ## Commit ledger
 
@@ -55,3 +55,26 @@ Rows within normal direction sections are ordered by expected grids/hour multipl
 - The new LaunchAgent is only an `.example`. Dan must replace the chat placeholder and run the wrapped command manually before any installation. This handoff did not read a credential or send Telegram.
 - This branch adds **under 800 lines** across code, tests, templates and documentation. The radar is a heuristic operator recommendation, not an order path or guaranteed fill estimate.
 - Claude should audit the exact PR head. Codex must remain idle after reporting it.
+
+## Gate follow-up
+
+| Commit | Result |
+| --- | --- |
+| `d96c7e2` | Telegram rows now show `SYMBOL · DIRECTION · price · range lo..hi · N grids · step % · est grids/h`; exact formatter test added. |
+| this commit | Adds `snapshot_age_min`, rejects rows older than 120 minutes, prints age in the CLI, preserves it in private/public JSON, and documents the daily EMA fallback. |
+
+The staleness test first failed with `KeyError: snapshot_age_min` on the merged head. It then proved that a 121-minute-old book blocks a row even when its ticker is current. The second commit's staged gates completed with **38 Node + 291 paper Python + 113 trader Python = 442 tests** and a clean secrets scan.
+
+The permitted real run at **2026-09-11 17:46:49 Europe/Bucharest** produced:
+
+```text
+Analysed 363 symbols; 50 pass liquidity filters.
+Majors: ETH LONG; XBT NEUTRAL; SOL NEUTRAL
+Turning up leader: NESUSDTM, 12.52 grids/h, snapshot age 6.3 min
+Long leader: NIULAIUSDTM, 22.85 grids/h, snapshot age 6.3 min
+Short leader: BEATUSDTM, 7.90 grids/h, snapshot age 6.3 min
+Neutral leader: 4USDTM, 10.11 grids/h, snapshot age 6.3 min
+Snapshot ages across analysed rows: 6.3..276.3 min
+```
+
+Rows beyond 120 minutes are present in the complete JSON for diagnosis but cannot enter liquidity-gated sections. No Telegram message was sent and no LaunchAgent was installed or changed.

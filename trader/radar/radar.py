@@ -12,6 +12,7 @@ DAY_MS = 24 * HOUR_MS
 MIN_TURNOVER_USDT = 3_000_000
 MAJOR_TURNOVER_USDT = 50_000_000
 MAX_SPREAD_PCT = 0.15
+MAX_SNAPSHOT_AGE_MIN = 120
 MIN_LISTING_AGE_DAYS = 7
 STANDARD_STEP_PCT = 0.8
 MAJOR_STEP_PCT = 0.52
@@ -121,8 +122,9 @@ def analyse(database, asof_ms=None):
         raise ValueError("asof_ms must be a nonnegative integer")
     uri = path.as_uri() + "?mode=ro"
     with sqlite3.connect(uri, uri=True) as connection:
-        tickers = _latest(connection, "ticker_snapshots", ("last", "turnover_24h", "funding_rate"))
-        books = _latest(connection, "top_of_book", ("bid", "ask"))
+        tickers = _latest(connection, "ticker_snapshots",
+                          ("time_ms", "last", "turnover_24h", "funding_rate"))
+        books = _latest(connection, "top_of_book", ("time_ms", "bid", "ask"))
         universe = {row[0]: row[1:] for row in connection.execute(
             "SELECT symbol,first_candle_ms,listed_at_ms,active FROM universe")}
         by_symbol = defaultdict(list)
@@ -137,8 +139,8 @@ def analyse(database, asof_ms=None):
     for symbol, hourly in by_symbol.items():
         if len(hourly) < 24 * 10 or symbol not in tickers or symbol not in books:
             continue
-        price, turnover, funding = tickers[symbol]
-        bid, ask = books[symbol]
+        ticker_time, price, turnover, funding = tickers[symbol]
+        book_time, bid, ask = books[symbol]
         identity = universe.get(symbol)
         if not identity or not identity[2]:
             continue
@@ -156,6 +158,7 @@ def analyse(database, asof_ms=None):
         spread = (ask - bid) / price * 100 if bid and ask and price else math.inf
         listed = identity[1] or identity[0] or now
         age_days = (now - listed) / DAY_MS
+        snapshot_age_min = max(0, (now - min(ticker_time, book_time)) / 60_000)
         step = MAJOR_STEP_PCT if turnover >= MAJOR_TURNOVER_USDT else STANDARD_STEP_PCT
         coefficient = K_MAJOR if turnover >= MAJOR_TURNOVER_USDT else K_STANDARD
         atr_1h_pct, atr_4h_pct = atr_1h / price * 100, atr_4h / price * 100
@@ -169,6 +172,7 @@ def analyse(database, asof_ms=None):
         rows.append({
             "symbol": symbol, "direction": direction, "price": price,
             "turnover_24h_usdt": turnover, "spread_pct": spread,
+            "snapshot_age_min": snapshot_age_min,
             "funding_pct": funding * 100, "listing_age_days": age_days,
             "atr_1h_pct": atr_1h_pct, "atr_4h_pct": atr_4h_pct,
             "slope_4h_pct": slope_4h, "position_7d": position,
@@ -179,12 +183,14 @@ def analyse(database, asof_ms=None):
             "expected_grids_per_hour": expected,
             "rank_score": expected * min(1.0, turnover / 8_000_000),
             "passes_liquidity": turnover >= MIN_TURNOVER_USDT
-                                and spread <= MAX_SPREAD_PCT and age_days >= MIN_LISTING_AGE_DAYS,
+                                and spread <= MAX_SPREAD_PCT and age_days >= MIN_LISTING_AGE_DAYS
+                                and snapshot_age_min <= MAX_SNAPSHOT_AGE_MIN,
         })
     rows.sort(key=lambda row: (-row["rank_score"], row["symbol"]))
     return {"schema_version": 1, "generated_at_ms": int(time.time() * 1000),
             "asof_ms": now, "constants": {"standard_step_pct": STANDARD_STEP_PCT,
             "major_step_pct": MAJOR_STEP_PCT, "k_standard": K_STANDARD, "k_major": K_MAJOR},
             "filters": {"min_turnover_usdt": MIN_TURNOVER_USDT,
-            "max_spread_pct": MAX_SPREAD_PCT, "min_listing_age_days": MIN_LISTING_AGE_DAYS},
+            "max_spread_pct": MAX_SPREAD_PCT, "min_listing_age_days": MIN_LISTING_AGE_DAYS,
+            "max_snapshot_age_min": MAX_SNAPSHOT_AGE_MIN},
             "rows": rows, "sections": _sections(rows)}
