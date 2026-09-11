@@ -460,7 +460,26 @@ class HistoricalSnapshot:
         for pair in self.symbols(at_ms):
             if wanted is not None and pair not in wanted:
                 continue
-            yield self._prepared_record(pair, at_ms)
+            record = self._prepared_record(pair, at_ms)
+            try:
+                yield record
+            finally:
+                self._release_invalid_record(pair, record)
+
+    def _release_invalid_record(self, pair, record):
+        """Drop rejected dense histories after consumption, retaining valid reuse.
+
+        Returned records own their references. A suspended older iterator must
+        not evict a newer record loaded for the same pair while it was yielded.
+        """
+        if record.get('prepared', {}).get('valid') is not False:
+            return
+        current = self._record_cache.get(pair)
+        if current is not None and current[1] is not record:
+            return
+        for cache in (self._cache, self._history, self._prepared_cache,
+                      self._record_cache, self._quote_cache):
+            cache.pop(pair, None)
 
     def records(self, at_ms, pairs=None):
         return list(self.iter_records(at_ms, pairs))
