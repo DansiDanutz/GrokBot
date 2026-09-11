@@ -1,0 +1,2645 @@
+{
+  "schema_version": 1,
+  "asof_ms": 1789113600000,
+  "interpretation": "offline counterfactual OHLC research; fills are modeled, not KuCoin account trades",
+  "live_use": {
+    "actionable": false,
+    "status": "blocked_calibration_and_holdout_validation",
+    "reason": "All four bot calibration, volatility fixture validation and two disjoint monthly holdouts must pass."
+  },
+  "radar": {
+    "asof_ms": 1789113600000,
+    "radar": [],
+    "rejected": [
+      {
+        "pair": "0GUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "1000000MOGUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "10000CATUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "10000REKTUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "10000SATSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "1000BONKUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "1000CHEEMSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "1000RATSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "1INCHUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "1MBABYDOGEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "2U2USDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "2ZUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "4USDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AAVEUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ACEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ACHUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ACTSOLUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ACUUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ADAUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "AEONUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AEROUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AEVOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AGIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AGLDUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AGTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AIGENSYNUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AINUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AIOTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AIOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AIXBTUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "AKEUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ALCHUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ALGOUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ALICEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ALLOUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ALPINEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ALTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ANIMEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ANKRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "APEUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "API3USDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "APRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "APTUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ARBUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ARCUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ARIAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ARKMUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ARKUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ARPAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ARUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ARXUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ASRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ASTERUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ASTRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ATHUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ATOMUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ATUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AUCTIONUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AVAAIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AVAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AVAXUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "AVNTUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "AWEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AXLUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AXSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "AZTECUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "B2USDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BABYUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BANANAS31USDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BANANAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BANDUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BANKUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BANUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BARDUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BASEDUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BASUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "BATUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BBUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BCHUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "BDXUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BEATUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BELUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BERAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BICOUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BIGTIMEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BILLUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BINANCELIFEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BIOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BIRBUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BLASTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BLENDUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "BLESSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BLUAIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BLURUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BMTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BNBUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "BNTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BOMEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BPUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BRETTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BREVUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BROCCOLI714USDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BSBUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "BSVUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BTRUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "BTWUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "BUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "C98USDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CAKEUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "CAPUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "CARVUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CASHCATUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CATIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CELOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CELRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CETUSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CFGUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CFXUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CGPTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CHILLGUYUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CHIPUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "CHRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CHZUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CKBUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CLANKERUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CLOUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "COAIUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "COLLECTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "COMPUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "COOKIEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "COTIUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "COWUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CPUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CROSSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CROUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CRVUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "CTCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CTRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CTSIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CVCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CVXUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CYBERUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "CYSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "DASHUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "DATAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "DEEPUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "DODOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "DOGEUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "DOGSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "DOLOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "DOODUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "DOSUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "DOTUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "DRIFTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "DUSKUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "DYDXUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "DYMUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "EDENUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "EDGEUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "EDUUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "EGLDUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "EIGENUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ELSAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ENAUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ENJUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ENSOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ENSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ERAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ESEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ESIMUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ESPORTSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ESPUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ETCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ETHBTCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ETHFIUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ETHUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "EULUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "EVAAUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "FARTCOINUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "FETUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "FFUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "FHEUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "FIGHTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "FILUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "FLOCKUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "FLOKIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "FLOWUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "FLUIDUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "FLUXUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "FOGOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "FOLKSUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "FORMUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "FRAXUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "FUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "GALAUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "GASUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "GENIUSUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "GIGGLEUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "GMTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "GMXUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "GOATUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "GPSUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "GRAMUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "GRASSUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "GRIFFAINUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "GRTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "GRVTUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "GTCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "GUAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "GUNUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "GUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "GWEIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "HAEDALUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "HAJIMIUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "HANAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "HBARUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "HEIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "HEMIUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "HIVEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "HMSTRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "HOLOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "HOMEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "HOTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "HUMAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "HUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "HYPERUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "HYPEUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ICNTUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ICPUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "IDOLUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "IDUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ILVUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "IMXUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "INITUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "INJUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "INUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "INXUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "IOTAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "IOTXUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "IOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "IRYSUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "JASMYUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "JCTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "JELLYJELLYUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "JOEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "JTOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "JUPUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "KAIAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "KAITOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "KASUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "KATUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "KAVAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "KCSUSDTM",
+        "reason": "normalized eight-hour funding unknown or outside 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "KERNELUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "KGENUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "KITEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "KNCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "KOMAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "KSMUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "LABUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "LAUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "LDOUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "LIGHTUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "LINEAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "LINKUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "LISTAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "LITUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "LONGXIAUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "LPTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "LQTYUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "LRCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "LTCUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "LUNAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "LUNCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "LYNUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MAGICUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MAGMAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MANAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MANTAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MANTRAUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MARSCOINUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MASKUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MAVIAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MAVUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MEGAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MELANIAUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "MEMEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MERLUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "METISUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "METUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "MEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MEWUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MINAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MIRAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MITOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MMTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MOCAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MONUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MOODENGUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "MORPHOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MOVEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MOVRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MTLUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MUBARAKUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "MYXUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "NAORISUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "NEARUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "NEIROCTOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "NEOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "NESUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "NEWTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "NEXUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "NIGHTUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "NILUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "NIULAIUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "NMRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "NOMUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "NOTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "NPCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "NXPCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "OFCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "OGNUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "OGUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ONDOUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ONEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ONTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ONUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "OPENUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "OPGUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "OPNUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "OPUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ORBSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ORCAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ORDERUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ORDIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "OUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "PARTIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "PENDLEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "PENGUUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "PEOPLEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "PEPEUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "PHAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "PIEVERSEUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "PIPPINUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "PIXELUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "PLUMEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "PNUTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "POLUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "POLYXUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "PONSUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "POPCATUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "PORTALUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "POWERUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "POWRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "PRLUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "PROMPTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "PROMUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "PROSUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "PROVEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "PTBUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "PUMPUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "PYTHUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "QNTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "QTUMUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "QUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "RAREUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "RAVEUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "RAYUSDTM",
+        "reason": "normalized eight-hour funding unknown or outside 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "READYUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "RECALLUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "REDSTONEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "RENDERUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "RESOLVUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "REUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "REZUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "RIFUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "RIVERUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ROBOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "RONUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ROSEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "RSRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "RUNEUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "RVNUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SAGAUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SAHARAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SANDUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SAPIENUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "SCRUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SEIUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "SENTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SFPUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SHELLUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SHIBUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "SIGNUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SIRENUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SKLUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SKRUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SKYAIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SKYUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SLXUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "SNXUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "SOLAYERUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SOLUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "SOLVUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SOMIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SONICUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SOONUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "SOPHUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SPACEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SPELLUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SPKUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SPORTFUNUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SPXUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "SQDUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "SSVUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "STABLEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "STARUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "STBLUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "STEEMUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "STGUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "STOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "STRKUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "STXUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "SUIUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "SUNUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SUPERUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "SUSHIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SWARMSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SXTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "SYRUPUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TACUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TAGUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TAIKOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TAKEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TAOUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "TAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "THETAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "THEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TIAUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "TNSRUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "TOSHIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TOWNSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TRADOORUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "TRBUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TREEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TRIAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TRUMPUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "TRUSTUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TRUTHUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TRXUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "TSTBSCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TURBOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TURTLEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TUTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "TWTUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "UAIUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "UBUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "UMAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "UNIUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "USDCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "USDGUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "USELESSUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "USTCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "USUALUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "USUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "VANAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "VELOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "VELVETUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "VETUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "VIRTUALUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "VVVUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "WALUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "WARDUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "WAVESUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "WAXPUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "WCTUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "WETUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "WIFUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "WLDUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "WLFIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "WOOUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "WOTAMALAILEUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "WUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "XAIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "XANUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "XBTUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "XDCUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "XECUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "XLMUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "XMRUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "XNYUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "XPINUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "XPLUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "XRPUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "XTZUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "XVGUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "XVSUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "YBUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "YFIUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "YGGUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ZAMAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ZBTUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ZECUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ZENUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ZEREBROUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ZESTUSDTM",
+        "reason": "spread unknown, invalid or above 0.1 percent",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ZETAUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ZIGUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ZILUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ZKCUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ZKPUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ZKUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      },
+      {
+        "pair": "ZORAUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ZROUSDTM",
+        "reason": "requires seven days of completed one-minute candles",
+        "coverage_issue": true
+      },
+      {
+        "pair": "ZRXUSDTM",
+        "reason": "quote turnover unknown or below 500000 USDT; base volume is not turnover",
+        "coverage_issue": false
+      }
+    ],
+    "coverage": {
+      "observed": 522,
+      "eligible": 0,
+      "rejected": 522
+    }
+  },
+  "recommended_forms": [],
+  "running": [],
+  "coverage": {
+    "universe_observed": 522,
+    "minute_candles": "complete reconstruction for supplied running forms",
+    "execution_costs_complete": true
+  },
+  "refresh_radar_after_switch": true,
+  "instructions": "Research proposals only. This command never starts, stops or replaces an exchange bot.",
+  "snapshot": {
+    "sha256": "3e9ad565528747996e675f4b0fc07c7aef5c7e4f2802a672616136b4a1db90d1",
+    "source": "kucoin-public",
+    "offline_copy": true
+  }
+}

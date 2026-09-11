@@ -1,0 +1,4239 @@
+{
+  "source": "detached checkpointed APFS copy; source database never opened by this task",
+  "copy_manifest": {
+    "offline_copy": true,
+    "source": "kucoin-public",
+    "copied_at_ms": 1789115077097,
+    "copy_method": "APFS file clones of DB and WAL; source signatures unchanged across both copies; recovery/checkpoint on copy only",
+    "source_sqlite_opened": false,
+    "source_files_signature": [
+      [
+        16777232,
+        426916211,
+        1139171328,
+        1789115058705953405,
+        1789115058705953405
+      ],
+      [
+        16777232,
+        426916213,
+        31934152,
+        1789115064054354183,
+        1789115064054354183
+      ]
+    ],
+    "quick_check": "ok"
+  },
+  "tables": {
+    "klines": {
+      "rows": 11567789,
+      "symbols": 522,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000
+    },
+    "ticker_snapshots": {
+      "rows": 41760,
+      "symbols": 522,
+      "first_ms": 1789090716701,
+      "last_ms": 1789114831872
+    },
+    "top_of_book": {
+      "rows": 41760,
+      "symbols": 522,
+      "first_ms": 1789090714935,
+      "last_ms": 1789115057297
+    },
+    "funding": {
+      "rows": 3751,
+      "symbols": 522,
+      "first_ms": 1789005600000,
+      "last_ms": 1789113600000
+    }
+  },
+  "candles_by_symbol": [
+    {
+      "symbol": "0GUSDTM",
+      "rows": 127862,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 2178
+    },
+    {
+      "symbol": "1000000MOGUSDTM",
+      "rows": 39643,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114320000,
+      "expected_within_own_bounds": 130033,
+      "missing_within_own_bounds": 90390
+    },
+    {
+      "symbol": "10000CATUSDTM",
+      "rows": 26420,
+      "first_ms": 1781312520000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 103618
+    },
+    {
+      "symbol": "10000REKTUSDTM",
+      "rows": 80290,
+      "first_ms": 1783328520000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 96438,
+      "missing_within_own_bounds": 16148
+    },
+    {
+      "symbol": "10000SATSUSDTM",
+      "rows": 42925,
+      "first_ms": 1781312520000,
+      "last_ms": 1789114440000,
+      "expected_within_own_bounds": 130033,
+      "missing_within_own_bounds": 87108
+    },
+    {
+      "symbol": "1000BONKUSDTM",
+      "rows": 125037,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 5003
+    },
+    {
+      "symbol": "1000CHEEMSUSDTM",
+      "rows": 36985,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 93054
+    },
+    {
+      "symbol": "1000RATSUSDTM",
+      "rows": 67603,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 62437
+    },
+    {
+      "symbol": "1INCHUSDTM",
+      "rows": 14095,
+      "first_ms": 1781313000000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130030,
+      "missing_within_own_bounds": 115935
+    },
+    {
+      "symbol": "1MBABYDOGEUSDTM",
+      "rows": 41978,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 88060
+    },
+    {
+      "symbol": "2U2USDTM",
+      "rows": 52856,
+      "first_ms": 1785742200000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 56210,
+      "missing_within_own_bounds": 3354
+    },
+    {
+      "symbol": "2ZUSDTM",
+      "rows": 23811,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114440000,
+      "expected_within_own_bounds": 130035,
+      "missing_within_own_bounds": 106224
+    },
+    {
+      "symbol": "4USDTM",
+      "rows": 90907,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 39133
+    },
+    {
+      "symbol": "AAVEUSDTM",
+      "rows": 128694,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 1346
+    },
+    {
+      "symbol": "ACEUSDTM",
+      "rows": 61889,
+      "first_ms": 1781314920000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 129998,
+      "missing_within_own_bounds": 68109
+    },
+    {
+      "symbol": "ACHUSDTM",
+      "rows": 7713,
+      "first_ms": 1781312520000,
+      "last_ms": 1789100520000,
+      "expected_within_own_bounds": 129801,
+      "missing_within_own_bounds": 122088
+    },
+    {
+      "symbol": "ACTSOLUSDTM",
+      "rows": 15083,
+      "first_ms": 1781313840000,
+      "last_ms": 1789113600000,
+      "expected_within_own_bounds": 129997,
+      "missing_within_own_bounds": 114914
+    },
+    {
+      "symbol": "ACUUSDTM",
+      "rows": 29709,
+      "first_ms": 1781316360000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 129974,
+      "missing_within_own_bounds": 100265
+    },
+    {
+      "symbol": "ADAUSDTM",
+      "rows": 129244,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 796
+    },
+    {
+      "symbol": "AEONUSDTM",
+      "rows": 64698,
+      "first_ms": 1785209460000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 65089,
+      "missing_within_own_bounds": 391
+    },
+    {
+      "symbol": "AEROUSDTM",
+      "rows": 40742,
+      "first_ms": 1781312880000,
+      "last_ms": 1789114440000,
+      "expected_within_own_bounds": 130027,
+      "missing_within_own_bounds": 89285
+    },
+    {
+      "symbol": "AEVOUSDTM",
+      "rows": 30622,
+      "first_ms": 1781314440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130006,
+      "missing_within_own_bounds": 99384
+    },
+    {
+      "symbol": "AGIUSDTM",
+      "rows": 22447,
+      "first_ms": 1781315100000,
+      "last_ms": 1789114500000,
+      "expected_within_own_bounds": 129991,
+      "missing_within_own_bounds": 107544
+    },
+    {
+      "symbol": "AGLDUSDTM",
+      "rows": 36382,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 93656
+    },
+    {
+      "symbol": "AGTUSDTM",
+      "rows": 42208,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114500000,
+      "expected_within_own_bounds": 130036,
+      "missing_within_own_bounds": 87828
+    },
+    {
+      "symbol": "AIGENSYNUSDTM",
+      "rows": 120302,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 9738
+    },
+    {
+      "symbol": "AINUSDTM",
+      "rows": 38151,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 91887
+    },
+    {
+      "symbol": "AIOTUSDTM",
+      "rows": 49201,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 80838
+    },
+    {
+      "symbol": "AIOUSDTM",
+      "rows": 53844,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 76196
+    },
+    {
+      "symbol": "AIXBTUSDTM",
+      "rows": 106723,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 23317
+    },
+    {
+      "symbol": "AKEUSDTM",
+      "rows": 80356,
+      "first_ms": 1781312880000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130032,
+      "missing_within_own_bounds": 49676
+    },
+    {
+      "symbol": "ALCHUSDTM",
+      "rows": 105821,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 24219
+    },
+    {
+      "symbol": "ALGOUSDTM",
+      "rows": 120339,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 9701
+    },
+    {
+      "symbol": "ALICEUSDTM",
+      "rows": 47023,
+      "first_ms": 1781312520000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 130035,
+      "missing_within_own_bounds": 83012
+    },
+    {
+      "symbol": "ALLOUSDTM",
+      "rows": 127648,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 2392
+    },
+    {
+      "symbol": "ALPINEUSDTM",
+      "rows": 116463,
+      "first_ms": 1781312520000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 13575
+    },
+    {
+      "symbol": "ALTUSDTM",
+      "rows": 39374,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 90666
+    },
+    {
+      "symbol": "ANIMEUSDTM",
+      "rows": 44081,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 85959
+    },
+    {
+      "symbol": "ANKRUSDTM",
+      "rows": 41453,
+      "first_ms": 1781314920000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 129997,
+      "missing_within_own_bounds": 88544
+    },
+    {
+      "symbol": "APEUSDTM",
+      "rows": 95746,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 34293
+    },
+    {
+      "symbol": "API3USDTM",
+      "rows": 33966,
+      "first_ms": 1781312520000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 130036,
+      "missing_within_own_bounds": 96070
+    },
+    {
+      "symbol": "APRUSDTM",
+      "rows": 44093,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 130036,
+      "missing_within_own_bounds": 85943
+    },
+    {
+      "symbol": "APTUSDTM",
+      "rows": 126015,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 4025
+    },
+    {
+      "symbol": "ARBUSDTM",
+      "rows": 114962,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 15078
+    },
+    {
+      "symbol": "ARCUSDTM",
+      "rows": 127047,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 2993
+    },
+    {
+      "symbol": "ARIAUSDTM",
+      "rows": 28969,
+      "first_ms": 1781313540000,
+      "last_ms": 1789114440000,
+      "expected_within_own_bounds": 130016,
+      "missing_within_own_bounds": 101047
+    },
+    {
+      "symbol": "ARKMUSDTM",
+      "rows": 43924,
+      "first_ms": 1781312520000,
+      "last_ms": 1789114500000,
+      "expected_within_own_bounds": 130034,
+      "missing_within_own_bounds": 86110
+    },
+    {
+      "symbol": "ARKUSDTM",
+      "rows": 15195,
+      "first_ms": 1781314320000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130008,
+      "missing_within_own_bounds": 114813
+    },
+    {
+      "symbol": "ARPAUSDTM",
+      "rows": 30714,
+      "first_ms": 1781313660000,
+      "last_ms": 1789114500000,
+      "expected_within_own_bounds": 130015,
+      "missing_within_own_bounds": 99301
+    },
+    {
+      "symbol": "ARUSDTM",
+      "rows": 26999,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 103040
+    },
+    {
+      "symbol": "ARXUSDTM",
+      "rows": 104528,
+      "first_ms": 1782182400000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 115539,
+      "missing_within_own_bounds": 11011
+    },
+    {
+      "symbol": "ASRUSDTM",
+      "rows": 12816,
+      "first_ms": 1781313000000,
+      "last_ms": 1789114260000,
+      "expected_within_own_bounds": 130022,
+      "missing_within_own_bounds": 117206
+    },
+    {
+      "symbol": "ASTERUSDTM",
+      "rows": 122268,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 7772
+    },
+    {
+      "symbol": "ASTRUSDTM",
+      "rows": 20461,
+      "first_ms": 1781313000000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130030,
+      "missing_within_own_bounds": 109569
+    },
+    {
+      "symbol": "ATHUSDTM",
+      "rows": 42160,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114440000,
+      "expected_within_own_bounds": 130034,
+      "missing_within_own_bounds": 87874
+    },
+    {
+      "symbol": "ATOMUSDTM",
+      "rows": 63835,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 66204
+    },
+    {
+      "symbol": "ATUSDTM",
+      "rows": 26946,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 103092
+    },
+    {
+      "symbol": "AUCTIONUSDTM",
+      "rows": 40453,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 89587
+    },
+    {
+      "symbol": "AUSDTM",
+      "rows": 46397,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 83642
+    },
+    {
+      "symbol": "AVAAIUSDTM",
+      "rows": 32779,
+      "first_ms": 1781312580000,
+      "last_ms": 1789114500000,
+      "expected_within_own_bounds": 130033,
+      "missing_within_own_bounds": 97254
+    },
+    {
+      "symbol": "AVAUSDTM",
+      "rows": 17559,
+      "first_ms": 1781313900000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 130013,
+      "missing_within_own_bounds": 112454
+    },
+    {
+      "symbol": "AVAXUSDTM",
+      "rows": 125577,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 4463
+    },
+    {
+      "symbol": "AVNTUSDTM",
+      "rows": 129172,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 868
+    },
+    {
+      "symbol": "AWEUSDTM",
+      "rows": 20070,
+      "first_ms": 1781312700000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130035,
+      "missing_within_own_bounds": 109965
+    },
+    {
+      "symbol": "AXLUSDTM",
+      "rows": 18652,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 111386
+    },
+    {
+      "symbol": "AXSUSDTM",
+      "rows": 37509,
+      "first_ms": 1781312400000,
+      "last_ms": 1789113780000,
+      "expected_within_own_bounds": 130024,
+      "missing_within_own_bounds": 92515
+    },
+    {
+      "symbol": "AZTECUSDTM",
+      "rows": 16192,
+      "first_ms": 1781313360000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130024,
+      "missing_within_own_bounds": 113832
+    },
+    {
+      "symbol": "B2USDTM",
+      "rows": 22795,
+      "first_ms": 1781315400000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 129989,
+      "missing_within_own_bounds": 107194
+    },
+    {
+      "symbol": "BABYUSDTM",
+      "rows": 37265,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114500000,
+      "expected_within_own_bounds": 130036,
+      "missing_within_own_bounds": 92771
+    },
+    {
+      "symbol": "BANANAS31USDTM",
+      "rows": 21611,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 108428
+    },
+    {
+      "symbol": "BANANAUSDTM",
+      "rows": 23164,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 106874
+    },
+    {
+      "symbol": "BANDUSDTM",
+      "rows": 18849,
+      "first_ms": 1781312760000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130034,
+      "missing_within_own_bounds": 111185
+    },
+    {
+      "symbol": "BANKUSDTM",
+      "rows": 62380,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 67660
+    },
+    {
+      "symbol": "BANUSDTM",
+      "rows": 9911,
+      "first_ms": 1781312880000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130032,
+      "missing_within_own_bounds": 120121
+    },
+    {
+      "symbol": "BARDUSDTM",
+      "rows": 20981,
+      "first_ms": 1781312820000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130033,
+      "missing_within_own_bounds": 109052
+    },
+    {
+      "symbol": "BASEDUSDTM",
+      "rows": 107708,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 22332
+    },
+    {
+      "symbol": "BASUSDTM",
+      "rows": 128241,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 1799
+    },
+    {
+      "symbol": "BATUSDTM",
+      "rows": 15793,
+      "first_ms": 1781313600000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 130019,
+      "missing_within_own_bounds": 114226
+    },
+    {
+      "symbol": "BBUSDTM",
+      "rows": 21374,
+      "first_ms": 1781312880000,
+      "last_ms": 1789114200000,
+      "expected_within_own_bounds": 130023,
+      "missing_within_own_bounds": 108649
+    },
+    {
+      "symbol": "BCHUSDTM",
+      "rows": 128860,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 1180
+    },
+    {
+      "symbol": "BDXUSDTM",
+      "rows": 37458,
+      "first_ms": 1781312760000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130034,
+      "missing_within_own_bounds": 92576
+    },
+    {
+      "symbol": "BEATUSDTM",
+      "rows": 119281,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 10759
+    },
+    {
+      "symbol": "BELUSDTM",
+      "rows": 27448,
+      "first_ms": 1781316600000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 129969,
+      "missing_within_own_bounds": 102521
+    },
+    {
+      "symbol": "BERAUSDTM",
+      "rows": 94242,
+      "first_ms": 1781312520000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 35796
+    },
+    {
+      "symbol": "BICOUSDTM",
+      "rows": 45452,
+      "first_ms": 1786345200000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 46160,
+      "missing_within_own_bounds": 708
+    },
+    {
+      "symbol": "BIGTIMEUSDTM",
+      "rows": 47378,
+      "first_ms": 1781312760000,
+      "last_ms": 1789114500000,
+      "expected_within_own_bounds": 130030,
+      "missing_within_own_bounds": 82652
+    },
+    {
+      "symbol": "BILLUSDTM",
+      "rows": 118855,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 11185
+    },
+    {
+      "symbol": "BINANCELIFEUSDTM",
+      "rows": 5661,
+      "first_ms": 1781312700000,
+      "last_ms": 1789098780000,
+      "expected_within_own_bounds": 129769,
+      "missing_within_own_bounds": 124108
+    },
+    {
+      "symbol": "BIOUSDTM",
+      "rows": 103956,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 26084
+    },
+    {
+      "symbol": "BIRBUSDTM",
+      "rows": 30197,
+      "first_ms": 1781314020000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130013,
+      "missing_within_own_bounds": 99816
+    },
+    {
+      "symbol": "BLASTUSDTM",
+      "rows": 24443,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 105596
+    },
+    {
+      "symbol": "BLENDUSDTM",
+      "rows": 106757,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114380000,
+      "expected_within_own_bounds": 130034,
+      "missing_within_own_bounds": 23277
+    },
+    {
+      "symbol": "BLESSUSDTM",
+      "rows": 61775,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 68263
+    },
+    {
+      "symbol": "BLUAIUSDTM",
+      "rows": 39878,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 130036,
+      "missing_within_own_bounds": 90158
+    },
+    {
+      "symbol": "BLURUSDTM",
+      "rows": 42391,
+      "first_ms": 1781312880000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130032,
+      "missing_within_own_bounds": 87641
+    },
+    {
+      "symbol": "BMTUSDTM",
+      "rows": 53640,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 76399
+    },
+    {
+      "symbol": "BNBUSDTM",
+      "rows": 121284,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 8756
+    },
+    {
+      "symbol": "BNTUSDTM",
+      "rows": 13607,
+      "first_ms": 1781315160000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 129994,
+      "missing_within_own_bounds": 116387
+    },
+    {
+      "symbol": "BOMEUSDTM",
+      "rows": 125147,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 4893
+    },
+    {
+      "symbol": "BPUSDTM",
+      "rows": 21108,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 130036,
+      "missing_within_own_bounds": 108928
+    },
+    {
+      "symbol": "BRETTUSDTM",
+      "rows": 35834,
+      "first_ms": 1781312520000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 130037,
+      "missing_within_own_bounds": 94203
+    },
+    {
+      "symbol": "BREVUSDTM",
+      "rows": 18705,
+      "first_ms": 1781314920000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 129998,
+      "missing_within_own_bounds": 111293
+    },
+    {
+      "symbol": "BROCCOLI714USDTM",
+      "rows": 10561,
+      "first_ms": 1781314920000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 129995,
+      "missing_within_own_bounds": 119434
+    },
+    {
+      "symbol": "BRUSDTM",
+      "rows": 19558,
+      "first_ms": 1781316540000,
+      "last_ms": 1789114320000,
+      "expected_within_own_bounds": 129964,
+      "missing_within_own_bounds": 110406
+    },
+    {
+      "symbol": "BSBUSDTM",
+      "rows": 113935,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 16105
+    },
+    {
+      "symbol": "BSVUSDTM",
+      "rows": 27453,
+      "first_ms": 1781314800000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130000,
+      "missing_within_own_bounds": 102547
+    },
+    {
+      "symbol": "BTRUSDTM",
+      "rows": 37994,
+      "first_ms": 1781312520000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 92044
+    },
+    {
+      "symbol": "BTWUSDTM",
+      "rows": 115503,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 14537
+    },
+    {
+      "symbol": "BUSDTM",
+      "rows": 49227,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 80813
+    },
+    {
+      "symbol": "C98USDTM",
+      "rows": 21107,
+      "first_ms": 1781326620000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 129803,
+      "missing_within_own_bounds": 108696
+    },
+    {
+      "symbol": "CAKEUSDTM",
+      "rows": 118391,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 11649
+    },
+    {
+      "symbol": "CAPUSDTM",
+      "rows": 107892,
+      "first_ms": 1782615720000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 108318,
+      "missing_within_own_bounds": 426
+    },
+    {
+      "symbol": "CARVUSDTM",
+      "rows": 21563,
+      "first_ms": 1781314320000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130008,
+      "missing_within_own_bounds": 108445
+    },
+    {
+      "symbol": "CASHCATUSDTM",
+      "rows": 24323,
+      "first_ms": 1787652000000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 24380,
+      "missing_within_own_bounds": 57
+    },
+    {
+      "symbol": "CATIUSDTM",
+      "rows": 75275,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 54765
+    },
+    {
+      "symbol": "CCUSDTM",
+      "rows": 14863,
+      "first_ms": 1781317500000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 129953,
+      "missing_within_own_bounds": 115090
+    },
+    {
+      "symbol": "CELOUSDTM",
+      "rows": 18978,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 130037,
+      "missing_within_own_bounds": 111059
+    },
+    {
+      "symbol": "CELRUSDTM",
+      "rows": 13781,
+      "first_ms": 1781314020000,
+      "last_ms": 1789113840000,
+      "expected_within_own_bounds": 129998,
+      "missing_within_own_bounds": 116217
+    },
+    {
+      "symbol": "CETUSUSDTM",
+      "rows": 39668,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 90372
+    },
+    {
+      "symbol": "CFGUSDTM",
+      "rows": 18123,
+      "first_ms": 1781312760000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 130031,
+      "missing_within_own_bounds": 111908
+    },
+    {
+      "symbol": "CFXUSDTM",
+      "rows": 25619,
+      "first_ms": 1781312520000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 104419
+    },
+    {
+      "symbol": "CGPTUSDTM",
+      "rows": 19181,
+      "first_ms": 1781314920000,
+      "last_ms": 1789113840000,
+      "expected_within_own_bounds": 129983,
+      "missing_within_own_bounds": 110802
+    },
+    {
+      "symbol": "CHILLGUYUSDTM",
+      "rows": 114579,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 15460
+    },
+    {
+      "symbol": "CHIPUSDTM",
+      "rows": 126989,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 3051
+    },
+    {
+      "symbol": "CHRUSDTM",
+      "rows": 28514,
+      "first_ms": 1781314080000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130012,
+      "missing_within_own_bounds": 101498
+    },
+    {
+      "symbol": "CHZUSDTM",
+      "rows": 33230,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 96809
+    },
+    {
+      "symbol": "CKBUSDTM",
+      "rows": 20742,
+      "first_ms": 1781313060000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130029,
+      "missing_within_own_bounds": 109287
+    },
+    {
+      "symbol": "CLANKERUSDTM",
+      "rows": 20011,
+      "first_ms": 1781313840000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130016,
+      "missing_within_own_bounds": 110005
+    },
+    {
+      "symbol": "CLOUSDTM",
+      "rows": 126027,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 4013
+    },
+    {
+      "symbol": "COAIUSDTM",
+      "rows": 126122,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 3918
+    },
+    {
+      "symbol": "COLLECTUSDTM",
+      "rows": 33960,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 96078
+    },
+    {
+      "symbol": "COMPUSDTM",
+      "rows": 18140,
+      "first_ms": 1781314920000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 129998,
+      "missing_within_own_bounds": 111858
+    },
+    {
+      "symbol": "COOKIEUSDTM",
+      "rows": 47198,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 82840
+    },
+    {
+      "symbol": "COTIUSDTM",
+      "rows": 58774,
+      "first_ms": 1781312820000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 130032,
+      "missing_within_own_bounds": 71258
+    },
+    {
+      "symbol": "COWUSDTM",
+      "rows": 40583,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 130037,
+      "missing_within_own_bounds": 89454
+    },
+    {
+      "symbol": "CPUSDTM",
+      "rows": 11704,
+      "first_ms": 1788404520000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 11838,
+      "missing_within_own_bounds": 134
+    },
+    {
+      "symbol": "CROSSUSDTM",
+      "rows": 38992,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 91048
+    },
+    {
+      "symbol": "CROUSDTM",
+      "rows": 55009,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 75030
+    },
+    {
+      "symbol": "CRVUSDTM",
+      "rows": 105202,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 24838
+    },
+    {
+      "symbol": "CTCUSDTM",
+      "rows": 12381,
+      "first_ms": 1781313000000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130030,
+      "missing_within_own_bounds": 117649
+    },
+    {
+      "symbol": "CTRUSDTM",
+      "rows": 72978,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114200000,
+      "expected_within_own_bounds": 130031,
+      "missing_within_own_bounds": 57053
+    },
+    {
+      "symbol": "CTSIUSDTM",
+      "rows": 25583,
+      "first_ms": 1781312700000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130035,
+      "missing_within_own_bounds": 104452
+    },
+    {
+      "symbol": "CUSDTM",
+      "rows": 32866,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 97174
+    },
+    {
+      "symbol": "CVCUSDTM",
+      "rows": 26687,
+      "first_ms": 1781313600000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130020,
+      "missing_within_own_bounds": 103333
+    },
+    {
+      "symbol": "CVXUSDTM",
+      "rows": 25447,
+      "first_ms": 1781312880000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130032,
+      "missing_within_own_bounds": 104585
+    },
+    {
+      "symbol": "CYBERUSDTM",
+      "rows": 16145,
+      "first_ms": 1781314200000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130010,
+      "missing_within_own_bounds": 113865
+    },
+    {
+      "symbol": "CYSUSDTM",
+      "rows": 51290,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114440000,
+      "expected_within_own_bounds": 130034,
+      "missing_within_own_bounds": 78744
+    },
+    {
+      "symbol": "DASHUSDTM",
+      "rows": 114552,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 15488
+    },
+    {
+      "symbol": "DATAUSDTM",
+      "rows": 89474,
+      "first_ms": 1783069200000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 100760,
+      "missing_within_own_bounds": 11286
+    },
+    {
+      "symbol": "DEEPUSDTM",
+      "rows": 41840,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 88199
+    },
+    {
+      "symbol": "DODOUSDTM",
+      "rows": 35301,
+      "first_ms": 1781313000000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130030,
+      "missing_within_own_bounds": 94729
+    },
+    {
+      "symbol": "DOGEUSDTM",
+      "rows": 118656,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 11384
+    },
+    {
+      "symbol": "DOGSUSDTM",
+      "rows": 113467,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 16573
+    },
+    {
+      "symbol": "DOLOUSDTM",
+      "rows": 23821,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 106219
+    },
+    {
+      "symbol": "DOODUSDTM",
+      "rows": 40070,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 89970
+    },
+    {
+      "symbol": "DOSUSDTM",
+      "rows": 43230,
+      "first_ms": 1786506600000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 43470,
+      "missing_within_own_bounds": 240
+    },
+    {
+      "symbol": "DOTUSDTM",
+      "rows": 77556,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 52484
+    },
+    {
+      "symbol": "DRIFTUSDTM",
+      "rows": 30428,
+      "first_ms": 1781312940000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130031,
+      "missing_within_own_bounds": 99603
+    },
+    {
+      "symbol": "DUSKUSDTM",
+      "rows": 23418,
+      "first_ms": 1781314500000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130005,
+      "missing_within_own_bounds": 106587
+    },
+    {
+      "symbol": "DYDXUSDTM",
+      "rows": 89648,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 40392
+    },
+    {
+      "symbol": "DYMUSDTM",
+      "rows": 42253,
+      "first_ms": 1781314920000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 129998,
+      "missing_within_own_bounds": 87745
+    },
+    {
+      "symbol": "EDENUSDTM",
+      "rows": 129686,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 354
+    },
+    {
+      "symbol": "EDGEUSDTM",
+      "rows": 128393,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 1647
+    },
+    {
+      "symbol": "EDUUSDTM",
+      "rows": 24812,
+      "first_ms": 1781312880000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130032,
+      "missing_within_own_bounds": 105220
+    },
+    {
+      "symbol": "EGLDUSDTM",
+      "rows": 35331,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 94707
+    },
+    {
+      "symbol": "EIGENUSDTM",
+      "rows": 118276,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 11764
+    },
+    {
+      "symbol": "ELSAUSDTM",
+      "rows": 10207,
+      "first_ms": 1781313180000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130027,
+      "missing_within_own_bounds": 119820
+    },
+    {
+      "symbol": "ENAUSDTM",
+      "rows": 129605,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 435
+    },
+    {
+      "symbol": "ENJUSDTM",
+      "rows": 42471,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 87569
+    },
+    {
+      "symbol": "ENSOUSDTM",
+      "rows": 32002,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 130038,
+      "missing_within_own_bounds": 98036
+    },
+    {
+      "symbol": "ENSUSDTM",
+      "rows": 23546,
+      "first_ms": 1781314920000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 129996,
+      "missing_within_own_bounds": 106450
+    },
+    {
+      "symbol": "ERAUSDTM",
+      "rows": 31069,
+      "first_ms": 1781313360000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130024,
+      "missing_within_own_bounds": 98955
+    },
+    {
+      "symbol": "ESEUSDTM",
+      "rows": 13783,
+      "first_ms": 1784710980000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 73397,
+      "missing_within_own_bounds": 59614
+    },
+    {
+      "symbol": "ESIMUSDTM",
+      "rows": 21396,
+      "first_ms": 1782464400000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 110838,
+      "missing_within_own_bounds": 89442
+    },
+    {
+      "symbol": "ESPORTSUSDTM",
+      "rows": 76294,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 53746
+    },
+    {
+      "symbol": "ESPUSDTM",
+      "rows": 44659,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 85380
+    },
+    {
+      "symbol": "ETCUSDTM",
+      "rows": 49002,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 81038
+    },
+    {
+      "symbol": "ETHBTCUSDTM",
+      "rows": 2058,
+      "first_ms": 1781334000000,
+      "last_ms": 1788993840000,
+      "expected_within_own_bounds": 127665,
+      "missing_within_own_bounds": 125607
+    },
+    {
+      "symbol": "ETHFIUSDTM",
+      "rows": 83195,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 46845
+    },
+    {
+      "symbol": "ETHUSDTM",
+      "rows": 128456,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 1584
+    },
+    {
+      "symbol": "EULUSDTM",
+      "rows": 43743,
+      "first_ms": 1781312520000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 130037,
+      "missing_within_own_bounds": 86294
+    },
+    {
+      "symbol": "EVAAUSDTM",
+      "rows": 126166,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 3874
+    },
+    {
+      "symbol": "FARTCOINUSDTM",
+      "rows": 113233,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 16807
+    },
+    {
+      "symbol": "FETUSDTM",
+      "rows": 101335,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 28705
+    },
+    {
+      "symbol": "FFUSDTM",
+      "rows": 123259,
+      "first_ms": 1781312460000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130039,
+      "missing_within_own_bounds": 6780
+    },
+    {
+      "symbol": "FHEUSDTM",
+      "rows": 113257,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 16783
+    },
+    {
+      "symbol": "FIGHTUSDTM",
+      "rows": 15233,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 114807
+    },
+    {
+      "symbol": "FILUSDTM",
+      "rows": 50490,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 79550
+    },
+    {
+      "symbol": "FLOCKUSDTM",
+      "rows": 30297,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 99743
+    },
+    {
+      "symbol": "FLOKIUSDTM",
+      "rows": 4632,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 130037,
+      "missing_within_own_bounds": 125405
+    },
+    {
+      "symbol": "FLOWUSDTM",
+      "rows": 236,
+      "first_ms": 1789090620000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 403,
+      "missing_within_own_bounds": 167
+    },
+    {
+      "symbol": "FLUIDUSDTM",
+      "rows": 335,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 72
+    },
+    {
+      "symbol": "FLUXUSDTM",
+      "rows": 262,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 145
+    },
+    {
+      "symbol": "FOGOUSDTM",
+      "rows": 336,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 71
+    },
+    {
+      "symbol": "FOLKSUSDTM",
+      "rows": 396,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 11
+    },
+    {
+      "symbol": "FORMUSDTM",
+      "rows": 287,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 119
+    },
+    {
+      "symbol": "FRAXUSDTM",
+      "rows": 52,
+      "first_ms": 1789090560000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 352
+    },
+    {
+      "symbol": "FUSDTM",
+      "rows": 386,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 21
+    },
+    {
+      "symbol": "GALAUSDTM",
+      "rows": 286,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 121
+    },
+    {
+      "symbol": "GASUSDTM",
+      "rows": 92,
+      "first_ms": 1789091520000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 385,
+      "missing_within_own_bounds": 293
+    },
+    {
+      "symbol": "GENIUSUSDTM",
+      "rows": 406,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 1
+    },
+    {
+      "symbol": "GIGGLEUSDTM",
+      "rows": 386,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 21
+    },
+    {
+      "symbol": "GMTUSDTM",
+      "rows": 54,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114260000,
+      "expected_within_own_bounds": 399,
+      "missing_within_own_bounds": 345
+    },
+    {
+      "symbol": "GMXUSDTM",
+      "rows": 185,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 222
+    },
+    {
+      "symbol": "GOATUSDTM",
+      "rows": 209,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114200000,
+      "expected_within_own_bounds": 398,
+      "missing_within_own_bounds": 189
+    },
+    {
+      "symbol": "GPSUSDTM",
+      "rows": 244,
+      "first_ms": 1789090920000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 398,
+      "missing_within_own_bounds": 154
+    },
+    {
+      "symbol": "GRAMUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "GRASSUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "GRIFFAINUSDTM",
+      "rows": 118,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114200000,
+      "expected_within_own_bounds": 398,
+      "missing_within_own_bounds": 280
+    },
+    {
+      "symbol": "GRTUSDTM",
+      "rows": 157,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114260000,
+      "expected_within_own_bounds": 398,
+      "missing_within_own_bounds": 241
+    },
+    {
+      "symbol": "GRVTUSDTM",
+      "rows": 382,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 25
+    },
+    {
+      "symbol": "GTCUSDTM",
+      "rows": 359,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 48
+    },
+    {
+      "symbol": "GUAUSDTM",
+      "rows": 287,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 120
+    },
+    {
+      "symbol": "GUNUSDTM",
+      "rows": 269,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114380000,
+      "expected_within_own_bounds": 401,
+      "missing_within_own_bounds": 132
+    },
+    {
+      "symbol": "GUSDTM",
+      "rows": 215,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 191
+    },
+    {
+      "symbol": "GWEIUSDTM",
+      "rows": 235,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 172
+    },
+    {
+      "symbol": "HAEDALUSDTM",
+      "rows": 151,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 253
+    },
+    {
+      "symbol": "HAJIMIUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "HANAUSDTM",
+      "rows": 356,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 51
+    },
+    {
+      "symbol": "HBARUSDTM",
+      "rows": 380,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 27
+    },
+    {
+      "symbol": "HEIUSDTM",
+      "rows": 204,
+      "first_ms": 1789090500000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 200
+    },
+    {
+      "symbol": "HEMIUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "HIVEUSDTM",
+      "rows": 285,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 121
+    },
+    {
+      "symbol": "HMSTRUSDTM",
+      "rows": 238,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 167
+    },
+    {
+      "symbol": "HOLOUSDTM",
+      "rows": 317,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 89
+    },
+    {
+      "symbol": "HOMEUSDTM",
+      "rows": 328,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 79
+    },
+    {
+      "symbol": "HOTUSDTM",
+      "rows": 246,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 161
+    },
+    {
+      "symbol": "HUMAUSDTM",
+      "rows": 153,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 254
+    },
+    {
+      "symbol": "HUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "HYPERUSDTM",
+      "rows": 231,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 175
+    },
+    {
+      "symbol": "HYPEUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "ICNTUSDTM",
+      "rows": 392,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 15
+    },
+    {
+      "symbol": "ICPUSDTM",
+      "rows": 380,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 27
+    },
+    {
+      "symbol": "IDOLUSDTM",
+      "rows": 233,
+      "first_ms": 1789090500000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 403,
+      "missing_within_own_bounds": 170
+    },
+    {
+      "symbol": "IDUSDTM",
+      "rows": 285,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114500000,
+      "expected_within_own_bounds": 402,
+      "missing_within_own_bounds": 117
+    },
+    {
+      "symbol": "ILVUSDTM",
+      "rows": 246,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 161
+    },
+    {
+      "symbol": "IMXUSDTM",
+      "rows": 217,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 190
+    },
+    {
+      "symbol": "INITUSDTM",
+      "rows": 205,
+      "first_ms": 1789090620000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 402,
+      "missing_within_own_bounds": 197
+    },
+    {
+      "symbol": "INJUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "INUSDTM",
+      "rows": 319,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 88
+    },
+    {
+      "symbol": "INXUSDTM",
+      "rows": 230,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 177
+    },
+    {
+      "symbol": "IOTAUSDTM",
+      "rows": 221,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 183
+    },
+    {
+      "symbol": "IOTXUSDTM",
+      "rows": 330,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 77
+    },
+    {
+      "symbol": "IOUSDTM",
+      "rows": 133,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 273
+    },
+    {
+      "symbol": "IRYSUSDTM",
+      "rows": 385,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 22
+    },
+    {
+      "symbol": "JASMYUSDTM",
+      "rows": 400,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 7
+    },
+    {
+      "symbol": "JCTUSDTM",
+      "rows": 187,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 219
+    },
+    {
+      "symbol": "JELLYJELLYUSDTM",
+      "rows": 396,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 11
+    },
+    {
+      "symbol": "JOEUSDTM",
+      "rows": 21,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114140000,
+      "expected_within_own_bounds": 397,
+      "missing_within_own_bounds": 376
+    },
+    {
+      "symbol": "JTOUSDTM",
+      "rows": 240,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 167
+    },
+    {
+      "symbol": "JUPUSDTM",
+      "rows": 405,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 2
+    },
+    {
+      "symbol": "KAIAUSDTM",
+      "rows": 257,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 148
+    },
+    {
+      "symbol": "KAITOUSDTM",
+      "rows": 261,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114500000,
+      "expected_within_own_bounds": 403,
+      "missing_within_own_bounds": 142
+    },
+    {
+      "symbol": "KASUSDTM",
+      "rows": 405,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 2
+    },
+    {
+      "symbol": "KATUSDTM",
+      "rows": 315,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 91
+    },
+    {
+      "symbol": "KAVAUSDTM",
+      "rows": 251,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 156
+    },
+    {
+      "symbol": "KCSUSDTM",
+      "rows": 183,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 224
+    },
+    {
+      "symbol": "KERNELUSDTM",
+      "rows": 225,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 182
+    },
+    {
+      "symbol": "KGENUSDTM",
+      "rows": 406,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 1
+    },
+    {
+      "symbol": "KITEUSDTM",
+      "rows": 275,
+      "first_ms": 1789090800000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 400,
+      "missing_within_own_bounds": 125
+    },
+    {
+      "symbol": "KNCUSDTM",
+      "rows": 176,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 230
+    },
+    {
+      "symbol": "KOMAUSDTM",
+      "rows": 181,
+      "first_ms": 1789090500000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 224
+    },
+    {
+      "symbol": "KSMUSDTM",
+      "rows": 308,
+      "first_ms": 1789090500000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 97
+    },
+    {
+      "symbol": "LABUSDTM",
+      "rows": 405,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 2
+    },
+    {
+      "symbol": "LAUSDTM",
+      "rows": 364,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 43
+    },
+    {
+      "symbol": "LDOUSDTM",
+      "rows": 383,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 24
+    },
+    {
+      "symbol": "LIGHTUSDTM",
+      "rows": 402,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 5
+    },
+    {
+      "symbol": "LINEAUSDTM",
+      "rows": 307,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 100
+    },
+    {
+      "symbol": "LINKUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "LISTAUSDTM",
+      "rows": 329,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 78
+    },
+    {
+      "symbol": "LITUSDTM",
+      "rows": 133,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 271
+    },
+    {
+      "symbol": "LONGXIAUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "LPTUSDTM",
+      "rows": 70,
+      "first_ms": 1789090980000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 395,
+      "missing_within_own_bounds": 325
+    },
+    {
+      "symbol": "LQTYUSDTM",
+      "rows": 268,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 138
+    },
+    {
+      "symbol": "LRCUSDTM",
+      "rows": 254,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 153
+    },
+    {
+      "symbol": "LTCUSDTM",
+      "rows": 401,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 6
+    },
+    {
+      "symbol": "LUNAUSDTM",
+      "rows": 324,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 80
+    },
+    {
+      "symbol": "LUNCUSDTM",
+      "rows": 200,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 207
+    },
+    {
+      "symbol": "LYNUSDTM",
+      "rows": 330,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 77
+    },
+    {
+      "symbol": "MAGICUSDTM",
+      "rows": 220,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 186
+    },
+    {
+      "symbol": "MAGMAUSDTM",
+      "rows": 113,
+      "first_ms": 1789090680000,
+      "last_ms": 1789113960000,
+      "expected_within_own_bounds": 389,
+      "missing_within_own_bounds": 276
+    },
+    {
+      "symbol": "MANAUSDTM",
+      "rows": 80,
+      "first_ms": 1789094220000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 343,
+      "missing_within_own_bounds": 263
+    },
+    {
+      "symbol": "MANTAUSDTM",
+      "rows": 304,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 103
+    },
+    {
+      "symbol": "MANTRAUSDTM",
+      "rows": 196,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 208
+    },
+    {
+      "symbol": "MARSCOINUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "MASKUSDTM",
+      "rows": 218,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 189
+    },
+    {
+      "symbol": "MAVIAUSDTM",
+      "rows": 231,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 174
+    },
+    {
+      "symbol": "MAVUSDTM",
+      "rows": 341,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 66
+    },
+    {
+      "symbol": "MEGAUSDTM",
+      "rows": 303,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 104
+    },
+    {
+      "symbol": "MELANIAUSDTM",
+      "rows": 221,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 186
+    },
+    {
+      "symbol": "MEMEUSDTM",
+      "rows": 209,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114440000,
+      "expected_within_own_bounds": 401,
+      "missing_within_own_bounds": 192
+    },
+    {
+      "symbol": "MERLUSDTM",
+      "rows": 317,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 90
+    },
+    {
+      "symbol": "METISUSDTM",
+      "rows": 220,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 187
+    },
+    {
+      "symbol": "METUSDTM",
+      "rows": 405,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 2
+    },
+    {
+      "symbol": "MEUSDTM",
+      "rows": 207,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 200
+    },
+    {
+      "symbol": "MEWUSDTM",
+      "rows": 240,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 167
+    },
+    {
+      "symbol": "MINAUSDTM",
+      "rows": 266,
+      "first_ms": 1789090560000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 138
+    },
+    {
+      "symbol": "MIRAUSDTM",
+      "rows": 207,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114440000,
+      "expected_within_own_bounds": 401,
+      "missing_within_own_bounds": 194
+    },
+    {
+      "symbol": "MITOUSDTM",
+      "rows": 262,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 144
+    },
+    {
+      "symbol": "MMTUSDTM",
+      "rows": 146,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 403,
+      "missing_within_own_bounds": 257
+    },
+    {
+      "symbol": "MOCAUSDTM",
+      "rows": 70,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 334
+    },
+    {
+      "symbol": "MONUSDTM",
+      "rows": 327,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 80
+    },
+    {
+      "symbol": "MOODENGUSDTM",
+      "rows": 388,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 19
+    },
+    {
+      "symbol": "MORPHOUSDTM",
+      "rows": 169,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 235
+    },
+    {
+      "symbol": "MOVEUSDTM",
+      "rows": 142,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114260000,
+      "expected_within_own_bounds": 399,
+      "missing_within_own_bounds": 257
+    },
+    {
+      "symbol": "MOVRUSDTM",
+      "rows": 141,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 266
+    },
+    {
+      "symbol": "MTLUSDTM",
+      "rows": 10,
+      "first_ms": 1789102500000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 205,
+      "missing_within_own_bounds": 195
+    },
+    {
+      "symbol": "MUBARAKUSDTM",
+      "rows": 284,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 123
+    },
+    {
+      "symbol": "MUSDTM",
+      "rows": 399,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 8
+    },
+    {
+      "symbol": "MYXUSDTM",
+      "rows": 395,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 12
+    },
+    {
+      "symbol": "NAORISUSDTM",
+      "rows": 318,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 88
+    },
+    {
+      "symbol": "NEARUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "NEIROCTOUSDTM",
+      "rows": 188,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 218
+    },
+    {
+      "symbol": "NEOUSDTM",
+      "rows": 246,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 160
+    },
+    {
+      "symbol": "NESUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "NEWTUSDTM",
+      "rows": 280,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 125
+    },
+    {
+      "symbol": "NEXUSDTM",
+      "rows": 251,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 156
+    },
+    {
+      "symbol": "NIGHTUSDTM",
+      "rows": 404,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 3
+    },
+    {
+      "symbol": "NILUSDTM",
+      "rows": 226,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 178
+    },
+    {
+      "symbol": "NIULAIUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "NMRUSDTM",
+      "rows": 213,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 193
+    },
+    {
+      "symbol": "NOMUSDTM",
+      "rows": 343,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 64
+    },
+    {
+      "symbol": "NOTUSDTM",
+      "rows": 292,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 115
+    },
+    {
+      "symbol": "NPCUSDTM",
+      "rows": 68,
+      "first_ms": 1789092720000,
+      "last_ms": 1789113780000,
+      "expected_within_own_bounds": 352,
+      "missing_within_own_bounds": 284
+    },
+    {
+      "symbol": "NXPCUSDTM",
+      "rows": 252,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 155
+    },
+    {
+      "symbol": "OFCUSDTM",
+      "rows": 259,
+      "first_ms": 1789090560000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 401,
+      "missing_within_own_bounds": 142
+    },
+    {
+      "symbol": "OGNUSDTM",
+      "rows": 310,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 97
+    },
+    {
+      "symbol": "OGUSDTM",
+      "rows": 223,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 183
+    },
+    {
+      "symbol": "ONDOUSDTM",
+      "rows": 358,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 49
+    },
+    {
+      "symbol": "ONEUSDTM",
+      "rows": 57,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114140000,
+      "expected_within_own_bounds": 397,
+      "missing_within_own_bounds": 340
+    },
+    {
+      "symbol": "ONTUSDTM",
+      "rows": 238,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 168
+    },
+    {
+      "symbol": "ONUSDTM",
+      "rows": 205,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 201
+    },
+    {
+      "symbol": "OPENUSDTM",
+      "rows": 245,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 162
+    },
+    {
+      "symbol": "OPGUSDTM",
+      "rows": 398,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 9
+    },
+    {
+      "symbol": "OPNUSDTM",
+      "rows": 289,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 118
+    },
+    {
+      "symbol": "OPUSDTM",
+      "rows": 248,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 158
+    },
+    {
+      "symbol": "ORBSUSDTM",
+      "rows": 325,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 82
+    },
+    {
+      "symbol": "ORCAUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "ORDERUSDTM",
+      "rows": 241,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 165
+    },
+    {
+      "symbol": "ORDIUSDTM",
+      "rows": 277,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 127
+    },
+    {
+      "symbol": "OUSDTM",
+      "rows": 404,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 3
+    },
+    {
+      "symbol": "PARTIUSDTM",
+      "rows": 284,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 122
+    },
+    {
+      "symbol": "PENDLEUSDTM",
+      "rows": 226,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 181
+    },
+    {
+      "symbol": "PENGUUSDTM",
+      "rows": 406,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 1
+    },
+    {
+      "symbol": "PEOPLEUSDTM",
+      "rows": 214,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 190
+    },
+    {
+      "symbol": "PEPEUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "PHAUSDTM",
+      "rows": 292,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 114
+    },
+    {
+      "symbol": "PIEVERSEUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "PIPPINUSDTM",
+      "rows": 334,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 72
+    },
+    {
+      "symbol": "PIXELUSDTM",
+      "rows": 275,
+      "first_ms": 1789090620000,
+      "last_ms": 1789114380000,
+      "expected_within_own_bounds": 397,
+      "missing_within_own_bounds": 122
+    },
+    {
+      "symbol": "PLUMEUSDTM",
+      "rows": 85,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 320
+    },
+    {
+      "symbol": "PNUTUSDTM",
+      "rows": 381,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 26
+    },
+    {
+      "symbol": "POLUSDTM",
+      "rows": 225,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 181
+    },
+    {
+      "symbol": "POLYXUSDTM",
+      "rows": 260,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 145
+    },
+    {
+      "symbol": "PONSUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "POPCATUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "PORTALUSDTM",
+      "rows": 233,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 173
+    },
+    {
+      "symbol": "POWERUSDTM",
+      "rows": 373,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 34
+    },
+    {
+      "symbol": "POWRUSDTM",
+      "rows": 310,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 97
+    },
+    {
+      "symbol": "PRLUSDTM",
+      "rows": 404,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 3
+    },
+    {
+      "symbol": "PROMPTUSDTM",
+      "rows": 282,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 125
+    },
+    {
+      "symbol": "PROMUSDTM",
+      "rows": 263,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 143
+    },
+    {
+      "symbol": "PROSUSDTM",
+      "rows": 323,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 84
+    },
+    {
+      "symbol": "PROVEUSDTM",
+      "rows": 220,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 186
+    },
+    {
+      "symbol": "PTBUSDTM",
+      "rows": 401,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 6
+    },
+    {
+      "symbol": "PUMPUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "PYTHUSDTM",
+      "rows": 273,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 134
+    },
+    {
+      "symbol": "QNTUSDTM",
+      "rows": 76,
+      "first_ms": 1789091220000,
+      "last_ms": 1789114500000,
+      "expected_within_own_bounds": 389,
+      "missing_within_own_bounds": 313
+    },
+    {
+      "symbol": "QTUMUSDTM",
+      "rows": 63,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 343
+    },
+    {
+      "symbol": "QUSDTM",
+      "rows": 165,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 242
+    },
+    {
+      "symbol": "RAREUSDTM",
+      "rows": 324,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 83
+    },
+    {
+      "symbol": "RAVEUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "RAYUSDTM",
+      "rows": 405,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 2
+    },
+    {
+      "symbol": "READYUSDTM",
+      "rows": 385,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 22
+    },
+    {
+      "symbol": "RECALLUSDTM",
+      "rows": 402,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 5
+    },
+    {
+      "symbol": "REDSTONEUSDTM",
+      "rows": 186,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 220
+    },
+    {
+      "symbol": "RENDERUSDTM",
+      "rows": 272,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 134
+    },
+    {
+      "symbol": "RESOLVUSDTM",
+      "rows": 303,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 104
+    },
+    {
+      "symbol": "REUSDTM",
+      "rows": 339,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 68
+    },
+    {
+      "symbol": "REZUSDTM",
+      "rows": 224,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 183
+    },
+    {
+      "symbol": "RIFUSDTM",
+      "rows": 204,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 203
+    },
+    {
+      "symbol": "RIVERUSDTM",
+      "rows": 352,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 55
+    },
+    {
+      "symbol": "ROBOUSDTM",
+      "rows": 318,
+      "first_ms": 1789090560000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 86
+    },
+    {
+      "symbol": "RONUSDTM",
+      "rows": 9,
+      "first_ms": 1789099260000,
+      "last_ms": 1789113600000,
+      "expected_within_own_bounds": 240,
+      "missing_within_own_bounds": 231
+    },
+    {
+      "symbol": "ROSEUSDTM",
+      "rows": 124,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 403,
+      "missing_within_own_bounds": 279
+    },
+    {
+      "symbol": "RSRUSDTM",
+      "rows": 192,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 214
+    },
+    {
+      "symbol": "RUNEUSDTM",
+      "rows": 316,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 90
+    },
+    {
+      "symbol": "RVNUSDTM",
+      "rows": 327,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 80
+    },
+    {
+      "symbol": "SAGAUSDTM",
+      "rows": 384,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 23
+    },
+    {
+      "symbol": "SAHARAUSDTM",
+      "rows": 301,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 106
+    },
+    {
+      "symbol": "SANDUSDTM",
+      "rows": 174,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 232
+    },
+    {
+      "symbol": "SAPIENUSDTM",
+      "rows": 403,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 4
+    },
+    {
+      "symbol": "SCRUSDTM",
+      "rows": 270,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 136
+    },
+    {
+      "symbol": "SEIUSDTM",
+      "rows": 398,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 9
+    },
+    {
+      "symbol": "SENTUSDTM",
+      "rows": 146,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 403,
+      "missing_within_own_bounds": 257
+    },
+    {
+      "symbol": "SFPUSDTM",
+      "rows": 325,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 82
+    },
+    {
+      "symbol": "SHELLUSDTM",
+      "rows": 298,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 109
+    },
+    {
+      "symbol": "SHIBUSDTM",
+      "rows": 395,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 12
+    },
+    {
+      "symbol": "SIGNUSDTM",
+      "rows": 93,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114080000,
+      "expected_within_own_bounds": 396,
+      "missing_within_own_bounds": 303
+    },
+    {
+      "symbol": "SIRENUSDTM",
+      "rows": 397,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 10
+    },
+    {
+      "symbol": "SKLUSDTM",
+      "rows": 261,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 143
+    },
+    {
+      "symbol": "SKRUSDTM",
+      "rows": 298,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 109
+    },
+    {
+      "symbol": "SKYAIUSDTM",
+      "rows": 391,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 16
+    },
+    {
+      "symbol": "SKYUSDTM",
+      "rows": 178,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 226
+    },
+    {
+      "symbol": "SLXUSDTM",
+      "rows": 405,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 2
+    },
+    {
+      "symbol": "SNXUSDTM",
+      "rows": 288,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 119
+    },
+    {
+      "symbol": "SOLAYERUSDTM",
+      "rows": 223,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 184
+    },
+    {
+      "symbol": "SOLUSDTM",
+      "rows": 127519,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 2521
+    },
+    {
+      "symbol": "SOLVUSDTM",
+      "rows": 255,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 152
+    },
+    {
+      "symbol": "SOMIUSDTM",
+      "rows": 278,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 126
+    },
+    {
+      "symbol": "SONICUSDTM",
+      "rows": 199,
+      "first_ms": 1789091160000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 393,
+      "missing_within_own_bounds": 194
+    },
+    {
+      "symbol": "SOONUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "SOPHUSDTM",
+      "rows": 323,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 84
+    },
+    {
+      "symbol": "SPACEUSDTM",
+      "rows": 302,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 105
+    },
+    {
+      "symbol": "SPELLUSDTM",
+      "rows": 90,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114500000,
+      "expected_within_own_bounds": 403,
+      "missing_within_own_bounds": 313
+    },
+    {
+      "symbol": "SPKUSDTM",
+      "rows": 283,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 124
+    },
+    {
+      "symbol": "SPORTFUNUSDTM",
+      "rows": 334,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 72
+    },
+    {
+      "symbol": "SPXUSDTM",
+      "rows": 405,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 2
+    },
+    {
+      "symbol": "SQDUSDTM",
+      "rows": 370,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 37
+    },
+    {
+      "symbol": "SSVUSDTM",
+      "rows": 278,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 128
+    },
+    {
+      "symbol": "STABLEUSDTM",
+      "rows": 251,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 153
+    },
+    {
+      "symbol": "STARUSDTM",
+      "rows": 400,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 7
+    },
+    {
+      "symbol": "STBLUSDTM",
+      "rows": 285,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 120
+    },
+    {
+      "symbol": "STEEMUSDTM",
+      "rows": 7,
+      "first_ms": 1789092360000,
+      "last_ms": 1789110180000,
+      "expected_within_own_bounds": 298,
+      "missing_within_own_bounds": 291
+    },
+    {
+      "symbol": "STGUSDTM",
+      "rows": 246,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 161
+    },
+    {
+      "symbol": "STOUSDTM",
+      "rows": 145,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 260
+    },
+    {
+      "symbol": "STRKUSDTM",
+      "rows": 399,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 8
+    },
+    {
+      "symbol": "STXUSDTM",
+      "rows": 281,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 126
+    },
+    {
+      "symbol": "SUIUSDTM",
+      "rows": 405,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 2
+    },
+    {
+      "symbol": "SUNUSDTM",
+      "rows": 66,
+      "first_ms": 1789090560000,
+      "last_ms": 1789114080000,
+      "expected_within_own_bounds": 393,
+      "missing_within_own_bounds": 327
+    },
+    {
+      "symbol": "SUPERUSDTM",
+      "rows": 144,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 262
+    },
+    {
+      "symbol": "SUSDTM",
+      "rows": 344,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 63
+    },
+    {
+      "symbol": "SUSHIUSDTM",
+      "rows": 313,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 94
+    },
+    {
+      "symbol": "SWARMSUSDTM",
+      "rows": 396,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 11
+    },
+    {
+      "symbol": "SXTUSDTM",
+      "rows": 158,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 248
+    },
+    {
+      "symbol": "SYRUPUSDTM",
+      "rows": 217,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 190
+    },
+    {
+      "symbol": "TACUSDTM",
+      "rows": 404,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 3
+    },
+    {
+      "symbol": "TAGUSDTM",
+      "rows": 119,
+      "first_ms": 1789092900000,
+      "last_ms": 1789114260000,
+      "expected_within_own_bounds": 357,
+      "missing_within_own_bounds": 238
+    },
+    {
+      "symbol": "TAIKOUSDTM",
+      "rows": 205,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114500000,
+      "expected_within_own_bounds": 403,
+      "missing_within_own_bounds": 198
+    },
+    {
+      "symbol": "TAKEUSDTM",
+      "rows": 158,
+      "first_ms": 1789090560000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 402,
+      "missing_within_own_bounds": 244
+    },
+    {
+      "symbol": "TAOUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "TAUSDTM",
+      "rows": 185,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 222
+    },
+    {
+      "symbol": "THETAUSDTM",
+      "rows": 304,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 103
+    },
+    {
+      "symbol": "THEUSDTM",
+      "rows": 239,
+      "first_ms": 1789090560000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 165
+    },
+    {
+      "symbol": "TIAUSDTM",
+      "rows": 383,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 24
+    },
+    {
+      "symbol": "TNSRUSDTM",
+      "rows": 366,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 41
+    },
+    {
+      "symbol": "TOSHIUSDTM",
+      "rows": 294,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114320000,
+      "expected_within_own_bounds": 400,
+      "missing_within_own_bounds": 106
+    },
+    {
+      "symbol": "TOWNSUSDTM",
+      "rows": 194,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 213
+    },
+    {
+      "symbol": "TRADOORUSDTM",
+      "rows": 399,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 8
+    },
+    {
+      "symbol": "TRBUSDTM",
+      "rows": 194,
+      "first_ms": 1789091040000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 393,
+      "missing_within_own_bounds": 199
+    },
+    {
+      "symbol": "TREEUSDTM",
+      "rows": 261,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 143
+    },
+    {
+      "symbol": "TRIAUSDTM",
+      "rows": 192,
+      "first_ms": 1789090500000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 213
+    },
+    {
+      "symbol": "TRUMPUSDTM",
+      "rows": 372,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 35
+    },
+    {
+      "symbol": "TRUSTUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "TRUTHUSDTM",
+      "rows": 201,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 205
+    },
+    {
+      "symbol": "TRXUSDTM",
+      "rows": 374,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 33
+    },
+    {
+      "symbol": "TSTBSCUSDTM",
+      "rows": 257,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 149
+    },
+    {
+      "symbol": "TURBOUSDTM",
+      "rows": 393,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 14
+    },
+    {
+      "symbol": "TURTLEUSDTM",
+      "rows": 213,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 193
+    },
+    {
+      "symbol": "TUSDTM",
+      "rows": 281,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 125
+    },
+    {
+      "symbol": "TUTUSDTM",
+      "rows": 291,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 115
+    },
+    {
+      "symbol": "TWTUSDTM",
+      "rows": 400,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 7
+    },
+    {
+      "symbol": "UAIUSDTM",
+      "rows": 378,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 26
+    },
+    {
+      "symbol": "UBUSDTM",
+      "rows": 406,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 1
+    },
+    {
+      "symbol": "UMAUSDTM",
+      "rows": 240,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 167
+    },
+    {
+      "symbol": "UNIUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "USDCUSDTM",
+      "rows": 86,
+      "first_ms": 1789090920000,
+      "last_ms": 1789108860000,
+      "expected_within_own_bounds": 300,
+      "missing_within_own_bounds": 214
+    },
+    {
+      "symbol": "USDGUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "USELESSUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "USTCUSDTM",
+      "rows": 291,
+      "first_ms": 1789090500000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 114
+    },
+    {
+      "symbol": "USUALUSDTM",
+      "rows": 62,
+      "first_ms": 1789090500000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 343
+    },
+    {
+      "symbol": "USUSDTM",
+      "rows": 221,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 185
+    },
+    {
+      "symbol": "VANAUSDTM",
+      "rows": 46,
+      "first_ms": 1789090440000,
+      "last_ms": 1789113780000,
+      "expected_within_own_bounds": 390,
+      "missing_within_own_bounds": 344
+    },
+    {
+      "symbol": "VELOUSDTM",
+      "rows": 18,
+      "first_ms": 1789094040000,
+      "last_ms": 1789104240000,
+      "expected_within_own_bounds": 171,
+      "missing_within_own_bounds": 153
+    },
+    {
+      "symbol": "VELVETUSDTM",
+      "rows": 294,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 113
+    },
+    {
+      "symbol": "VETUSDTM",
+      "rows": 406,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 1
+    },
+    {
+      "symbol": "VIRTUALUSDTM",
+      "rows": 404,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 3
+    },
+    {
+      "symbol": "VVVUSDTM",
+      "rows": 309,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 98
+    },
+    {
+      "symbol": "WALUSDTM",
+      "rows": 293,
+      "first_ms": 1789090500000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 112
+    },
+    {
+      "symbol": "WARDUSDTM",
+      "rows": 134,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 271
+    },
+    {
+      "symbol": "WAVESUSDTM",
+      "rows": 302,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 104
+    },
+    {
+      "symbol": "WAXPUSDTM",
+      "rows": 359,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 48
+    },
+    {
+      "symbol": "WCTUSDTM",
+      "rows": 204,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 202
+    },
+    {
+      "symbol": "WETUSDTM",
+      "rows": 402,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 4
+    },
+    {
+      "symbol": "WIFUSDTM",
+      "rows": 351,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 56
+    },
+    {
+      "symbol": "WLDUSDTM",
+      "rows": 401,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 6
+    },
+    {
+      "symbol": "WLFIUSDTM",
+      "rows": 311,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 94
+    },
+    {
+      "symbol": "WOOUSDTM",
+      "rows": 269,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 404,
+      "missing_within_own_bounds": 135
+    },
+    {
+      "symbol": "WOTAMALAILEUSDTM",
+      "rows": 50,
+      "first_ms": 1789091880000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 381,
+      "missing_within_own_bounds": 331
+    },
+    {
+      "symbol": "WUSDTM",
+      "rows": 77,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114140000,
+      "expected_within_own_bounds": 396,
+      "missing_within_own_bounds": 319
+    },
+    {
+      "symbol": "XAIUSDTM",
+      "rows": 68,
+      "first_ms": 1789090500000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 403,
+      "missing_within_own_bounds": 335
+    },
+    {
+      "symbol": "XANUSDTM",
+      "rows": 405,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 2
+    },
+    {
+      "symbol": "XBTUSDTM",
+      "rows": 128100,
+      "first_ms": 1781312400000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 130040,
+      "missing_within_own_bounds": 1940
+    },
+    {
+      "symbol": "XDCUSDTM",
+      "rows": 397,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 10
+    },
+    {
+      "symbol": "XECUSDTM",
+      "rows": 283,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 122
+    },
+    {
+      "symbol": "XLMUSDTM",
+      "rows": 406,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 1
+    },
+    {
+      "symbol": "XMRUSDTM",
+      "rows": 399,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 8
+    },
+    {
+      "symbol": "XNYUSDTM",
+      "rows": 198,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114440000,
+      "expected_within_own_bounds": 401,
+      "missing_within_own_bounds": 203
+    },
+    {
+      "symbol": "XPINUSDTM",
+      "rows": 305,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 102
+    },
+    {
+      "symbol": "XPLUSDTM",
+      "rows": 368,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 39
+    },
+    {
+      "symbol": "XRPUSDTM",
+      "rows": 402,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 5
+    },
+    {
+      "symbol": "XTZUSDTM",
+      "rows": 282,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 124
+    },
+    {
+      "symbol": "XVGUSDTM",
+      "rows": 346,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 61
+    },
+    {
+      "symbol": "XVSUSDTM",
+      "rows": 3,
+      "first_ms": 1789105020000,
+      "last_ms": 1789113540000,
+      "expected_within_own_bounds": 143,
+      "missing_within_own_bounds": 140
+    },
+    {
+      "symbol": "YBUSDTM",
+      "rows": 228,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 179
+    },
+    {
+      "symbol": "YFIUSDTM",
+      "rows": 341,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 66
+    },
+    {
+      "symbol": "YGGUSDTM",
+      "rows": 220,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 187
+    },
+    {
+      "symbol": "ZAMAUSDTM",
+      "rows": 252,
+      "first_ms": 1789090740000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 398,
+      "missing_within_own_bounds": 146
+    },
+    {
+      "symbol": "ZBTUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "ZECUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "ZENUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "ZEREBROUSDTM",
+      "rows": 407,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 0
+    },
+    {
+      "symbol": "ZESTUSDTM",
+      "rows": 406,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 1
+    },
+    {
+      "symbol": "ZETAUSDTM",
+      "rows": 237,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114560000,
+      "expected_within_own_bounds": 403,
+      "missing_within_own_bounds": 166
+    },
+    {
+      "symbol": "ZIGUSDTM",
+      "rows": 186,
+      "first_ms": 1789090380000,
+      "last_ms": 1789112040000,
+      "expected_within_own_bounds": 362,
+      "missing_within_own_bounds": 176
+    },
+    {
+      "symbol": "ZILUSDTM",
+      "rows": 242,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 165
+    },
+    {
+      "symbol": "ZKCUSDTM",
+      "rows": 237,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114680000,
+      "expected_within_own_bounds": 405,
+      "missing_within_own_bounds": 168
+    },
+    {
+      "symbol": "ZKPUSDTM",
+      "rows": 403,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 4
+    },
+    {
+      "symbol": "ZKUSDTM",
+      "rows": 201,
+      "first_ms": 1789090500000,
+      "last_ms": 1789114620000,
+      "expected_within_own_bounds": 403,
+      "missing_within_own_bounds": 202
+    },
+    {
+      "symbol": "ZORAUSDTM",
+      "rows": 402,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 5
+    },
+    {
+      "symbol": "ZROUSDTM",
+      "rows": 298,
+      "first_ms": 1789090380000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 407,
+      "missing_within_own_bounds": 109
+    },
+    {
+      "symbol": "ZRXUSDTM",
+      "rows": 347,
+      "first_ms": 1789090440000,
+      "last_ms": 1789114740000,
+      "expected_within_own_bounds": 406,
+      "missing_within_own_bounds": 59
+    }
+  ],
+  "missing_minutes_within_symbol_bounds": 13198072,
+  "known_8h_funding_rows": 0,
+  "funding_unknown_period_rows": 3751,
+  "limitations": [
+    "Per-symbol bounds exclude leading/trailing missing history; these counts do not establish complete universe coverage.",
+    "Ticker/book history cannot establish July/August execution conditions.",
+    "Source fixture capture times differ from this detached snapshot."
+  ]
+}
