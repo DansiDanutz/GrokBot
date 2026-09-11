@@ -1,0 +1,943 @@
+{
+  "schema_version": 1,
+  "source": "User-supplied KuCoin Futures Grid execution-history text",
+  "source_sha256": "bafd9740a22125543b04ae4257043e0eda8365cbbe3a47776b34b2b4058465ee",
+  "instrument": "RAYUSDT Perpetual",
+  "row_order": "as supplied, newest displayed time first",
+  "execution_time_basis": "display text preserved; timezone and date-format convention not supplied",
+  "complete_history": false,
+  "source_footer": "Only shows the last 100 results",
+  "deduplicated": false,
+  "execution_ids_available": false,
+  "sides_available": false,
+  "paired_execution_links_available": false,
+  "rows_sha256": "e92672fbc02244023c027ee3596f5a59ee7ce1f985eceb468adf37b15bfa8f7c",
+  "summary": {
+    "row_count": 100,
+    "numeric_profit_row_count": 25,
+    "displayed_numeric_profit_sum_usdt": "4.6195",
+    "nonnumeric_profit_display_counts": {
+      "--": 37,
+      "To be closed": 38
+    }
+  },
+  "independent_accounting_context": {
+    "contract_multiplier_base_per_lot": 1,
+    "multiplier_basis": "independently supplied RAY contract metadata",
+    "fee_rate_per_fill": "0.0006",
+    "interval": "0.0128",
+    "interval_basis": "observed elsewhere in RAY order history; this extract contains no explicit pair links",
+    "comparison": "For each numeric-profit row, infer an adjacent lower buy price by subtracting the interval from its displayed price; this is a mathematical consistency check only.",
+    "profit_display_check": "Compatibility with truncation to four decimal places; not proof of the display rounding rule or execution sides."
+  },
+  "limitations": [
+    "Only the last 100 results are supplied; this is not a lifetime ledger.",
+    "Duplicate-looking rows are retained individually; absent execution IDs and sides prevent justified deduplication.",
+    "Numeric grid-profit rows are not asserted to identify unique completed cycles.",
+    "Missing trade sides and pair links prevent reconstruction of observed buy/sell round trips.",
+    "The sum of displayed numeric profits is a partial row sum, not lifetime profit, net equity, or unique arbitrage profit.",
+    "Quantity-rule calibration and full account reconstruction are not established by this extract."
+  ],
+  "rows": [
+    {
+      "execution_time_display": "09/11/2026, 12:57:30",
+      "avg_price_usdt": "1.5864",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.9688",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:57:30",
+      "avg_price_usdt": "1.5864",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.9688",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:52:03",
+      "avg_price_usdt": "1.5992",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.1864",
+      "grid_profit_display": "0.1851",
+      "grid_profit_usdt": "0.1851",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:52:03",
+      "avg_price_usdt": "1.5992",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.1864",
+      "grid_profit_display": "0.1851",
+      "grid_profit_usdt": "0.1851",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:50:10",
+      "avg_price_usdt": "1.5864",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.9688",
+      "grid_profit_display": "0.1853",
+      "grid_profit_usdt": "0.1853",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:50:10",
+      "avg_price_usdt": "1.5864",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.9688",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:43:00",
+      "avg_price_usdt": "1.5736",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7512",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:43:00",
+      "avg_price_usdt": "1.5736",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7512",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:39:47",
+      "avg_price_usdt": "1.5864",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.9688",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:39:47",
+      "avg_price_usdt": "1.5864",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.9688",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:33:32",
+      "avg_price_usdt": "1.5992",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.1864",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:33:32",
+      "avg_price_usdt": "1.5992",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.1864",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:32:12",
+      "avg_price_usdt": "1.612",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.404",
+      "grid_profit_display": "0.1848",
+      "grid_profit_usdt": "0.1848",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:32:12",
+      "avg_price_usdt": "1.612",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.404",
+      "grid_profit_display": "0.1848",
+      "grid_profit_usdt": "0.1848",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:31:33",
+      "avg_price_usdt": "1.5992",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.1864",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:31:33",
+      "avg_price_usdt": "1.5992",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.1864",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:28:40",
+      "avg_price_usdt": "1.612",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.404",
+      "grid_profit_display": "0.1848",
+      "grid_profit_usdt": "0.1848",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:28:40",
+      "avg_price_usdt": "1.612",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.404",
+      "grid_profit_display": "0.1848",
+      "grid_profit_usdt": "0.1848",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:24:08",
+      "avg_price_usdt": "1.5992",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.1864",
+      "grid_profit_display": "0.1851",
+      "grid_profit_usdt": "0.1851",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:24:08",
+      "avg_price_usdt": "1.5992",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.1864",
+      "grid_profit_display": "0.1851",
+      "grid_profit_usdt": "0.1851",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:23:40",
+      "avg_price_usdt": "1.5864",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.9688",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:23:39",
+      "avg_price_usdt": "1.5864",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.9688",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:23:38",
+      "avg_price_usdt": "1.5992",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.1864",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:23:38",
+      "avg_price_usdt": "1.5992",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.1864",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:23:36",
+      "avg_price_usdt": "1.612",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.404",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:23:36",
+      "avg_price_usdt": "1.612",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.404",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:21:09",
+      "avg_price_usdt": "1.6248",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.6216",
+      "grid_profit_display": "0.1845",
+      "grid_profit_usdt": "0.1845",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:21:09",
+      "avg_price_usdt": "1.6248",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.6216",
+      "grid_profit_display": "0.1845",
+      "grid_profit_usdt": "0.1845",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:14:20",
+      "avg_price_usdt": "1.612",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.404",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:14:20",
+      "avg_price_usdt": "1.612",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.404",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:14:18",
+      "avg_price_usdt": "1.6248",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.6216",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:14:18",
+      "avg_price_usdt": "1.6248",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.6216",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:13:52",
+      "avg_price_usdt": "1.6376",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.8392",
+      "grid_profit_display": "0.1843",
+      "grid_profit_usdt": "0.1843",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:13:52",
+      "avg_price_usdt": "1.6376",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.8392",
+      "grid_profit_display": "0.1843",
+      "grid_profit_usdt": "0.1843",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:09:01",
+      "avg_price_usdt": "1.6248",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.6216",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:09:01",
+      "avg_price_usdt": "1.6248",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.6216",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:05:09",
+      "avg_price_usdt": "1.6376",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.8392",
+      "grid_profit_display": "0.1843",
+      "grid_profit_usdt": "0.1843",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:05:09",
+      "avg_price_usdt": "1.6376",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.8392",
+      "grid_profit_display": "0.1843",
+      "grid_profit_usdt": "0.1843",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:04:31",
+      "avg_price_usdt": "1.6248",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.6216",
+      "grid_profit_display": "0.1845",
+      "grid_profit_usdt": "0.1845",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 12:04:31",
+      "avg_price_usdt": "1.6248",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.6216",
+      "grid_profit_display": "0.1845",
+      "grid_profit_usdt": "0.1845",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:54:27",
+      "avg_price_usdt": "1.612",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.404",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:54:27",
+      "avg_price_usdt": "1.612",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.404",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:54:04",
+      "avg_price_usdt": "1.6248",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.6216",
+      "grid_profit_display": "0.1845",
+      "grid_profit_usdt": "0.1845",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:54:04",
+      "avg_price_usdt": "1.6248",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.6216",
+      "grid_profit_display": "0.1845",
+      "grid_profit_usdt": "0.1845",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:54:02",
+      "avg_price_usdt": "1.612",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.404",
+      "grid_profit_display": "0.1848",
+      "grid_profit_usdt": "0.1848",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:54:02",
+      "avg_price_usdt": "1.612",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.404",
+      "grid_profit_display": "0.1848",
+      "grid_profit_usdt": "0.1848",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:44:01",
+      "avg_price_usdt": "1.5992",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.1864",
+      "grid_profit_display": "0.1851",
+      "grid_profit_usdt": "0.1851",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:44:01",
+      "avg_price_usdt": "1.5992",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "27.1864",
+      "grid_profit_display": "0.1851",
+      "grid_profit_usdt": "0.1851",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:29:18",
+      "avg_price_usdt": "1.5864",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.9688",
+      "grid_profit_display": "0.1853",
+      "grid_profit_usdt": "0.1853",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:29:18",
+      "avg_price_usdt": "1.5864",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.9688",
+      "grid_profit_display": "0.1853",
+      "grid_profit_usdt": "0.1853",
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:44",
+      "avg_price_usdt": "1.5736",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7512",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.575",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.775",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.575",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.775",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.575",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.775",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5747",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7699",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5747",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7699",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:18",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5739",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7563",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5751",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7767",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5751",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7767",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5751",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7767",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5751",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.7767",
+      "grid_profit_display": "To be closed",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5766",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.8022",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5766",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.8022",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5766",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.8022",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5766",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.8022",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5766",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.8022",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5766",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.8022",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5765",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.8005",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5765",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.8005",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5765",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.8005",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5765",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.8005",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5765",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.8005",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    },
+    {
+      "execution_time_display": "09/11/2026, 11:27:17",
+      "avg_price_usdt": "1.5765",
+      "quantity_lots": 17,
+      "executed_amount_usdt": "26.8005",
+      "grid_profit_display": "--",
+      "grid_profit_usdt": null,
+      "side": null
+    }
+  ]
+}
