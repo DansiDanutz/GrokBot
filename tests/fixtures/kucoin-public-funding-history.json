@@ -1,0 +1,31 @@
+{
+  "source": "https://api-futures.kucoin.com/api/v1/contract/funding-rates",
+  "fetched_at": "2026-09-11T12:05:06.098112+00:00",
+  "original_request": {
+    "symbol": "XBTUSDTM",
+    "from": 1781222400000,
+    "to": 1789113600000
+  },
+  "original_response_count": 100,
+  "note": "First three verbatim public rows from recorded 100-row response; sample is not a complete page.",
+  "response": {
+    "code": "200000",
+    "data": [
+      {
+        "symbol": "XBTUSDTM",
+        "fundingRate": 5e-05,
+        "timepoint": 1789113600000
+      },
+      {
+        "symbol": "XBTUSDTM",
+        "fundingRate": 7.2e-05,
+        "timepoint": 1789084800000
+      },
+      {
+        "symbol": "XBTUSDTM",
+        "fundingRate": 0.0001,
+        "timepoint": 1789056000000
+      }
+    ]
+  }
+}
