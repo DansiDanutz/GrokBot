@@ -413,3 +413,32 @@ Externally supplied counts fail admission if their actual spacing fails, even
 when their claimed step is larger. MISSING_STRUCTURE means either chart level
 is absent. Existing open grids are not resized. This is a fee feasibility check;
 funding, initial inventory costs, and exit losses still affect total bot net PnL.
+
+
+## Confirmed minimum grid return — 11 September 2026
+
+Supersedes target-step/geometric sizing for new entries: Dan confirmed the
+KuCoin “Profits per Grid (fees deducted)” basis, strictly greater than 1%,
+including the least profitable grid anywhere within the configured range.
+Choose the largest arithmetic grid count up to 200 passing that floor without
+moving support or resistance. Interval = (high − low) / count, rounded down to
+the stored contract tickSize when available. Median pivot boundaries round inward
+to that tick (support up, resistance down), never widening the range. Missing tick metadata leaves an
+unrounded estimate; displayed returns remain estimates, not exchange quotes.
+
+For a Long/Neutral pair: net = quantity × (sell − buy) − quantity ×
+0.0006 × (buy + sell); return% = 100 × net / (quantity × buy / leverage).
+Short uses sell-side allocated margin; Neutral applies the more conservative
+short-side minimum so both directions clear the floor. Evaluate the conservative top pair
+(high − interval, high), including any rounding remainder, for the minimum;
+the bottom pair gives the maximum. Both fees are included; funding is accounted
+separately. Leverage is 5×. Exactly 1% is rejected. Forecast grids/hour uses
+interval / current price rather than a former fixed target step.
+
+RAY reference checks: 1.4..2, 70, tick .0001 yields interval .0085 and roughly
+1.53..2.43%; 1.1..2 yields .0128 and roughly 2.61..5.21%. These validate the
+percentage formula, not KuCoin's still-unverified per-order quantity allocation.
+New paper orders and dashboard ladders use the same arithmetic interval.
+Existing bots retain their original orders and are labeled legacy; they are not
+silently resized or represented as passing this new entry requirement.
+Reference definition: https://www.kucoin.com/support/21959472633113
