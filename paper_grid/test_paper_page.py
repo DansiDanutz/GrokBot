@@ -29,6 +29,15 @@ class PaperPageTests(unittest.TestCase):
             self.assertIn('href="#' + section + '"', page)
         self.assertIn('not a cash balance history', page)
 
+    def test_score_formula_is_visible_and_linked(self):
+        page = PAGE.read_text()
+        self.assertIn('href="#scoring"', page)
+        self.assertIn('id="scoring"', page)
+        self.assertIn('How the score is calculated', page)
+        self.assertIn('3M to 30M', page)
+        self.assertIn('not a probability of profit', page)
+        self.assertIn("details.open=true", page)
+
     def test_browser_behavior(self):
         result = subprocess.run(['node', str(ROOT / 'tests/fixtures/paper-page/behavior.cjs'), str(PAGE)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
