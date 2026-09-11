@@ -11,7 +11,9 @@ import sqlite3
 import sys
 import tempfile
 from trader.research.kucoin_operator import operator_report, validate_running
-from trader.research.kucoin_snapshot import Snapshot, SnapshotError
+from trader.research.kucoin_snapshot import Snapshot, SnapshotError, HistoricalSnapshot
+from trader.research.chart_snapshot import ChartSnapshot
+from trader.research.public_funding import _bounds, _records, _initial_state
 
 OWNER = {'schema_version': 1, 'purpose': 'offline-kucoin-operator-artifacts'}
 MARKER = '.offline-grid-operator.json'
@@ -57,10 +59,59 @@ def _read_json(value, maximum=1_048_576):
                       parse_constant=lambda _: (_ for _ in ()).throw(ValueError('nonfinite JSON value')))
 
 
-def load_running(path, asof_ms):
+def load_running(path, asof_ms, parameters=None):
     document = _read_json(path)
-    validate_running(document, asof_ms)
+    if parameters is None:
+        validate_running(document, asof_ms)
+    else:
+        validate_running(document, asof_ms, parameters=parameters)
     return document
+
+
+def _funding_value(pair, value):
+    checkpoint_keys = {'symbol', 'start_ms', 'end_ms', 'next_to_ms', 'records',
+                       'complete', 'exhausted', 'pages', 'coverage_verified'}
+    rows = value.get('records') if isinstance(value, dict) else value
+    if not isinstance(rows, list) or any(not isinstance(row, dict) or
+            set(row) != {'symbol', 'timestamp_ms', 'rate'} for row in rows):
+        raise ValueError('funding history requires canonical public record lists')
+    if any(type(row['rate']) not in (int, float) for row in rows):
+        raise ValueError('canonical funding rates must be numeric and not boolean')
+    _bounds(pair, 0, 2**63-1)
+    normalized = _records(rows, pair, 0, 2**63-1)
+    if isinstance(value, dict):
+        if set(value) != checkpoint_keys or value['coverage_verified'] is not False:
+            raise ValueError('funding checkpoint requires exact public unverified-coverage fields')
+        _bounds(pair, value['start_ms'], value['end_ms'])
+        return _initial_state(pair, value['start_ms'], value['end_ms'], value)
+    return normalized
+
+
+def load_funding_history(path):
+    """Read only bounded detached public histories; retrieval is never invoked."""
+    document = _read_json(path, maximum=32*1024*1024)
+    if not isinstance(document, dict):
+        raise ValueError('funding history must map contract symbols to records or checkpoints')
+    return {pair: _funding_value(pair, value) for pair, value in document.items()}
+
+
+def _parameters(arguments):
+    income = arguments.strategy == 'income_chart_v3'
+    if not income and (arguments.funding_history is not None or arguments.bias_mode != '1d+4h'
+                       or arguments.regime_gate != 'on'):
+        raise ValueError('chart bias, regime and funding options require --strategy income_chart_v3')
+    parameters = dict(strategy='income_chart_v3', bias_mode=arguments.bias_mode,
+                      regime_gate=arguments.regime_gate == 'on') if income else {}
+    if arguments.candle_only:
+        parameters['historical_candle_only'] = True
+    return parameters
+
+
+def _wrap_snapshot(snapshot, parameters, funding):
+    source = HistoricalSnapshot(snapshot, parameters) if parameters.get('historical_candle_only') else snapshot
+    if parameters.get('strategy') == 'income_chart_v3':
+        return ChartSnapshot(source, parameters, funding_histories=funding)
+    return source
 
 
 def _encoded(document):
@@ -175,6 +226,13 @@ def _arguments(argv):
         output='new or previously owned offline artifact directory; never a runtime directory')
     for name, description in descriptions.items():
         operator.add_argument('--'+name, required=True, help=description)
+    operator.add_argument('--strategy', choices=('legacy', 'income_chart_v3'), default='legacy')
+    operator.add_argument('--bias-mode', choices=('4h-only', '1d+4h'), default='1d+4h')
+    operator.add_argument('--regime-gate', choices=('on', 'off'), default='on')
+    operator.add_argument('--candle-only', action='store_true',
+                          help='explicitly permit labeled historical candle-only assumptions')
+    operator.add_argument('--funding-history',
+                          help='detached public symbol-to-record/checkpoint JSON, at most 32 MiB; no retrieval')
     return parser.parse_args(argv)
 
 
@@ -183,10 +241,14 @@ def main(argv=None):
     try:
         _safe_location(arguments.output)
         snapshot_path = _safe_location(arguments.snapshot)
+        parameters = _parameters(arguments)
+        funding = load_funding_history(arguments.funding_history) if arguments.funding_history else None
         with Snapshot(snapshot_path) as snapshot:
-            asof = _snapshot_asof(arguments.asof, snapshot)
-            running = load_running(arguments.running, asof)
-            report = operator_report(snapshot, asof, running)
+            source = _wrap_snapshot(snapshot, parameters, funding)
+            asof = _snapshot_asof(arguments.asof, source)
+            running = load_running(arguments.running, asof, parameters=parameters) if parameters else load_running(arguments.running, asof)
+            report = (operator_report(source, asof, running, parameters=parameters) if parameters else
+                      operator_report(source, asof, running))
             with snapshot.path.open('rb') as stream:
                 digest = hashlib.file_digest(stream, 'sha256').hexdigest()
         report['snapshot'] = dict(sha256=digest, source='kucoin-public', offline_copy=True)
