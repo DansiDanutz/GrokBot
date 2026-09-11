@@ -1,0 +1,340 @@
+{
+  "captured_at_local": "2026-09-11 14:32-15:15 Europe/Bucharest",
+  "source": "Dan's KuCoin app screenshots, Futures Grid Running Bots and Choose Symbol (sorted by Volatility)",
+  "note": "Grids field is shown as green:red = open buy orders : open sell orders. 'Arbitrage' = completed grids (24h / total since start). Fee 0.06% per fill per KuCoin bot FAQ.",
+  "running_bots": [
+    {
+      "symbol": "HEMIUSDT",
+      "mode": "long",
+      "leverage": 4,
+      "margin_usdt": 2500,
+      "reserved_margin": 0,
+      "age": "2d 12h 5m",
+      "entry_price": 0.01065,
+      "price_at_capture": 0.011386,
+      "range_low": 0.0085,
+      "range_high": 0.015,
+      "grids_buy": 32,
+      "grids_sell": 38,
+      "arbitrage_24h": 82,
+      "arbitrage_total": 691,
+      "grid_profit": 614.7,
+      "unrealized_pnl": 298.59,
+      "funding_fee": -8.83,
+      "total_profit": 904.46,
+      "total_pct": 36.18,
+      "est_liq_price": 0.006928,
+      "apr_pct": 4401.54
+    },
+    {
+      "symbol": "BTRUSDT",
+      "mode": "long",
+      "leverage": 4,
+      "margin_usdt": 3000,
+      "reserved_margin": 0,
+      "age": "2d 12h 7m",
+      "entry_price": 0.17476,
+      "price_at_capture": 0.17866,
+      "range_low": 0.143,
+      "range_high": 0.25,
+      "grids_buy": 23,
+      "grids_sell": 47,
+      "arbitrage_24h": 579,
+      "arbitrage_total": 854,
+      "grid_profit": 758.49,
+      "unrealized_pnl": 117.01,
+      "funding_fee": -24.97,
+      "total_profit": 850.54,
+      "total_pct": 28.35,
+      "est_liq_price": 0.10039,
+      "apr_pct": 3449.25
+    },
+    {
+      "symbol": "MOVRUSDT",
+      "mode": "long",
+      "leverage": 6,
+      "margin_usdt": 7500,
+      "reserved_margin": 0,
+      "age": "2d 15h 11m",
+      "entry_price": 0.991,
+      "price_at_capture": 0.844,
+      "range_low": 0.87,
+      "range_high": 1.8,
+      "grids_buy": 0,
+      "grids_sell": 90,
+      "arbitrage_24h": 25,
+      "arbitrage_total": 219,
+      "grid_profit": 328.46,
+      "unrealized_pnl": -2131.23,
+      "funding_fee": 11.14,
+      "total_profit": -1791.62,
+      "total_pct": -23.89,
+      "est_liq_price": 0.495,
+      "apr_pct": null
+    },
+    {
+      "symbol": "SOLUSDT",
+      "mode": "long",
+      "leverage": 5,
+      "margin_usdt": 10000,
+      "reserved_margin": 3000,
+      "age": "2d 17h 55m",
+      "entry_price": 108.252,
+      "price_at_capture": 104.973,
+      "range_low": 90,
+      "range_high": 150,
+      "grids_buy": 25,
+      "grids_sell": 74,
+      "arbitrage_24h": 7,
+      "arbitrage_total": 46,
+      "grid_profit": 59.44,
+      "unrealized_pnl": -632.6,
+      "funding_fee": 2.77,
+      "total_profit": -570.38,
+      "total_pct": -5.7,
+      "est_liq_price": 69.651,
+      "apr_pct": null
+    }
+  ],
+  "second_capture_hemi": {
+    "time": "14:32",
+    "price": 0.011452,
+    "unrealized_pnl": 330.21,
+    "total_profit": 936.08,
+    "total_pct": 37.44,
+    "est_liq_price": 0.006961,
+    "apr_pct": 4555.57
+  },
+  "second_capture_btr": {
+    "time": "14:32",
+    "price": 0.17886,
+    "arbitrage_24h": 581,
+    "unrealized_pnl": 113.82,
+    "total_profit": 847.34,
+    "total_pct": 28.25
+  },
+  "volatility_list_usdt_m_top": [
+    {
+      "symbol": "ZKCUSDT",
+      "volume": "2.14M",
+      "price": 0.06437,
+      "change_pct": 64.37,
+      "volatility_pct": 78.69
+    },
+    {
+      "symbol": "ESIMUSDT",
+      "volume": "19440.37",
+      "price": 0.019021,
+      "change_pct": 2.74,
+      "volatility_pct": 73.09
+    },
+    {
+      "symbol": "PROMUSDT",
+      "volume": "5.36M",
+      "price": 7.0729,
+      "change_pct": 36.11,
+      "volatility_pct": 52.86
+    },
+    {
+      "symbol": "BTRUSDT",
+      "volume": "9.41M",
+      "price": 0.17959,
+      "change_pct": -6.06,
+      "volatility_pct": 47.1
+    },
+    {
+      "symbol": "TACUSDT",
+      "volume": "573.8K",
+      "price": 0.00242,
+      "change_pct": -14.99,
+      "volatility_pct": 34.25
+    },
+    {
+      "symbol": "CYSUSDT",
+      "volume": "512.2K",
+      "price": 0.8097,
+      "change_pct": 28.07,
+      "volatility_pct": 32.23
+    },
+    {
+      "symbol": "AIOUSDT",
+      "volume": "200.4K",
+      "price": 0.0526,
+      "change_pct": 21.5,
+      "volatility_pct": 30.89
+    },
+    {
+      "symbol": "BTWUSDT",
+      "volume": "862.7K",
+      "price": 0.400697,
+      "change_pct": 1.57,
+      "volatility_pct": 26.81
+    },
+    {
+      "symbol": "CHILLGUYUSDT",
+      "volume": "238.1K",
+      "price": 0.012271,
+      "change_pct": -10.38,
+      "volatility_pct": 26.27
+    },
+    {
+      "symbol": "BANDUSDT",
+      "volume": "183.5K",
+      "price": 0.1798,
+      "change_pct": 4.83,
+      "volatility_pct": 26.25
+    },
+    {
+      "symbol": "CASHCATUSDT",
+      "volume": "1.00M",
+      "price": 0.219,
+      "change_pct": 11.61,
+      "volatility_pct": 24.3
+    },
+    {
+      "symbol": "AUCTIONUSDT",
+      "volume": "401.6K",
+      "price": 3.725,
+      "change_pct": 18.25,
+      "volatility_pct": 24.13
+    },
+    {
+      "symbol": "ACHUSDT",
+      "volume": "9311.46",
+      "price": 0.005013,
+      "change_pct": 15.88,
+      "volatility_pct": 23.95
+    },
+    {
+      "symbol": "KOMAUSDT",
+      "volume": "176.6K",
+      "price": 0.0135,
+      "change_pct": -3.91,
+      "volatility_pct": 23.77
+    },
+    {
+      "symbol": "NILUSDT",
+      "volume": "995.5K",
+      "price": 0.05605,
+      "change_pct": 5.0,
+      "volatility_pct": 23.4
+    },
+    {
+      "symbol": "DOSUSDT",
+      "volume": "665.8K",
+      "price": 0.32323,
+      "change_pct": 19.59,
+      "volatility_pct": 22.11
+    },
+    {
+      "symbol": "SCRUSDT",
+      "volume": "25899.39",
+      "price": 0.02421,
+      "change_pct": 5.67,
+      "volatility_pct": 21.55
+    },
+    {
+      "symbol": "LISTAUSDT",
+      "volume": "96025.27",
+      "price": 0.07184,
+      "change_pct": 6.95,
+      "volatility_pct": 21.02
+    },
+    {
+      "symbol": "MAGICUSDT",
+      "volume": "87186.43",
+      "price": 0.04958,
+      "change_pct": 8.99,
+      "volatility_pct": 20.12
+    },
+    {
+      "symbol": "BICOUSDT",
+      "volume": "820.5K",
+      "price": 0.02278,
+      "change_pct": 3.35,
+      "volatility_pct": 18.94
+    },
+    {
+      "symbol": "MOVRUSDT",
+      "volume": "519.7K",
+      "price": 0.859,
+      "change_pct": 6.18,
+      "volatility_pct": 18.68
+    },
+    {
+      "symbol": "UNIUSDT",
+      "volume": "4.56M",
+      "price": 5.18,
+      "change_pct": 17.91,
+      "volatility_pct": 18.54
+    },
+    {
+      "symbol": "OUSDT",
+      "volume": "1.01M",
+      "price": 0.5394,
+      "change_pct": 5.84,
+      "volatility_pct": 18.4
+    }
+  ],
+  "favorites_sorted_by_volatility": [
+    "ZECUSDT 5.74",
+    "INJUSDT 5.71",
+    "NEARUSDT 5.68",
+    "ENAUSDT 5.46",
+    "YGGUSDT 5.21",
+    "PENDLEUSDT 4.97",
+    "DYDXUSDT 4.92",
+    "GALAUSDT 4.87",
+    "ALICEUSDT 4.74",
+    "SANDUSDT 4.69",
+    "DODOUSDT 4.65",
+    "AAVEUSDT 4.63",
+    "WIFUSDT 4.62",
+    "DOODUSDT 4.55",
+    "CAKEUSDT 4.52",
+    "JUPUSDT 4.43",
+    "CHRUSDT 4.16",
+    "THETAUSDT 3.93",
+    "WLDUSDT 3.92",
+    "UMAUSDT 3.69"
+  ],
+  "neutral_bot_creation_example": {
+    "captured_at_local": "2026-09-12 11:26-11:27 Europe/Bucharest",
+    "symbol": "RAYUSDT",
+    "mode": "neutral",
+    "leverage": 5,
+    "investment_margin_usdt": 1000,
+    "reserved_margin_usdt": 200,
+    "total_margin_usdt": 1200,
+    "price_at_create": 1.574,
+    "chart_context": "1D candles: 0.80 on 2026-09-01 rising to 1.58; strong recent pump",
+    "range_low": 1.1,
+    "range_high": 2.0,
+    "grids": 70,
+    "interval_usdt": 0.0128,
+    "profit_per_grid_pct_shown": "2.61% ~ 5.21%",
+    "est_long_liq_price": 0.3238,
+    "est_short_liq_price": 3.1121,
+    "after_create": {
+      "entry_price": 1.574,
+      "grids_buy": 75,
+      "grids_sell": 65,
+      "open_orders": 140,
+      "order_history": 69,
+      "position_long_lots": 544,
+      "position_short_lots": -629,
+      "funding_rate": -0.0005,
+      "grid_profit": 0,
+      "unrealized_pnl": -2.39,
+      "total_profit": -2.4,
+      "est_liq_prices": "0.3246 / 3.1256",
+      "open_order_ladder_first_15": "two orders per grid level, 17 lots each; buys 1.5736,1.5608,1.5608,1.548,1.548,1.5352,1.5352,1.5224,1.5224,1.5096,1.5096,1.4968,1.4968,1.484,1.484; sells 1.5864,1.5992,1.5992,1.612,1.612,1.6248,1.6248,1.6376,1.6376,1.6504,1.6504,1.6632,1.6632,1.676,1.676"
+    },
+    "derived": {
+      "margin_per_grid_usdt": 14.29,
+      "usdt_per_grid_at_1.574": 0.55,
+      "grids_for_1_usdt_per_grid": 50,
+      "profit_per_grid_pct_formula": "(interval/price)*leverage - 2*0.06%*leverage, applied to margin_used/grids; matches HEMI 0.89 and BTR 0.89 within tolerance"
+    }
+  }
+}
