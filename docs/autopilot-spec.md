@@ -346,3 +346,28 @@ one-minute candles in `tests/fixtures/papergrid/ray_20260911.json`. Neutral 5x,
 range 1.10–2.00, 140 grids, 1,000 USDT: assert `130 <= completed_grids <= 200`
 and `20 <= grid_profit <= 32`. This is the bounded A-1 regression authorized
 by issue #16 comment 5637070434, not a research sweep.
+
+
+## Dan correction — uniform 5× and immediate range exit (11 September 2026)
+
+This section supersedes the earlier TREND 3× profile and delayed range-break rule.
+All new paper bots use 1,000 USDT margin, 5× leverage and a separately allocated
+200 USDT reserve. Five bots allocate 6,000 of the 10,000 USDT bankroll; reserve
+is not leveraged. Existing incompatible profiles are closed with PROFILE_UPDATE
+and replaced through normal Core admission, recording fees and PnL rather than
+rewriting historical fills. No performance history is reset.
+
+At the first observed price at or beyond either configured range boundary, the
+autopilot closes that paper bot on the same update at the observed price, with
+RANGE_BREAK. It does not wait three updates, an extra grid step, or the five-minute
+decision pass. The existing 12% loss protection is also closed on its triggering
+update. Backfill candles with a boundary excursion close at the first outside
+price in the engine's deterministic OHLC path, without inventing boundary-price
+execution or subsequent fills. Price gaps may create losses beyond the threshold.
+
+Liquidation output must distinguish a modeled isolated/net-position estimate
+from an exchange-confirmed Futures Grid hedge-mode liquidation price. Use
+verified public maintenance-margin parameters, show their freshness and fee
+assumptions, and report both current margin and the additional-reserve scenario.
+Missing parameters or flat inventory must be labeled explicitly. A range stop
+does not guarantee avoiding liquidation. No real exchange orders are authorized.
