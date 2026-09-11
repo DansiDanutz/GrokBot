@@ -15,10 +15,10 @@ def _paths(runtime,doc,end):
     start=retention._timestamp(doc['start_at']);retention._timestamp(end)
     if end<start or end-start>EVIDENCE_MAX_DAYS*SECONDS_PER_DAY:
         raise ValueError('audit metric history exceeds supported range')
-    first,last=retention._day(start),retention._day(end)
+    last=retention._day(end)
     directory=retention._directory(runtime)
     paths=sorted(p for p in directory.iterdir() if retention.FILENAME.fullmatch(p.name)
-                 and first<=p.stem<=last) if directory.exists() else []
+                 and p.stem<=last) if directory.exists() else []
     declared=doc.get('archive_files',[])
     if not isinstance(declared,list):
         raise ValueError('invalid declared archive files')
@@ -26,7 +26,7 @@ def _paths(runtime,doc,end):
     for name in declared:
         if not isinstance(name,str) or not retention.FILENAME.fullmatch(name):
             raise ValueError('invalid declared archive filename')
-        if first<=name[:-5]<=last and name not in available:
+        if name[:-5]<=last and name not in available:
             raise ValueError('required observation archive is missing or unsafe')
     if len(paths)>EVIDENCE_MAX_DAYS+1:
         raise ValueError('audit metric archive day limit exceeded')

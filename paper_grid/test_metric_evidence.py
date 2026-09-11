@@ -31,6 +31,20 @@ class MetricEvidenceTests(unittest.TestCase):
         self.assertEqual(metric['exposure']['fraction'],1)
         self.assertEqual(doc['events'],[closing])
 
+    def test_retained_pre_experiment_open_survives_archiving(self):
+        opening=event('open',-86400);closing=event('close',300)
+        doc=document([closing]);doc['archive_files']=[self.archive([opening])]
+        result=metric_evidence.load(self.root,doc,closing['time'])
+        metric=trade_metrics.report(result,'baseline',START,closing['time'])
+        self.assertEqual(metric['average_hold_seconds'],86700)
+        self.assertEqual(metric['exposure']['fraction'],1)
+        self.assertEqual(doc['events'],[closing])
+
+    def test_missing_declared_pre_experiment_archive_fails_closed(self):
+        doc=document([]);doc['archive_files']=[retention._day(START-86400)+'.json']
+        with self.assertRaisesRegex(ValueError,'required observation archive'):
+            metric_evidence.load(self.root,doc,START+300)
+
     def test_missing_prior_window_archive_fails_closed(self):
         doc=document([]);doc['archive_files']=[retention._day(START)+'.json']
         with self.assertRaisesRegex(ValueError,'required observation archive'):
