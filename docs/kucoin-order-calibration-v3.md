@@ -4,8 +4,8 @@ Dan authorized inspection of his signed-in Chrome account on 11 September 2026.
 The redacted fixture records only strategy parameters and quantities from History
 → Parameters, plus three RAY Order History cycles. Account identifiers, bot IDs,
 balances outside these configurations, cookies and credentials are excluded.
-No order was opened, stopped or changed. An unsubmitted form-preview attempt
-returned inconsistent interval/quantity output and is excluded from calibration.
+No order was opened, stopped or changed. Early unsettled form-preview output
+was excluded; later settled unsubmitted previews are recorded separately below.
 
 | Configuration | Grids | Observed lots/order | Contract multiplier | Current used margin | Reserve |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -60,3 +60,75 @@ its associated expected income remain unvalidated until a rule predicts the
 independently observed quantities from known creation inputs. Existing sizing in
 v3 candle replays is labeled an uncalibrated sensitivity model, not an executable
 KuCoin recommendation. The paper evaluation clock remains unstarted.
+
+## Apply the cash formula to every observed configuration
+
+The same accounting applies to Long, Short (sell first, buy back later), and each
+completed Neutral leg. A fill is not a completed grid. Keep seed-position PnL,
+floating PnL, funding and switching costs separate from completed-grid income.
+The following bands use each independently observed order quantity and the whole
+configured grid ladder; Long intervals remain inferred as described above.
+
+| Observed configuration | Net USDT/completed grid, after two fees | Every grid reaches +1? |
+| --- | ---: | --- |
+| HEMI Long 4x, 114 lots | 0.84505008–0.93189072 | No |
+| BTR Long 4x, 68 lots | 0.83070976–0.91629184 | No |
+| MOVR Long 6x, 1698 lots | 1.33836360–1.51971000 | Yes, accounting only |
+| SOL Long 5x, 27 lots | 1.15120116–1.34361828 | Yes, accounting only |
+| RAY Neutral 5x, 17 lots | 0.17701216–0.19502944 | No |
+| Archived BTR Long 5x, 171 lots | 0.57554496–0.65532672 | No |
+
+These describe captured configurations, not a fresh inventory of the account.
+Passing a cash floor does not establish net profitability or liquidation safety.
+Acceptance tests exercise the existing engine, preview, tracker and portfolio
+accounting in all three modes, including fixed-quantity leverage invariance.
+No live bot was modified and no paper runtime was deployed.
+
+The supplied latest-100 RAY history contains 25 numeric grid-profit rows totaling
+4.6195 USDT. All 100 rows report 17 lots. Duplicate-looking rows are preserved:
+there are no event IDs or side labels with which to deduplicate or pair fills.
+The positive profit displays are consistent with truncating to four decimals,
+including 0.18458464 displayed as 0.1845. This is a partial grid-profit display,
+not lifetime PnL or proof of each row's opposite fill.
+
+## Settled unsubmitted form observations
+
+The later Chrome previews used RAY, range 1.1–2, used margin 1000 USDT,
+reserve 200 USDT and 5x. These were draft forms only. Prices moved between
+observations; they are not simultaneous quotes or actual order allocations.
+
+| Direction | Grids | Interval | Quoted lots/order | Displayed minimum investment | Profit/grid preview | Liquidation preview |
+| --- | ---: | ---: | ---: | ---: | --- | --- |
+| Long | 70 | 0.0128 | 41 | 24.1798 | 2.61%–5.21% | 1.0537 |
+| Short | 70 | 0.0128 | 38 | 26.2768 | 2.61%–5.21% | 2.0953 |
+| Neutral | 70 | 0.0128 | 15 | 62.6376 | 2.61%–5.21% | 0.3234 / 3.1118 |
+| Neutral | 29 | 0.0310 | 38 | 25.9999 | 7.26%–13.48% | 0.3195 / 3.1114 |
+| Neutral | 30 | 0.0300 | 37 | 26.9012 | 7.00%–13.02% | 0.3035 / 3.1281 |
+| Neutral | 31 | 0.0290 | 36 | 27.7672 | 6.75%–12.57% | 0.3107 / 3.1209 |
+
+The current Neutral preview's 15 lots differs from the independently observed
+running bot's 17 lots. It must not overwrite the actual quantity. The expression
+`floor(used margin / displayed minimum investment)` matches these draft counts,
+but minimum investment is another KuCoin output; this is not a prediction from
+form inputs or an identified allocation algorithm.
+
+For a candidate grid count N and independently obtained order quantity q(N), the
+cash-floor test is:
+
+`min over adjacent buy/sell prices: q(N) * multiplier * ((sell - buy) - 0.0006 * (buy + sell)) >= 1`.
+
+Equivalently, for fixed base quantity Q and buy price B, the minimum step is
+`(1 / Q + 2 * 0.0006 * B) / (1 - 0.0006)`, rounded up to the price tick.
+This algebra assumes the target is one USDT after the two fill fees only.
+
+Choose the largest feasible N only after evaluating its own quoted quantity and
+rounded interval. Using the observed 30-grid Neutral draft gives 1.021866–1.060494
+USDT per completed cycle; the 31-grid draft gives 0.9582696–0.9958536. Thus 30
+passes and 31 fails among these tested previews. This is not an exhaustive
+search, a current recommendation, or a universal 30-grid rule. Fees, funding,
+contract rules and prices must still be checked for a real configuration.
+
+Radar income/hour uses crossing-rate estimates times quantity-based minimum
+net USDT/grid. The KuCoin percentage preview is displayed separately and is not
+substituted for actual cash income. Until independent allocation calibration
+passes, automatic forms and historical results remain research only.
