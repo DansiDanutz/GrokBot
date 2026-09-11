@@ -16,7 +16,7 @@ import re
 import tempfile
 import time
 
-from paper_grid import audits, engine, experiment, analytics
+from paper_grid import audits, engine, experiment, analytics, public_trade_metrics
 from paper_grid.telemetry_constants import READABLE_BUY_REJECTION_REASONS
 
 MAX_BYTES = 5 * 1024 * 1024
@@ -229,6 +229,7 @@ def _audit(source, identifier, published_at):
     for arm in experiment.ARMS:
         row = _object(_object(source.get('accounts')).get(arm))
         result['accounts'][arm] = _numbers(row, AUDIT_NUMBERS)
+        result['accounts'][arm]['performance'] = public_trade_metrics.safe(row.get('performance'),_number,_symbol)
         for key in ('start_mark', 'end_mark'):
             mark = _object(row.get(key))
             result['accounts'][arm][key] = dict(time=_stamp(mark.get('time')), equity=_number(mark.get('equity')))

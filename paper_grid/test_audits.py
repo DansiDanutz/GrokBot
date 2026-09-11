@@ -21,7 +21,7 @@ class AuditTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.doc = dict(mode='paper', start_at=START, config=engine.default_config(),
             tick_seconds=300, report_seconds=1800, last_tick_at=START, report_at=START,
             code_hashes={'engine.py':'sample'}, config_hash='fixture',
@@ -253,20 +253,20 @@ class AuditTests(unittest.TestCase):
 
     def test_idle_checks_do_not_read_archive_history(self):
         self.generate()
-        with patch.object(retention, 'read_archives', side_effect=AssertionError('no due report')):
+        with patch.object(audits.metric_evidence, 'load', side_effect=AssertionError('no due report')):
             self.assertEqual(audits.generate_due(self.root, START+48*3600), [])
 
-    def test_next_window_loads_only_needed_archive_range_and_chains_totals(self):
+    def test_next_window_loads_bounded_lifetime_history_and_chains_totals(self):
         self.doc['events'] = [dict(time=START+300, account='baseline', type='close', net_pnl=2)]
         self.generate(START+7*86400)
         while audits.generate_due(self.root, START+7*86400):
             pass
         self.doc['events'] = [dict(time=START+7*86400+300, account='baseline', type='close', net_pnl=-1)]
         self.save()
-        real = retention.read_archives
-        with patch.object(retention, 'read_archives', wraps=real) as read:
+        real = audits.metric_evidence.load
+        with patch.object(audits.metric_evidence, 'load', wraps=real) as read:
             records = audits.generate_due(self.root, START+9*86400)
-        self.assertGreater(read.call_args.args[1], START)
+        self.assertEqual(read.call_args.args[1]['start_at'], START)
         audit = self.report(next(r for r in records if r['kind']=='audit48h'))
         metrics = audit['accounts']['baseline']
         self.assertEqual(metrics['closed_trade_net_pnl'], -1)

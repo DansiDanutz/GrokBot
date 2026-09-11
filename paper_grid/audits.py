@@ -21,7 +21,7 @@ import time
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from paper_grid import cli, retention, coinglass, telemetry_metrics
+from paper_grid import cli, retention, coinglass, telemetry_metrics, trade_metrics, metric_evidence
 from paper_grid.telemetry_constants import DEFAULT_TICK_SECONDS, DEFAULT_REPORT_SECONDS
 
 KINDS = ('audit48h', 'daily', 'weekly')
@@ -216,7 +216,7 @@ def _arm_metrics(doc, arm, start, end):
     fees += sum(e.get('exit_fee', 0) for e in closes if _number(e.get('exit_fee', 0)))
     delta = marked['equity_change']
     counts = Counter(e.get('type', 'unknown') for e in events)
-    return dict(**marked, closed_trade_net_pnl=realized,
+    return dict(**marked, performance=trade_metrics.report(doc,arm,start,end), closed_trade_net_pnl=realized,
         non_realized_equity_change_residual=delta-realized if delta is not None else None,
         fills=sum(counts[t] for t in ('open', 'add', 'close')), opens=counts['open'], adds=counts['add'],
         closed_trades=len(pnl), wins=sum(v>0 for v in pnl), losses=sum(v<0 for v in pnl),
@@ -326,6 +326,31 @@ def _build(doc, kind, start, end, generated, prior=None):
     return report
 
 
+def _render_performance(report):
+    metrics = (
+        ('Closed-trade profit factor', ('profit_factor',)),
+        ('Time in market · seconds', ('exposure','observed_seconds')),
+        ('Time in market · fraction', ('exposure','fraction')),
+        ('Average hold · seconds', ('average_hold_seconds',)),
+        ('Baseline blocked-entry cohort · net USDT', ('baseline_filter_blocked','net_pnl')),
+    )
+    rows=[]
+    for label,path in metrics:
+        cells=[]
+        for arm in ARMS:
+            value=report['accounts'][arm].get('performance',{})
+            for key in path:
+                value=value.get(key) if isinstance(value,dict) else None
+            rendered='Unavailable' if value is None else f'{value:,.4f}'
+            cells.append('<td>'+html.escape(rendered)+'</td>')
+        rows.append('<tr><th>'+html.escape(label)+'</th>'+''.join(cells)+'</tr>')
+    return ('<h2>Observed trade metrics</h2><table><tr><th>Metric</th><th>Baseline</th>'
+            '<th>Liquidation filter</th></tr>'+''.join(rows)+'</table><p>'
+            'Overlapping positions count once in exposure. The blocked-entry cohort describes '
+            'recorded baseline outcomes, not causal savings. Per-symbol net PnL, signed lifetime '
+            'MAE/MFE and missing-history coverage are in the account detail below.</p>')
+
+
 def _render(report):
     title = f"Zmarty paper {'48-hour audit' if report['kind']=='audit48h' else report['kind']+' summary'}"
     rows = []
@@ -345,6 +370,7 @@ def _render(report):
     doc += '<body><a href="/">← Paper dashboard</a><h1>'+html.escape(title)+'</h1><p class="badge">PAPER ONLY · '+html.escape(report['severity'].upper())+'</p>'
     doc += '<p>'+html.escape(report['window']['start_local'])+' → '+html.escape(report['window']['end_local'])+'</p><p>'+html.escape(report['summary'])+'</p>'
     doc += '<p>All monetary values are modeled USDT. Two independent accounts; do not add their returns as one portfolio.</p><h2>Account results</h2><table><tr><th>Metric</th><th>Baseline</th><th>Liquidation filter</th></tr>'+''.join(rows)+'</table>'
+    doc += _render_performance(report)
     doc += '<h2>Audit findings</h2><table><tr><th>Severity</th><th>Area</th><th>Finding</th></tr>'+findings+'</table>'
     for heading, value in [('Data coverage and rejected signals', report['data']), ('Equity marks and cumulative context', report['accounts']), ('Comparison', report['comparison']), ('Configuration and provenance', dict(config=report['strategy_config'], provenance=report['provenance']))]:
         doc += '<h2>'+html.escape(heading)+'</h2><pre>'+html.escape(json.dumps(value, indent=2))+'</pre>'
@@ -390,23 +416,8 @@ def generate_due(runtime=cli.DEFAULT_RUNTIME, now=None):
             cursors[kind] = end
         if not due:
             return []
-        earliest, latest = min(w[1] for w in due), max(w[2] for w in due)
-        first_day = datetime.fromtimestamp(earliest, timezone.utc).strftime('%Y-%m-%d')
-        last_day = datetime.fromtimestamp(latest, timezone.utc).strftime('%Y-%m-%d')
-        declared = doc.get('archive_files', [])
-        if not isinstance(declared, list):
-            raise ValueError('invalid declared archive files')
-        for name in declared:
-            if not isinstance(name, str) or not retention.FILENAME.fullmatch(name):
-                raise ValueError('invalid declared archive filename')
-            if first_day <= name[:-5] <= last_day:
-                archive_path = runtime/retention.DIRECTORY/name
-                if archive_path.is_symlink() or not archive_path.is_file():
-                    raise ValueError('required observation archive is missing or unsafe')
-        archived = retention.read_archives(runtime, earliest, latest)
-        for key in ('observations', 'events', 'errors'):
-            # Use retention's exact identity and conflicting timestamp validation.
-            doc[key] = retention._merge(archived.get(key, []), _window(doc.get(key, []), earliest, latest), key)
+        latest = max(w[2] for w in due)
+        doc = metric_evidence.load(runtime,doc,latest)
         created = []
         for kind, begin, end in due:
             prior = None

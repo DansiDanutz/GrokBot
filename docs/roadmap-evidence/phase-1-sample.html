@@ -1,0 +1,740 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zmarty paper 48-hour audit</title><style>body{font:16px/1.5 system-ui;background:#101827;color:#e5edf5;max-width:1100px;margin:2rem auto;padding:0 1rem}a{color:#86c9ff}table{border-collapse:collapse;width:100%;margin:1rem 0}th,td{text-align:left;border-bottom:1px solid #39465a;padding:.65rem}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#182438;padding:1rem}h1,h2{line-height:1.2}.badge{background:#294663;padding:.5rem 1rem;border-radius:1rem;display:inline-block}</style><body><a href="/">← Paper dashboard</a><h1>Zmarty paper 48-hour audit</h1><p class="badge">PAPER ONLY · WARNING</p><p>2027-01-15T10:00:00+02:00 → 2027-01-15T10:20:00+02:00</p><p>SYNTHETIC FIXTURE ONLY. Generated quotes and paper fills; no market data or profitability claim.</p><p>All monetary values are modeled USDT. Two independent accounts; do not add their returns as one portfolio.</p><h2>Account results</h2><table><tr><th>Metric</th><th>Baseline</th><th>Liquidation filter</th></tr><tr><th>Equity change</th><td>1.5319</td><td>-3.0780</td></tr><tr><th>Closed-trade net PnL</th><td>1.5319</td><td>-3.0780</td></tr><tr><th>Other equity change (residual)</th><td>-0.0000</td><td>-0.0000</td></tr><tr><th>Fills</th><td>5</td><td>2</td></tr><tr><th>Closed trades</th><td>2</td><td>1</td></tr><tr><th>Wins</th><td>1</td><td>0</td></tr><tr><th>Losses</th><td>1</td><td>1</td></tr><tr><th>Net expectancy / close</th><td>0.7660</td><td>-3.0780</td></tr><tr><th>Fees paid in window</th><td>0.1988</td><td>0.0581</td></tr><tr><th>Observed sample drawdown</th><td>1.2784</td><td>3.4907</td></tr><tr><th>Risk halts</th><td>0</td><td>0</td></tr><tr><th>Deferred exits</th><td>0</td><td>0</td></tr></table><h2>Observed trade metrics</h2><table><tr><th>Metric</th><th>Baseline</th><th>Liquidation filter</th></tr><tr><th>Closed-trade profit factor</th><td>1.4977</td><td>0.0000</td></tr><tr><th>Time in market · seconds</th><td>900.0000</td><td>900.0000</td></tr><tr><th>Time in market · fraction</th><td>0.7500</td><td>0.7500</td></tr><tr><th>Average hold · seconds</th><td>900.0000</td><td>900.0000</td></tr><tr><th>Baseline blocked-entry cohort · net USDT</th><td>4.6100</td><td>Unavailable</td></tr></table><p>Overlapping positions count once in exposure. The blocked-entry cohort describes recorded baseline outcomes, not causal savings. Per-symbol net PnL, signed lifetime MAE/MFE and missing-history coverage are in the account detail below.</p><h2>Audit findings</h2><table><tr><th>Severity</th><th>Area</th><th>Finding</th></tr><tr><td>warning</td><th>liquidation_filter</th><td>Observed account equity declined in this window, including open exposure.</td></tr><tr><td>info</td><th>Evidence</th><td>3 completed paper trades across two correlated simulations. This is not proof of a predictive edge.</td></tr></table><h2>Data coverage and rejected signals</h2><pre>{
+  &quot;cycle_coverage&quot;: {
+    &quot;observed&quot;: 4,
+    &quot;expected_approximately&quot;: 4,
+    &quot;first_at&quot;: 1800000300.0,
+    &quot;last_at&quot;: 1800001200.0,
+    &quot;max_gap_seconds&quot;: 300.0,
+    &quot;observation_ratio&quot;: 1,
+    &quot;note&quot;: &quot;Distinct timestamps; expected count is approximate. Gaps include both window edges.&quot;
+  },
+  &quot;observation_records&quot;: 4,
+  &quot;skipped_records&quot;: 0,
+  &quot;skipped_reasons&quot;: {},
+  &quot;coins&quot;: {
+    &quot;AAAUSDTM&quot;: {
+      &quot;observations&quot;: 4,
+      &quot;missing_or_stale_coinglass&quot;: 0,
+      &quot;baseline_eligible&quot;: 4,
+      &quot;filtered_signal_eligible&quot;: 0,
+      &quot;stale_or_invalid_quote&quot;: 0,
+      &quot;coinglass_missing_rate&quot;: 0.0
+    },
+    &quot;BBBUSDTM&quot;: {
+      &quot;observations&quot;: 4,
+      &quot;missing_or_stale_coinglass&quot;: 0,
+      &quot;baseline_eligible&quot;: 4,
+      &quot;filtered_signal_eligible&quot;: 4,
+      &quot;stale_or_invalid_quote&quot;: 0,
+      &quot;coinglass_missing_rate&quot;: 0.0
+    }
+  },
+  &quot;baseline_signal_rejections&quot;: {},
+  &quot;additional_filter_rejections&quot;: {
+    &quot;coinglass_filter_not_met&quot;: 4
+  },
+  &quot;maximum_quote_age_seconds&quot;: 0.0,
+  &quot;future_quote_observations&quot;: 0,
+  &quot;errors&quot;: []
+}</pre><h2>Equity marks and cumulative context</h2><pre>{
+  &quot;baseline&quot;: {
+    &quot;start_mark&quot;: {
+      &quot;time&quot;: 1800000000.0,
+      &quot;equity&quot;: 1000
+    },
+    &quot;end_mark&quot;: {
+      &quot;time&quot;: 1800001200.0,
+      &quot;equity&quot;: 1001.531947948846
+    },
+    &quot;start_mark_age_seconds&quot;: 0.0,
+    &quot;end_mark_age_seconds&quot;: 0.0,
+    &quot;equity_change&quot;: 1.531947948845982,
+    &quot;observed_max_drawdown&quot;: 1.2783702869905937,
+    &quot;observed_max_drawdown_pct&quot;: 0.12783702869905939,
+    &quot;equity_sample_coverage&quot;: {
+      &quot;observed&quot;: 4,
+      &quot;expected_approximately&quot;: null,
+      &quot;first_at&quot;: 1800000300.0,
+      &quot;last_at&quot;: 1800001200.0,
+      &quot;max_gap_seconds&quot;: 300.0,
+      &quot;observation_ratio&quot;: null,
+      &quot;note&quot;: &quot;Mixed historical publication and per-tick marks; no single sampling cadence.&quot;
+    },
+    &quot;equity_sampling&quot;: {
+      &quot;tick_samples&quot;: 4,
+      &quot;estimated_tick_samples&quot;: 0,
+      &quot;resolution&quot;: &quot;mixed&quot;
+    },
+    &quot;performance&quot;: {
+      &quot;closed_trades&quot;: 2,
+      &quot;profit_factor&quot;: 1.4977082829709099,
+      &quot;profit_factor_state&quot;: &quot;finite&quot;,
+      &quot;average_hold_seconds&quot;: 900.0,
+      &quot;known_hold_trades&quot;: 2,
+      &quot;unknown_hold_trades&quot;: 0,
+      &quot;per_symbol_pnl&quot;: [
+        {
+          &quot;symbol&quot;: &quot;AAAUSDTM&quot;,
+          &quot;closes&quot;: 1,
+          &quot;net_pnl&quot;: 4.609951673641487
+        },
+        {
+          &quot;symbol&quot;: &quot;BBBUSDTM&quot;,
+          &quot;closes&quot;: 1,
+          &quot;net_pnl&quot;: -3.0780037247954692
+        }
+      ],
+      &quot;per_symbol_total&quot;: 2,
+      &quot;exposure&quot;: {
+        &quot;observed_seconds&quot;: 900.0,
+        &quot;fraction&quot;: 0.75,
+        &quot;coverage&quot;: &quot;complete_recorded_lifecycles&quot;,
+        &quot;unknown_lifecycles&quot;: 0
+      },
+      &quot;trades&quot;: [
+        {
+          &quot;opened_at&quot;: 1800000300.0,
+          &quot;closed_at&quot;: 1800001200.0,
+          &quot;symbol&quot;: &quot;AAAUSDTM&quot;,
+          &quot;adds&quot;: 1,
+          &quot;entry_notional&quot;: 114.90846449748001,
+          &quot;net_pnl&quot;: 4.609951673641487,
+          &quot;entry_fees&quot;: 0.068945078698488,
+          &quot;exit_fee&quot;: 0.07179723767999999,
+          &quot;funding_cost&quot;: 0.0029043124999999998,
+          &quot;hold_seconds&quot;: 900.0,
+          &quot;reason&quot;: &quot;net_profit_target&quot;,
+          &quot;result&quot;: &quot;win&quot;,
+          &quot;observed_mae_net_usdt&quot;: -1.1930165027251451,
+          &quot;observed_mfe_net_usdt&quot;: 4.609951673641516,
+          &quot;excursion_samples&quot;: 6,
+          &quot;excursion_missing_samples&quot;: 0,
+          &quot;excursion_coverage&quot;: &quot;complete_observations&quot;
+        },
+        {
+          &quot;opened_at&quot;: 1800000300.0,
+          &quot;closed_at&quot;: 1800001200.0,
+          &quot;symbol&quot;: &quot;BBBUSDTM&quot;,
+          &quot;adds&quot;: 0,
+          &quot;entry_notional&quot;: 49.914970998,
+          &quot;net_pnl&quot;: -3.0780037247954692,
+          &quot;entry_fees&quot;: 0.029948982598799998,
+          &quot;exit_fee&quot;: 0.028137971279999997,
+          &quot;funding_cost&quot;: 0.0015645729166666668,
+          &quot;hold_seconds&quot;: 900.0,
+          &quot;reason&quot;: &quot;price_stop&quot;,
+          &quot;result&quot;: &quot;loss&quot;,
+          &quot;observed_mae_net_usdt&quot;: -3.0780037247954692,
+          &quot;observed_mfe_net_usdt&quot;: 0.4127272839478667,
+          &quot;excursion_samples&quot;: 5,
+          &quot;excursion_missing_samples&quot;: 0,
+          &quot;excursion_coverage&quot;: &quot;complete_observations&quot;
+        }
+      ],
+      &quot;trades_total&quot;: 2,
+      &quot;excursion_definition&quot;: &quot;Observed lifetime net-USDT marks include modeled exit slippage, entry/exit fees and prior-rate funding; no intratick extrema are known.&quot;,
+      &quot;baseline_filter_blocked&quot;: {
+        &quot;blocked_trades&quot;: 1,
+        &quot;allowed_trades&quot;: 1,
+        &quot;unknown_trades&quot;: 0,
+        &quot;net_pnl&quot;: 4.609951673641487,
+        &quot;coverage&quot;: &quot;complete_recorded_entries&quot;,
+        &quot;interpretation&quot;: &quot;Recorded baseline lifecycle net PnL whose initial entry failed the contemporaneous CoinGlass filter; descriptive, not causal savings.&quot;
+      }
+    },
+    &quot;closed_trade_net_pnl&quot;: 1.531947948846018,
+    &quot;non_realized_equity_change_residual&quot;: -3.597122599785507e-14,
+    &quot;fills&quot;: 5,
+    &quot;opens&quot;: 2,
+    &quot;adds&quot;: 1,
+    &quot;closed_trades&quot;: 2,
+    &quot;wins&quot;: 1,
+    &quot;losses&quot;: 1,
+    &quot;breakeven&quot;: 0,
+    &quot;win_rate&quot;: 0.5,
+    &quot;expectancy_net_per_close&quot;: 0.765973974423009,
+    &quot;gross_winning_net&quot;: 4.609951673641487,
+    &quot;gross_losing_net&quot;: -3.0780037247954692,
+    &quot;fees_paid_during_window&quot;: 0.19882927025728797,
+    &quot;lifetime_funding_on_window_closes&quot;: 0.004468885416666667,
+    &quot;period_funding_accrual&quot;: null,
+    &quot;risk_halts&quot;: 0,
+    &quot;deferred_exits&quot;: 0,
+    &quot;event_counts&quot;: {
+      &quot;open&quot;: 2,
+      &quot;add&quot;: 1,
+      &quot;close&quot;: 2
+    },
+    &quot;close_reasons&quot;: {
+      &quot;net_profit_target&quot;: 1,
+      &quot;price_stop&quot;: 1
+    },
+    &quot;buy_rejections&quot;: {
+      &quot;recorded&quot;: 0,
+      &quot;coverage&quot;: &quot;complete&quot;,
+      &quot;instrumented_checks&quot;: 4,
+      &quot;legacy_checks&quot;: 0,
+      &quot;first_instrumented_at&quot;: 1800000300.0,
+      &quot;reasons&quot;: []
+    },
+    &quot;cumulative&quot;: {
+      &quot;initial_equity&quot;: 1000,
+      &quot;marked_equity&quot;: 1001.531947948846,
+      &quot;marked_pnl_since_start&quot;: 1.531947948845982,
+      &quot;closed_trade_net_since_start&quot;: 1.531947948846018,
+      &quot;closed_trades_since_start&quot;: 2,
+      &quot;ledger_method&quot;: &quot;Original start plus consecutive committed windows of this report cadence; excludes inherited pre-experiment trades.&quot;
+    }
+  },
+  &quot;liquidation_filter&quot;: {
+    &quot;start_mark&quot;: {
+      &quot;time&quot;: 1800000000.0,
+      &quot;equity&quot;: 1000
+    },
+    &quot;end_mark&quot;: {
+      &quot;time&quot;: 1800001200.0,
+      &quot;equity&quot;: 996.9219962752045
+    },
+    &quot;start_mark_age_seconds&quot;: 0.0,
+    &quot;end_mark_age_seconds&quot;: 0.0,
+    &quot;equity_change&quot;: -3.078003724795508,
+    &quot;observed_max_drawdown&quot;: 3.49073100874341,
+    &quot;observed_max_drawdown_pct&quot;: 0.3489290883194285,
+    &quot;equity_sample_coverage&quot;: {
+      &quot;observed&quot;: 4,
+      &quot;expected_approximately&quot;: null,
+      &quot;first_at&quot;: 1800000300.0,
+      &quot;last_at&quot;: 1800001200.0,
+      &quot;max_gap_seconds&quot;: 300.0,
+      &quot;observation_ratio&quot;: null,
+      &quot;note&quot;: &quot;Mixed historical publication and per-tick marks; no single sampling cadence.&quot;
+    },
+    &quot;equity_sampling&quot;: {
+      &quot;tick_samples&quot;: 4,
+      &quot;estimated_tick_samples&quot;: 0,
+      &quot;resolution&quot;: &quot;mixed&quot;
+    },
+    &quot;performance&quot;: {
+      &quot;closed_trades&quot;: 1,
+      &quot;profit_factor&quot;: 0.0,
+      &quot;profit_factor_state&quot;: &quot;finite&quot;,
+      &quot;average_hold_seconds&quot;: 900.0,
+      &quot;known_hold_trades&quot;: 1,
+      &quot;unknown_hold_trades&quot;: 0,
+      &quot;per_symbol_pnl&quot;: [
+        {
+          &quot;symbol&quot;: &quot;BBBUSDTM&quot;,
+          &quot;closes&quot;: 1,
+          &quot;net_pnl&quot;: -3.0780037247954692
+        }
+      ],
+      &quot;per_symbol_total&quot;: 1,
+      &quot;exposure&quot;: {
+        &quot;observed_seconds&quot;: 900.0,
+        &quot;fraction&quot;: 0.75,
+        &quot;coverage&quot;: &quot;complete_recorded_lifecycles&quot;,
+        &quot;unknown_lifecycles&quot;: 0
+      },
+      &quot;trades&quot;: [
+        {
+          &quot;opened_at&quot;: 1800000300.0,
+          &quot;closed_at&quot;: 1800001200.0,
+          &quot;symbol&quot;: &quot;BBBUSDTM&quot;,
+          &quot;adds&quot;: 0,
+          &quot;entry_notional&quot;: 49.914970998,
+          &quot;net_pnl&quot;: -3.0780037247954692,
+          &quot;entry_fees&quot;: 0.029948982598799998,
+          &quot;exit_fee&quot;: 0.028137971279999997,
+          &quot;funding_cost&quot;: 0.0015645729166666668,
+          &quot;hold_seconds&quot;: 900.0,
+          &quot;reason&quot;: &quot;price_stop&quot;,
+          &quot;result&quot;: &quot;loss&quot;,
+          &quot;observed_mae_net_usdt&quot;: -3.0780037247954692,
+          &quot;observed_mfe_net_usdt&quot;: 0.4127272839478667,
+          &quot;excursion_samples&quot;: 5,
+          &quot;excursion_missing_samples&quot;: 0,
+          &quot;excursion_coverage&quot;: &quot;complete_observations&quot;
+        }
+      ],
+      &quot;trades_total&quot;: 1,
+      &quot;excursion_definition&quot;: &quot;Observed lifetime net-USDT marks include modeled exit slippage, entry/exit fees and prior-rate funding; no intratick extrema are known.&quot;,
+      &quot;baseline_filter_blocked&quot;: null
+    },
+    &quot;closed_trade_net_pnl&quot;: -3.0780037247954692,
+    &quot;non_realized_equity_change_residual&quot;: -3.863576125695545e-14,
+    &quot;fills&quot;: 2,
+    &quot;opens&quot;: 1,
+    &quot;adds&quot;: 0,
+    &quot;closed_trades&quot;: 1,
+    &quot;wins&quot;: 0,
+    &quot;losses&quot;: 1,
+    &quot;breakeven&quot;: 0,
+    &quot;win_rate&quot;: 0.0,
+    &quot;expectancy_net_per_close&quot;: -3.0780037247954692,
+    &quot;gross_winning_net&quot;: 0,
+    &quot;gross_losing_net&quot;: -3.0780037247954692,
+    &quot;fees_paid_during_window&quot;: 0.058086953878799995,
+    &quot;lifetime_funding_on_window_closes&quot;: 0.0015645729166666668,
+    &quot;period_funding_accrual&quot;: null,
+    &quot;risk_halts&quot;: 0,
+    &quot;deferred_exits&quot;: 0,
+    &quot;event_counts&quot;: {
+      &quot;open&quot;: 1,
+      &quot;close&quot;: 1
+    },
+    &quot;close_reasons&quot;: {
+      &quot;price_stop&quot;: 1
+    },
+    &quot;buy_rejections&quot;: {
+      &quot;recorded&quot;: 0,
+      &quot;coverage&quot;: &quot;complete&quot;,
+      &quot;instrumented_checks&quot;: 4,
+      &quot;legacy_checks&quot;: 0,
+      &quot;first_instrumented_at&quot;: 1800000300.0,
+      &quot;reasons&quot;: []
+    },
+    &quot;cumulative&quot;: {
+      &quot;initial_equity&quot;: 1000,
+      &quot;marked_equity&quot;: 996.9219962752045,
+      &quot;marked_pnl_since_start&quot;: -3.078003724795508,
+      &quot;closed_trade_net_since_start&quot;: -3.0780037247954692,
+      &quot;closed_trades_since_start&quot;: 1,
+      &quot;ledger_method&quot;: &quot;Original start plus consecutive committed windows of this report cadence; excludes inherited pre-experiment trades.&quot;
+    }
+  }
+}</pre><h2>Comparison</h2><pre>{
+  &quot;filtered_minus_baseline_equity_change&quot;: -4.60995167364149,
+  &quot;interpretation&quot;: &quot;Descriptive paired comparison only; not statistical significance, a causal claim, or a recommendation for live trading.&quot;
+}</pre><h2>Configuration and provenance</h2><pre>{
+  &quot;config&quot;: {
+    &quot;initial_balance&quot;: 1000.0,
+    &quot;max_positions&quot;: 2,
+    &quot;leverage&quot;: 1,
+    &quot;timezone&quot;: &quot;Europe/Bucharest&quot;,
+    &quot;position_notional_cap&quot;: 200.0,
+    &quot;tranches&quot;: [
+      50.0,
+      65.0,
+      85.0
+    ],
+    &quot;add_drop_pct&quot;: [
+      1.0,
+      2.0
+    ],
+    &quot;target_net_profit&quot;: 1.0,
+    &quot;fee_rate&quot;: 0.0006,
+    &quot;slippage_rate&quot;: 0.0002,
+    &quot;max_quote_age&quot;: 90.0,
+    &quot;max_spread_pct&quot;: 0.2,
+    &quot;cooldown_seconds&quot;: 300.0,
+    &quot;max_position_loss&quot;: 10.0,
+    &quot;max_price_drop_pct&quot;: 5.0,
+    &quot;daily_loss_limit&quot;: 30.0,
+    &quot;min_score&quot;: 60.0,
+    &quot;rotation_score_delta&quot;: 15.0,
+    &quot;rotation_min_hold&quot;: 1800.0,
+    &quot;rotation_cooldown&quot;: 1800.0,
+    &quot;rotation_max_loss&quot;: 2.0
+  },
+  &quot;provenance&quot;: {
+    &quot;source_file&quot;: &quot;experiment.json&quot;,
+    &quot;source_last_tick_at&quot;: 1800001200.0,
+    &quot;source_report_at&quot;: null,
+    &quot;recorded_code_hashes&quot;: {},
+    &quot;config_hash&quot;: null,
+    &quot;test_status&quot;: &quot;unknown; tests not executed by report generation&quot;
+  }
+}</pre><h2>Interpretation limits</h2><ul><li>Paper only. No real orders, account transfers, or strategy changes are performed by this report.</li><li>Returns are experimental and do not establish profitability or statistical significance.</li><li>Equity and drawdown combine recorded per-tick samples after instrumentation with older publication marks; intratick losses may be larger.</li><li>Event windows are (start, end]. Equity uses the last available mark at or before each boundary, with its timestamp disclosed.</li><li>Closed-trade PnL includes lifetime entry/exit fees and modeled funding, including costs incurred before this window.</li><li>Fees paid during the window and funding attached to closes are different accounting views; do not subtract them again from net PnL.</li><li>Window funding accrual and historical open-position inventory are unavailable in legacy snapshots; no invented period funding total is shown.</li><li>Equity change minus closed-trade net PnL is a residual: it includes open-position changes, cost timing and boundary mark gaps, not an exact unrealized-PnL ledger.</li><li>Polling fills have no queue, partial-fill, intratick, maintenance-margin or liquidation simulation; stops can slip or remain unfilled.</li><li>CoinGlass coverage refers to completed liquidations on other exchanges, not future liquidation clusters or executable KuCoin liquidity.</li><li>Signal rejections are quote-observation counts, not attempted orders. Historical filtered eligibility is reconstructed from saved inputs.</li><li>Runtime tests are not run by this audit. Software test status is unknown unless reviewed separately.</li></ul><details><summary>Complete machine-readable report</summary><pre>{
+  &quot;schema&quot;: 1,
+  &quot;id&quot;: &quot;audit48h-20270115T082000Z&quot;,
+  &quot;kind&quot;: &quot;audit48h&quot;,
+  &quot;mode&quot;: &quot;paper&quot;,
+  &quot;severity&quot;: &quot;warning&quot;,
+  &quot;generated_at&quot;: 1800001200.0,
+  &quot;run_start_at&quot;: 1800000000.0,
+  &quot;window&quot;: {
+    &quot;start_at&quot;: 1800000000.0,
+    &quot;end_at&quot;: 1800001200.0,
+    &quot;start_utc&quot;: &quot;2027-01-15T08:00:00+00:00&quot;,
+    &quot;end_utc&quot;: &quot;2027-01-15T08:20:00+00:00&quot;,
+    &quot;start_local&quot;: &quot;2027-01-15T10:00:00+02:00&quot;,
+    &quot;end_local&quot;: &quot;2027-01-15T10:20:00+02:00&quot;,
+    &quot;duration_seconds&quot;: 1200.0,
+    &quot;boundary_convention&quot;: &quot;(start, end]&quot;
+  },
+  &quot;accounts&quot;: {
+    &quot;baseline&quot;: {
+      &quot;start_mark&quot;: {
+        &quot;time&quot;: 1800000000.0,
+        &quot;equity&quot;: 1000
+      },
+      &quot;end_mark&quot;: {
+        &quot;time&quot;: 1800001200.0,
+        &quot;equity&quot;: 1001.531947948846
+      },
+      &quot;start_mark_age_seconds&quot;: 0.0,
+      &quot;end_mark_age_seconds&quot;: 0.0,
+      &quot;equity_change&quot;: 1.531947948845982,
+      &quot;observed_max_drawdown&quot;: 1.2783702869905937,
+      &quot;observed_max_drawdown_pct&quot;: 0.12783702869905939,
+      &quot;equity_sample_coverage&quot;: {
+        &quot;observed&quot;: 4,
+        &quot;expected_approximately&quot;: null,
+        &quot;first_at&quot;: 1800000300.0,
+        &quot;last_at&quot;: 1800001200.0,
+        &quot;max_gap_seconds&quot;: 300.0,
+        &quot;observation_ratio&quot;: null,
+        &quot;note&quot;: &quot;Mixed historical publication and per-tick marks; no single sampling cadence.&quot;
+      },
+      &quot;equity_sampling&quot;: {
+        &quot;tick_samples&quot;: 4,
+        &quot;estimated_tick_samples&quot;: 0,
+        &quot;resolution&quot;: &quot;mixed&quot;
+      },
+      &quot;performance&quot;: {
+        &quot;closed_trades&quot;: 2,
+        &quot;profit_factor&quot;: 1.4977082829709099,
+        &quot;profit_factor_state&quot;: &quot;finite&quot;,
+        &quot;average_hold_seconds&quot;: 900.0,
+        &quot;known_hold_trades&quot;: 2,
+        &quot;unknown_hold_trades&quot;: 0,
+        &quot;per_symbol_pnl&quot;: [
+          {
+            &quot;symbol&quot;: &quot;AAAUSDTM&quot;,
+            &quot;closes&quot;: 1,
+            &quot;net_pnl&quot;: 4.609951673641487
+          },
+          {
+            &quot;symbol&quot;: &quot;BBBUSDTM&quot;,
+            &quot;closes&quot;: 1,
+            &quot;net_pnl&quot;: -3.0780037247954692
+          }
+        ],
+        &quot;per_symbol_total&quot;: 2,
+        &quot;exposure&quot;: {
+          &quot;observed_seconds&quot;: 900.0,
+          &quot;fraction&quot;: 0.75,
+          &quot;coverage&quot;: &quot;complete_recorded_lifecycles&quot;,
+          &quot;unknown_lifecycles&quot;: 0
+        },
+        &quot;trades&quot;: [
+          {
+            &quot;opened_at&quot;: 1800000300.0,
+            &quot;closed_at&quot;: 1800001200.0,
+            &quot;symbol&quot;: &quot;AAAUSDTM&quot;,
+            &quot;adds&quot;: 1,
+            &quot;entry_notional&quot;: 114.90846449748001,
+            &quot;net_pnl&quot;: 4.609951673641487,
+            &quot;entry_fees&quot;: 0.068945078698488,
+            &quot;exit_fee&quot;: 0.07179723767999999,
+            &quot;funding_cost&quot;: 0.0029043124999999998,
+            &quot;hold_seconds&quot;: 900.0,
+            &quot;reason&quot;: &quot;net_profit_target&quot;,
+            &quot;result&quot;: &quot;win&quot;,
+            &quot;observed_mae_net_usdt&quot;: -1.1930165027251451,
+            &quot;observed_mfe_net_usdt&quot;: 4.609951673641516,
+            &quot;excursion_samples&quot;: 6,
+            &quot;excursion_missing_samples&quot;: 0,
+            &quot;excursion_coverage&quot;: &quot;complete_observations&quot;
+          },
+          {
+            &quot;opened_at&quot;: 1800000300.0,
+            &quot;closed_at&quot;: 1800001200.0,
+            &quot;symbol&quot;: &quot;BBBUSDTM&quot;,
+            &quot;adds&quot;: 0,
+            &quot;entry_notional&quot;: 49.914970998,
+            &quot;net_pnl&quot;: -3.0780037247954692,
+            &quot;entry_fees&quot;: 0.029948982598799998,
+            &quot;exit_fee&quot;: 0.028137971279999997,
+            &quot;funding_cost&quot;: 0.0015645729166666668,
+            &quot;hold_seconds&quot;: 900.0,
+            &quot;reason&quot;: &quot;price_stop&quot;,
+            &quot;result&quot;: &quot;loss&quot;,
+            &quot;observed_mae_net_usdt&quot;: -3.0780037247954692,
+            &quot;observed_mfe_net_usdt&quot;: 0.4127272839478667,
+            &quot;excursion_samples&quot;: 5,
+            &quot;excursion_missing_samples&quot;: 0,
+            &quot;excursion_coverage&quot;: &quot;complete_observations&quot;
+          }
+        ],
+        &quot;trades_total&quot;: 2,
+        &quot;excursion_definition&quot;: &quot;Observed lifetime net-USDT marks include modeled exit slippage, entry/exit fees and prior-rate funding; no intratick extrema are known.&quot;,
+        &quot;baseline_filter_blocked&quot;: {
+          &quot;blocked_trades&quot;: 1,
+          &quot;allowed_trades&quot;: 1,
+          &quot;unknown_trades&quot;: 0,
+          &quot;net_pnl&quot;: 4.609951673641487,
+          &quot;coverage&quot;: &quot;complete_recorded_entries&quot;,
+          &quot;interpretation&quot;: &quot;Recorded baseline lifecycle net PnL whose initial entry failed the contemporaneous CoinGlass filter; descriptive, not causal savings.&quot;
+        }
+      },
+      &quot;closed_trade_net_pnl&quot;: 1.531947948846018,
+      &quot;non_realized_equity_change_residual&quot;: -3.597122599785507e-14,
+      &quot;fills&quot;: 5,
+      &quot;opens&quot;: 2,
+      &quot;adds&quot;: 1,
+      &quot;closed_trades&quot;: 2,
+      &quot;wins&quot;: 1,
+      &quot;losses&quot;: 1,
+      &quot;breakeven&quot;: 0,
+      &quot;win_rate&quot;: 0.5,
+      &quot;expectancy_net_per_close&quot;: 0.765973974423009,
+      &quot;gross_winning_net&quot;: 4.609951673641487,
+      &quot;gross_losing_net&quot;: -3.0780037247954692,
+      &quot;fees_paid_during_window&quot;: 0.19882927025728797,
+      &quot;lifetime_funding_on_window_closes&quot;: 0.004468885416666667,
+      &quot;period_funding_accrual&quot;: null,
+      &quot;risk_halts&quot;: 0,
+      &quot;deferred_exits&quot;: 0,
+      &quot;event_counts&quot;: {
+        &quot;open&quot;: 2,
+        &quot;add&quot;: 1,
+        &quot;close&quot;: 2
+      },
+      &quot;close_reasons&quot;: {
+        &quot;net_profit_target&quot;: 1,
+        &quot;price_stop&quot;: 1
+      },
+      &quot;buy_rejections&quot;: {
+        &quot;recorded&quot;: 0,
+        &quot;coverage&quot;: &quot;complete&quot;,
+        &quot;instrumented_checks&quot;: 4,
+        &quot;legacy_checks&quot;: 0,
+        &quot;first_instrumented_at&quot;: 1800000300.0,
+        &quot;reasons&quot;: []
+      },
+      &quot;cumulative&quot;: {
+        &quot;initial_equity&quot;: 1000,
+        &quot;marked_equity&quot;: 1001.531947948846,
+        &quot;marked_pnl_since_start&quot;: 1.531947948845982,
+        &quot;closed_trade_net_since_start&quot;: 1.531947948846018,
+        &quot;closed_trades_since_start&quot;: 2,
+        &quot;ledger_method&quot;: &quot;Original start plus consecutive committed windows of this report cadence; excludes inherited pre-experiment trades.&quot;
+      }
+    },
+    &quot;liquidation_filter&quot;: {
+      &quot;start_mark&quot;: {
+        &quot;time&quot;: 1800000000.0,
+        &quot;equity&quot;: 1000
+      },
+      &quot;end_mark&quot;: {
+        &quot;time&quot;: 1800001200.0,
+        &quot;equity&quot;: 996.9219962752045
+      },
+      &quot;start_mark_age_seconds&quot;: 0.0,
+      &quot;end_mark_age_seconds&quot;: 0.0,
+      &quot;equity_change&quot;: -3.078003724795508,
+      &quot;observed_max_drawdown&quot;: 3.49073100874341,
+      &quot;observed_max_drawdown_pct&quot;: 0.3489290883194285,
+      &quot;equity_sample_coverage&quot;: {
+        &quot;observed&quot;: 4,
+        &quot;expected_approximately&quot;: null,
+        &quot;first_at&quot;: 1800000300.0,
+        &quot;last_at&quot;: 1800001200.0,
+        &quot;max_gap_seconds&quot;: 300.0,
+        &quot;observation_ratio&quot;: null,
+        &quot;note&quot;: &quot;Mixed historical publication and per-tick marks; no single sampling cadence.&quot;
+      },
+      &quot;equity_sampling&quot;: {
+        &quot;tick_samples&quot;: 4,
+        &quot;estimated_tick_samples&quot;: 0,
+        &quot;resolution&quot;: &quot;mixed&quot;
+      },
+      &quot;performance&quot;: {
+        &quot;closed_trades&quot;: 1,
+        &quot;profit_factor&quot;: 0.0,
+        &quot;profit_factor_state&quot;: &quot;finite&quot;,
+        &quot;average_hold_seconds&quot;: 900.0,
+        &quot;known_hold_trades&quot;: 1,
+        &quot;unknown_hold_trades&quot;: 0,
+        &quot;per_symbol_pnl&quot;: [
+          {
+            &quot;symbol&quot;: &quot;BBBUSDTM&quot;,
+            &quot;closes&quot;: 1,
+            &quot;net_pnl&quot;: -3.0780037247954692
+          }
+        ],
+        &quot;per_symbol_total&quot;: 1,
+        &quot;exposure&quot;: {
+          &quot;observed_seconds&quot;: 900.0,
+          &quot;fraction&quot;: 0.75,
+          &quot;coverage&quot;: &quot;complete_recorded_lifecycles&quot;,
+          &quot;unknown_lifecycles&quot;: 0
+        },
+        &quot;trades&quot;: [
+          {
+            &quot;opened_at&quot;: 1800000300.0,
+            &quot;closed_at&quot;: 1800001200.0,
+            &quot;symbol&quot;: &quot;BBBUSDTM&quot;,
+            &quot;adds&quot;: 0,
+            &quot;entry_notional&quot;: 49.914970998,
+            &quot;net_pnl&quot;: -3.0780037247954692,
+            &quot;entry_fees&quot;: 0.029948982598799998,
+            &quot;exit_fee&quot;: 0.028137971279999997,
+            &quot;funding_cost&quot;: 0.0015645729166666668,
+            &quot;hold_seconds&quot;: 900.0,
+            &quot;reason&quot;: &quot;price_stop&quot;,
+            &quot;result&quot;: &quot;loss&quot;,
+            &quot;observed_mae_net_usdt&quot;: -3.0780037247954692,
+            &quot;observed_mfe_net_usdt&quot;: 0.4127272839478667,
+            &quot;excursion_samples&quot;: 5,
+            &quot;excursion_missing_samples&quot;: 0,
+            &quot;excursion_coverage&quot;: &quot;complete_observations&quot;
+          }
+        ],
+        &quot;trades_total&quot;: 1,
+        &quot;excursion_definition&quot;: &quot;Observed lifetime net-USDT marks include modeled exit slippage, entry/exit fees and prior-rate funding; no intratick extrema are known.&quot;,
+        &quot;baseline_filter_blocked&quot;: null
+      },
+      &quot;closed_trade_net_pnl&quot;: -3.0780037247954692,
+      &quot;non_realized_equity_change_residual&quot;: -3.863576125695545e-14,
+      &quot;fills&quot;: 2,
+      &quot;opens&quot;: 1,
+      &quot;adds&quot;: 0,
+      &quot;closed_trades&quot;: 1,
+      &quot;wins&quot;: 0,
+      &quot;losses&quot;: 1,
+      &quot;breakeven&quot;: 0,
+      &quot;win_rate&quot;: 0.0,
+      &quot;expectancy_net_per_close&quot;: -3.0780037247954692,
+      &quot;gross_winning_net&quot;: 0,
+      &quot;gross_losing_net&quot;: -3.0780037247954692,
+      &quot;fees_paid_during_window&quot;: 0.058086953878799995,
+      &quot;lifetime_funding_on_window_closes&quot;: 0.0015645729166666668,
+      &quot;period_funding_accrual&quot;: null,
+      &quot;risk_halts&quot;: 0,
+      &quot;deferred_exits&quot;: 0,
+      &quot;event_counts&quot;: {
+        &quot;open&quot;: 1,
+        &quot;close&quot;: 1
+      },
+      &quot;close_reasons&quot;: {
+        &quot;price_stop&quot;: 1
+      },
+      &quot;buy_rejections&quot;: {
+        &quot;recorded&quot;: 0,
+        &quot;coverage&quot;: &quot;complete&quot;,
+        &quot;instrumented_checks&quot;: 4,
+        &quot;legacy_checks&quot;: 0,
+        &quot;first_instrumented_at&quot;: 1800000300.0,
+        &quot;reasons&quot;: []
+      },
+      &quot;cumulative&quot;: {
+        &quot;initial_equity&quot;: 1000,
+        &quot;marked_equity&quot;: 996.9219962752045,
+        &quot;marked_pnl_since_start&quot;: -3.078003724795508,
+        &quot;closed_trade_net_since_start&quot;: -3.0780037247954692,
+        &quot;closed_trades_since_start&quot;: 1,
+        &quot;ledger_method&quot;: &quot;Original start plus consecutive committed windows of this report cadence; excludes inherited pre-experiment trades.&quot;
+      }
+    }
+  },
+  &quot;data&quot;: {
+    &quot;cycle_coverage&quot;: {
+      &quot;observed&quot;: 4,
+      &quot;expected_approximately&quot;: 4,
+      &quot;first_at&quot;: 1800000300.0,
+      &quot;last_at&quot;: 1800001200.0,
+      &quot;max_gap_seconds&quot;: 300.0,
+      &quot;observation_ratio&quot;: 1,
+      &quot;note&quot;: &quot;Distinct timestamps; expected count is approximate. Gaps include both window edges.&quot;
+    },
+    &quot;observation_records&quot;: 4,
+    &quot;skipped_records&quot;: 0,
+    &quot;skipped_reasons&quot;: {},
+    &quot;coins&quot;: {
+      &quot;AAAUSDTM&quot;: {
+        &quot;observations&quot;: 4,
+        &quot;missing_or_stale_coinglass&quot;: 0,
+        &quot;baseline_eligible&quot;: 4,
+        &quot;filtered_signal_eligible&quot;: 0,
+        &quot;stale_or_invalid_quote&quot;: 0,
+        &quot;coinglass_missing_rate&quot;: 0.0
+      },
+      &quot;BBBUSDTM&quot;: {
+        &quot;observations&quot;: 4,
+        &quot;missing_or_stale_coinglass&quot;: 0,
+        &quot;baseline_eligible&quot;: 4,
+        &quot;filtered_signal_eligible&quot;: 4,
+        &quot;stale_or_invalid_quote&quot;: 0,
+        &quot;coinglass_missing_rate&quot;: 0.0
+      }
+    },
+    &quot;baseline_signal_rejections&quot;: {},
+    &quot;additional_filter_rejections&quot;: {
+      &quot;coinglass_filter_not_met&quot;: 4
+    },
+    &quot;maximum_quote_age_seconds&quot;: 0.0,
+    &quot;future_quote_observations&quot;: 0,
+    &quot;errors&quot;: []
+  },
+  &quot;findings&quot;: [
+    {
+      &quot;severity&quot;: &quot;warning&quot;,
+      &quot;subject&quot;: &quot;liquidation_filter&quot;,
+      &quot;detail&quot;: &quot;Observed account equity declined in this window, including open exposure.&quot;
+    },
+    {
+      &quot;severity&quot;: &quot;info&quot;,
+      &quot;subject&quot;: &quot;Evidence&quot;,
+      &quot;detail&quot;: &quot;3 completed paper trades across two correlated simulations. This is not proof of a predictive edge.&quot;
+    }
+  ],
+  &quot;comparison&quot;: {
+    &quot;filtered_minus_baseline_equity_change&quot;: -4.60995167364149,
+    &quot;interpretation&quot;: &quot;Descriptive paired comparison only; not statistical significance, a causal claim, or a recommendation for live trading.&quot;
+  },
+  &quot;strategy_config&quot;: {
+    &quot;initial_balance&quot;: 1000.0,
+    &quot;max_positions&quot;: 2,
+    &quot;leverage&quot;: 1,
+    &quot;timezone&quot;: &quot;Europe/Bucharest&quot;,
+    &quot;position_notional_cap&quot;: 200.0,
+    &quot;tranches&quot;: [
+      50.0,
+      65.0,
+      85.0
+    ],
+    &quot;add_drop_pct&quot;: [
+      1.0,
+      2.0
+    ],
+    &quot;target_net_profit&quot;: 1.0,
+    &quot;fee_rate&quot;: 0.0006,
+    &quot;slippage_rate&quot;: 0.0002,
+    &quot;max_quote_age&quot;: 90.0,
+    &quot;max_spread_pct&quot;: 0.2,
+    &quot;cooldown_seconds&quot;: 300.0,
+    &quot;max_position_loss&quot;: 10.0,
+    &quot;max_price_drop_pct&quot;: 5.0,
+    &quot;daily_loss_limit&quot;: 30.0,
+    &quot;min_score&quot;: 60.0,
+    &quot;rotation_score_delta&quot;: 15.0,
+    &quot;rotation_min_hold&quot;: 1800.0,
+    &quot;rotation_cooldown&quot;: 1800.0,
+    &quot;rotation_max_loss&quot;: 2.0
+  },
+  &quot;provenance&quot;: {
+    &quot;source_file&quot;: &quot;experiment.json&quot;,
+    &quot;source_last_tick_at&quot;: 1800001200.0,
+    &quot;source_report_at&quot;: null,
+    &quot;recorded_code_hashes&quot;: {},
+    &quot;config_hash&quot;: null,
+    &quot;test_status&quot;: &quot;unknown; tests not executed by report generation&quot;
+  },
+  &quot;limitations&quot;: [
+    &quot;Paper only. No real orders, account transfers, or strategy changes are performed by this report.&quot;,
+    &quot;Returns are experimental and do not establish profitability or statistical significance.&quot;,
+    &quot;Equity and drawdown combine recorded per-tick samples after instrumentation with older publication marks; intratick losses may be larger.&quot;,
+    &quot;Event windows are (start, end]. Equity uses the last available mark at or before each boundary, with its timestamp disclosed.&quot;,
+    &quot;Closed-trade PnL includes lifetime entry/exit fees and modeled funding, including costs incurred before this window.&quot;,
+    &quot;Fees paid during the window and funding attached to closes are different accounting views; do not subtract them again from net PnL.&quot;,
+    &quot;Window funding accrual and historical open-position inventory are unavailable in legacy snapshots; no invented period funding total is shown.&quot;,
+    &quot;Equity change minus closed-trade net PnL is a residual: it includes open-position changes, cost timing and boundary mark gaps, not an exact unrealized-PnL ledger.&quot;,
+    &quot;Polling fills have no queue, partial-fill, intratick, maintenance-margin or liquidation simulation; stops can slip or remain unfilled.&quot;,
+    &quot;CoinGlass coverage refers to completed liquidations on other exchanges, not future liquidation clusters or executable KuCoin liquidity.&quot;,
+    &quot;Signal rejections are quote-observation counts, not attempted orders. Historical filtered eligibility is reconstructed from saved inputs.&quot;,
+    &quot;Runtime tests are not run by this audit. Software test status is unknown unless reviewed separately.&quot;
+  ],
+  &quot;summary&quot;: &quot;SYNTHETIC FIXTURE ONLY. Generated quotes and paper fills; no market data or profitability claim.&quot;
+}</pre></details></body></html>
