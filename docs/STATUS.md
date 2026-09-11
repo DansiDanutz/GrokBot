@@ -19,7 +19,8 @@ A lean hourly **KuCoin grid radar**: reads the local KuCoin candle database, lab
 ## In flight
 | Item | Owner | State |
 |---|---|---|
-| PR #18 follow-up: price + range in Telegram, stale-snapshot guard, EMA note | Codex → Claude audit | open, CI green on `8b43d51`, audit pending |
+| PR #18: price + range in Telegram, stale-snapshot guard, EMA note | Codex | merged after Claude PASS at `8b43d51` |
+| PR #20: radar dashboard design | Claude | merged at `51aa130` |
 
 ## Remaining to call it finished
 1. **Audit + merge PR #18** (Claude, then Codex merges).
