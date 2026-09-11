@@ -38,6 +38,24 @@ class ExperimentTests(unittest.TestCase):
     def doc(self):
         return json.loads((self.root/experiment.FILE).read_text())
 
+    def test_rejection_reasons_are_per_arm_per_tick_and_counted_by_audits(self):
+        from paper_grid import audits
+        def low_score(previous, held, at, force_scan=False):
+            market, scan = self.collect(previous, held, at, force_scan)
+            return {name: dict(record, score=59) for name, record in market.items()}, scan
+        self.begin()
+        self.tick(NOW+300, collector=low_score)
+        doc = self.doc()
+        for arm in experiment.ARMS:
+            events = [e for e in doc['events'] if e['account'] == arm]
+            self.assertEqual(len(events), 1)
+            self.assertEqual(events[0]['reason'], 'score_below_min')
+            self.assertEqual(events[0]['time'], NOW+300)
+            self.assertEqual(events[0]['context'], {'score': 59, 'min_score': 60})
+            metrics = audits._arm_metrics(doc, arm, NOW, NOW+300)
+            self.assertEqual(metrics['buy_rejections']['recorded'], 1)
+            self.assertEqual(metrics['fills'], 0)
+
     def test_start_clones_existing_account_and_never_resets(self):
         source = json.loads((self.root/'account.json').read_text())
         source['state']['cash'] = 900

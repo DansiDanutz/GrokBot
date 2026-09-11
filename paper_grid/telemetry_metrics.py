@@ -1,6 +1,6 @@
 """Shared, public-safe summaries of explicitly recorded decision telemetry."""
 from collections import Counter
-from paper_grid import engine
+from paper_grid.telemetry_constants import READABLE_BUY_REJECTION_REASONS
 
 
 def rejections(events, observations, arm):
@@ -11,7 +11,7 @@ def rejections(events, observations, arm):
         if event.get('type') != 'buy_rejected' or event.get('account') != arm:
             continue
         reason = event.get('reason')
-        reason = reason if isinstance(reason, str) and reason in engine.BUY_REJECTION_REASONS else 'unknown'
+        reason = reason if isinstance(reason, str) and reason in READABLE_BUY_REJECTION_REASONS else 'unknown'
         action = event.get('action') if event.get('action') in ('open', 'add') else 'unknown'
         stage = event.get('stage') if event.get('stage') in ('execution', 'selection', 'rotation_trial') else 'unknown'
         groups[(reason, action, stage)] += 1

@@ -129,7 +129,7 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(arm['entries'], 0)
         self.assertEqual(arm['execution_fees'], 0)
         self.assertEqual(arm['buy_rejections'], 2)
-        self.assertEqual(arm['buy_rejection_reasons'], {'insufficient_ask_depth': 2})
+        self.assertEqual(arm['buy_rejection_reasons'], {'thin_ask_depth': 2})
         self.assertTrue(all(e['type'] == 'buy_rejected' for e in arm['events']))
 
     def test_invalid_checkpoint_mode_timestamp_nan_and_size(self):
