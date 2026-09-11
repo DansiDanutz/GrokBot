@@ -1,8 +1,9 @@
 import { setTimeout as delay } from 'node:timers/promises';
+import { SHUTDOWN_GRACE_MS, READINESS_TIMEOUT_MS, READINESS_POLL_MS } from './lifecycle-constants.mjs';
 
 // The PID comes only from the child we spawned with detached:true. Never accept
 // a configured PID or discover processes by name/port when shutting down.
-export function superviseChild(child, { graceMs = 8000, kill = process.kill.bind(process), signals = process } = {}) {
+export function superviseChild(child, { graceMs = SHUTDOWN_GRACE_MS, kill = process.kill.bind(process), signals = process } = {}) {
   let failed = false;
   let stopping = false;
   let finished = false;
@@ -44,7 +45,7 @@ export function superviseChild(child, { graceMs = 8000, kill = process.kill.bind
   };
 }
 
-export async function waitForReady(lifecycle, check, { timeoutMs = 45000, pollMs = 500 } = {}) {
+export async function waitForReady(lifecycle, check, { timeoutMs = READINESS_TIMEOUT_MS, pollMs = READINESS_POLL_MS } = {}) {
   const controller = new AbortController();
   let timer;
   const timeout = new Promise((_, reject) => {

@@ -32,7 +32,7 @@ export function probeTcp({ host, port, timeoutMs }) {
   });
 }
 
-export async function serviceStatus(probe = probeTcp) {
+export async function serviceStatus(probe = probeTcp, onProbeFailure = () => {}) {
   const services = new Array(SERVICES.length);
   let next = 0;
   await Promise.all(Array.from({ length: PROBE_CONCURRENCY }, async () => {
@@ -43,8 +43,9 @@ export async function serviceStatus(probe = probeTcp) {
       try {
         reachable = (await probe({ host: HOST, port: service.port, timeoutMs: PROBE_TIMEOUT_MS })) === true;
       } catch {
-        // Probe failures expose neither operating-system errors nor local paths.
+        // Error text may contain credentials; diagnostic callbacks get only a fixed port.
       }
+      if (!reachable) onProbeFailure(service.port);
       services[index] = { ...service, host: HOST, tcpReachable: reachable };
     }
   }));

@@ -142,4 +142,28 @@ Codex has not read, copied, written or requested the key during Phase 0, and no
 CoinGlass request is made by verification. The env override selects an already
 provisioned file; it must never be committed to a plist or repository.
 
+
+## Development workspace process lifecycle
+
+New `npm start` runs claim `.runtime/start.lock`, record their own child in
+`.runtime/server.pid.json`, and release only their own record. Doctor checks the
+stored PID against the expected server entrypoint. An absent pidfile means no
+new-style ownership record is available; it is not proof that an older process
+is stopped. A mismatched, unknown or invalid process record blocks startup and
+never authorizes signaling that PID. Orphan locks require manual inspection.
+Existing running apps have not been restarted to install this behavior.
+
+Server stdout and stderr now have separate private files under `.runtime/logs/`.
+Each is capped at 5 MiB with three rotated backups (40 MiB combined maximum).
+Existing oversized logs retain their latest 5 MiB; symlink log targets and rotation
+archives are refused. Fleet MCP keeps protocol stdout clean and sends only fixed,
+sanitized probe-failure diagnostics to stderr.
+
+OSS extraction excludes only the root enterprise directory, retains nested OSS
+paths with the same name, validates licensing files, then deletes only the exact
+archive successfully extracted. Failed validation preserves the archive and
+removes the temporary extraction. Phase 0 reclaimed the checkout's 68,044,800-byte
+pin archive after validation in a newly created temporary destination. The
+installed export was not overwritten, rebuilt or restarted.
+
 _Last verified: 2026-09-11_

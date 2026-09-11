@@ -1,0 +1,9 @@
+export const SHUTDOWN_GRACE_MS = 8000;
+export const READINESS_TIMEOUT_MS = 45000;
+export const READINESS_POLL_MS = 500;
+export const HEALTH_TIMEOUT_MS = 1000;
+export const PROCESS_QUERY_TIMEOUT_MS = 1000;
+export const LOG_MAX_BYTES = 5 * 1024 * 1024;
+export const LOG_BACKUPS = 3;
+export const PRIVATE_DIRECTORY_MODE = 0o700;
+export const PRIVATE_FILE_MODE = 0o600;

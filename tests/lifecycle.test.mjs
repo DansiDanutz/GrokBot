@@ -96,7 +96,7 @@ test('foreground launcher returns failure when startup child exits zero without 
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const pin = 'a'.repeat(40);
   for (const path of ['scripts', 'config', 'node_modules/.bin', `.runtime/${pin}/server`, `.runtime/${pin}/dist`]) mkdirSync(join(root, path), { recursive: true });
-  for (const name of ['start.mjs', 'runtime.mjs', 'lifecycle.mjs']) copyFileSync(new URL(`../scripts/${name}`, import.meta.url), join(root, 'scripts', name));
+  for (const name of ['start.mjs', 'runtime.mjs', 'lifecycle.mjs', 'lifecycle-constants.mjs', 'server-process.mjs', 'server-logs.mjs']) copyFileSync(new URL(`../scripts/${name}`, import.meta.url), join(root, 'scripts', name));
   const reservation = createServer();
   reservation.listen(0, '127.0.0.1');
   await once(reservation, 'listening');
