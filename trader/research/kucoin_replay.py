@@ -178,7 +178,8 @@ def _fill_slots(snapshot, report, candidates, at, cash, rng, maximum=2):
     selection = select_funded_entries(rows, occupied, cash, maximum, horizon, random_order, options)
     report['entry_decisions'].append(dict(selection, asof_ms=at))
     for row in selection['selected']:
-        price = _price(snapshot, row['pair'], at, row['setup']['entry'])
+        fallback = None if options.get('strategy') == 'income_chart_v3' else row['setup']['entry']
+        price = _price(snapshot, row['pair'], at, fallback)
         if price is None:
             report['capital_events'].append(dict(asof_ms=at, pair=row['pair'], action='await_observed_price'))
             continue
@@ -430,11 +431,17 @@ def _decision_summaries(snapshot, report, end):
 
 def _execute_portfolio_switch(snapshot, report, end, cash, decision, quotes):
     bot = next(bot for bot in report['bots'] if bot['bot_id'] == decision['worst_bot_id'])
+    selected = decision['replacement']
+    income = report['parameters'].get('strategy') == 'income_chart_v3'
+    price = _price(snapshot, selected['pair'], end, None if income else selected['setup']['entry'])
+    if income and price is None:
+        report['capital_events'].append(dict(asof_ms=end, pair=selected['pair'],
+            action='await_observed_switch_price', reason='incumbent retained until challenger has an observed entry price'))
+        return cash
     cash += _close(snapshot, report, bot, end, quotes[bot['bot_id']])
     actual_cost = _actual_switch_cost(report, bot, decision['switch_cost'])
-    selected, before = decision['replacement'], len(report['bots'])
-    cash = _open(report, selected, end, cash,
-                 _price(snapshot, selected['pair'], end, selected['setup']['entry']))
+    before = len(report['bots'])
+    cash = _open(report, selected, end, cash, price)
     report['switches'].append(dict(asof_ms=end, bot_id=bot['bot_id'], pair=bot['state'].config.pair,
         replacement_executed=len(report['bots']) > before, **decision, **actual_cost))
     return cash
@@ -451,7 +458,7 @@ def _hour_decisions(snapshot, report, end, options, cash, allowed, rng):
         rng.shuffle(candidates)
     decision = decide_portfolio_replacement(summaries, candidates, dict(options, available_cash=cash,
         random_pick_order=report['mode'] == 'random_radar_identical_rules'))
-    if options.get('historical_candle_only'):
+    if options.get('historical_candle_only') or options.get('strategy') == 'income_chart_v3':
         _withhold_missing_execution(snapshot, decision, summaries, end)
     report['portfolio_decisions'].append(dict(decision, asof_ms=end))
     verdicts = {row['bot_id']: row for row in decision['verdicts']}

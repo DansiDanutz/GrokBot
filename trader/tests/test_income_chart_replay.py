@@ -38,6 +38,31 @@ def scan(records,asof,running_pairs=(),parameters=None):
 
 
 class IncomeChartReplayTests(unittest.TestCase):
+    def test_missing_challenger_observation_cannot_close_the_incumbent(self):
+        from trader.research.kucoin_replay import _execute_portfolio_switch, _config
+        from trader.strategies.kucoin_grid import create_bot
+        source=ChartSnapshot()
+        source.market=lambda *args:{}
+        state=create_bot(_config(candidate('A')['setup']),100,START)
+        report=dict(parameters={'strategy':'income_chart_v3'},bots=[{'bot_id':'old','state':state}],
+                    capital_events=[],ledger=[],switches=[])
+        decision=dict(worst_bot_id='old',replacement=candidate('B'),switch_cost={'net_realized_on_close':0})
+        with patch('trader.research.kucoin_replay._close',return_value=0) as close, \
+             patch('trader.research.kucoin_replay._open',return_value=1200):
+            cash=_execute_portfolio_switch(source,report,START,1200,decision,{'old':{}})
+        close.assert_not_called()
+        self.assertEqual(cash,1200)
+        self.assertEqual(report['capital_events'][0]['action'],'await_observed_switch_price')
+
+    def test_a_setup_reference_price_cannot_replace_a_missing_entry_observation(self):
+        source=ChartSnapshot()
+        original=source.market
+        source.market=lambda pair,at:{} if at==START else original(pair,at)
+        with patch('trader.research.kucoin_replay.radar',side_effect=scan):
+            result=run_window(source,START,START+HOUR,dict(strategy='income_chart_v3'))
+        self.assertEqual(result['bots'],[])
+        self.assertTrue(any(row['action']=='await_observed_price' for row in result['capital_events']))
+
     def test_recorded_funding_income_and_checkpoint_resume_match(self):
         from trader.research.kucoin_replay import run_chunk
         options=dict(strategy='income_chart_v3',bias_mode='4h-only',regime_gate=False)
