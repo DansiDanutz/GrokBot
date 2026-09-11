@@ -125,4 +125,21 @@ v1. The secret gate scans a frozen Git index tree when changes are staged and
 HEAD otherwise; unstaged tracked changes are rejected. Run both verification
 commands after staging each task and before committing.
 
+
+## Development CoinGlass configuration
+
+Only the development copy reads `PAPER_GRID_SECRETS_FILE`, defaulting to
+`~/.openclaw-secrets/paper-grid.env`. It reads the exact `COINGLASS_API_KEY`
+assignment. Direct, case-varied and symlink-resolved Desktop paths are rejected
+before opening the file, including the iCloud Desktop. Errors omit values.
+An override is resolved at call time, so an environment change does not require
+reimporting the module. The v1 checkout keeps its own existing configuration.
+
+Dan provisions the private file once, outside this roadmap execution, with mode
+0600 inside a private directory. Copy only the existing CoinGlass assignment
+using a local editor, without pasting it into a terminal command or chat.
+Codex has not read, copied, written or requested the key during Phase 0, and no
+CoinGlass request is made by verification. The env override selects an already
+provisioned file; it must never be committed to a plist or repository.
+
 _Last verified: 2026-09-11_

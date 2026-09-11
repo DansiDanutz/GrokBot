@@ -2,6 +2,7 @@ import copy
 import io
 import json
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlparse
 
@@ -21,6 +22,35 @@ def rows(count=49, total=400, share=.75):
 
 
 class CoinGlassTests(unittest.TestCase):
+    def test_secret_path_default_and_runtime_override(self):
+        with patch.dict('os.environ', {}, clear=True):
+            self.assertEqual(c.secrets_path(), Path.home() / '.openclaw-secrets/paper-grid.env')
+        with patch.dict('os.environ', {'PAPER_GRID_SECRETS_FILE': '/fixture/private/paper.env'}):
+            self.assertEqual(c.secrets_path(), Path('/fixture/private/paper.env'))
+            with patch.object(Path, 'open', return_value=io.StringIO('COINGLASS_API_KEY=fixture\n')) as opened:
+                self.assertEqual(c.read_api_key(), 'fixture')
+                opened.assert_called_once()
+
+    def test_desktop_paths_are_rejected_before_open(self):
+        paths = ('~/Desktop/key.env', '/fixture/desktop/key.env',
+                 '/fixture/Library/Mobile Documents/com~apple~CloudDocs/Desktop/key.env')
+        for path in paths:
+            with self.subTest(path=path), patch.object(Path, 'open') as opened:
+                with self.assertRaisesRegex(c.CoinGlassError, 'Desktop.*not allowed'):
+                    c.read_api_key(path)
+                opened.assert_not_called()
+        with patch.dict('os.environ', {'PAPER_GRID_SECRETS_FILE': '~/Desktop/key.env'}):
+            with self.assertRaisesRegex(c.CoinGlassError, 'Desktop'):
+                c.read_api_key()
+
+    def test_secret_override_cannot_be_empty_or_resolve_to_desktop(self):
+        with patch.dict('os.environ', {'PAPER_GRID_SECRETS_FILE': ''}):
+            with self.assertRaisesRegex(c.CoinGlassError, 'configuration'):
+                c.secrets_path()
+        with patch.object(Path, 'resolve', return_value=Path('/fixture/Desktop/key.env')):
+            with self.assertRaisesRegex(c.CoinGlassError, 'Desktop'):
+                c.secrets_path('/fixture/link.env')
+
     def test_burst_uses_prior_hours_only_and_sorted_rows(self):
         feature = c.analyze(list(reversed(rows())), NOW)
         self.assertTrue(feature['eligible'])

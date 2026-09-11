@@ -14,6 +14,11 @@ class TelemetryUpgradeTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
+        self.development_hashes = experiment._code_hashes()
+        # Historical migration fixture; current development is deliberately not resealed.
+        historical_source = patch.object(experiment, '_code_hashes', return_value=deepcopy(migration.TARGET_HASHES))
+        historical_source.start()
+        self.addCleanup(historical_source.stop)
         c = engine.default_config()
         cli.atomic_json(self.root/'account.json', dict(schema=1, config=c,
                         config_hash=cli.config_fingerprint(c), state=engine.initial_state(c,NOW),
@@ -64,6 +69,13 @@ class TelemetryUpgradeTests(unittest.TestCase):
         doc['code_hashes'] = deepcopy(migration.TARGET_HASHES)
         cli.atomic_json(self.root/experiment.FILE, doc)
         with self.assertRaises(ValueError): migration.upgrade(self.root, now=NOW+2, paper=True)
+
+    def test_current_development_source_cannot_reseal_v1(self):
+        with patch.object(experiment, '_code_hashes', return_value=self.development_hashes):
+            before = (self.root/experiment.FILE).read_bytes()
+            with self.assertRaisesRegex(ValueError, 'not the reviewed telemetry revision'):
+                migration.upgrade(self.root, now=NOW+2, paper=True)
+            self.assertEqual((self.root/experiment.FILE).read_bytes(), before)
 
     def test_lock_and_atomic_failure_preserve_existing_document(self):
         before = (self.root/experiment.FILE).read_bytes()
