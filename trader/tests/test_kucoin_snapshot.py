@@ -346,5 +346,51 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(json.loads(json.dumps(actual)), json.loads(json.dumps(reference)))
 
 
+    def test_historical_adapter_uses_fresh_quote_filters_and_keeps_derived_candle_turnover(self):
+        from trader.research.kucoin_snapshot import HistoricalSnapshot
+        from trader.research.kucoin_radar import radar
+        day, at = 86400000, 8*86400000
+        raw = dict(status='Open', tickSize=.01, lotSize=1, multiplier=2, quoteCurrency='USDT',
+                   expireDate=None, isInverse=False, assetClass='CRYPTO', fundingRateGranularity=28800000)
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
+                [('AAAUSDTM', '1m', t, 100, 101, 100, 100, 100, 10000) for t in range(0, at, 60000)])
+            db.execute('INSERT INTO ticker_snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                ('AAAUSDTM', at-60000, at-60000, None, 100, 100, 100, 1, 1, 1, None, json.dumps(raw)))
+            db.execute('INSERT INTO top_of_book VALUES (?,?,?,?,?,?,?)',
+                ('AAAUSDTM', at-30000, at-30000, 99.99, 100.01, 1000, 1000))
+        with Snapshot(self.path) as source:
+            record = HistoricalSnapshot(source).records(at)[0]
+            self.assertEqual(record['market']['filter_mode'], 'quote/book filters')
+            self.assertEqual(record['market']['quote_turnover_24h'], 10000*1440)
+            self.assertIsNone(record['market']['funding_rate'])
+            result = radar([record], at)
+            self.assertEqual(result['radar'], [])
+            self.assertIn('funding', result['rejected'][0]['reason'])
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute('UPDATE ticker_snapshots SET funding_rate=0')
+            db.execute('UPDATE top_of_book SET ask=102')
+        with Snapshot(self.path) as source:
+            result = radar(HistoricalSnapshot(source).records(at), at)
+            self.assertIn('spread', result['rejected'][0]['reason'])
+
+    def test_stale_or_future_quotes_do_not_disable_candle_only_fallback(self):
+        from trader.research.kucoin_snapshot import HistoricalSnapshot
+        at = 8*86400000
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
+                [('AAAUSDTM', '1m', t, 100, 101, 100, 100, 100, 10000) for t in range(0, at, 60000)])
+            for timestamp in (at-7200000, at+60000):
+                db.execute('INSERT INTO ticker_snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                    ('AAAUSDTM', timestamp, timestamp, None, 999, 999, 999, 1, 1, 1, .1, '{}'))
+                db.execute('INSERT INTO top_of_book VALUES (?,?,?,?,?,?,?)',
+                    ('AAAUSDTM', timestamp, timestamp, 998, 1000, 1, 1))
+        with Snapshot(self.path) as source:
+            data = HistoricalSnapshot(source)
+            self.assertEqual(data.records(at)[0]['market']['filter_mode'], 'candle-only filters')
+            self.assertTrue(data.market('AAAUSDTM', at)['assumed'])
+            self.assertAlmostEqual(data.market('AAAUSDTM', at)['bid'], 99.95)
+
+
 if __name__ == '__main__':
     unittest.main()

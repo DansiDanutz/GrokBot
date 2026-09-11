@@ -300,7 +300,7 @@ class HistoricalSnapshot:
         self.manifest = dict(source.manifest, replay_filter_mode='candle-only filters')
         self.connection = source.connection
         self._cache, self._history, self._metadata_cache = {}, {}, {}
-        self._prepared_cache, self._record_cache = {}, {}
+        self._prepared_cache, self._record_cache, self._quote_cache = {}, {}, {}
         self._index = {row[0]: (row[1], row[2]+MINUTE_MS) for row in self.connection.execute(
             "SELECT symbol,MIN(time_ms),MAX(time_ms) FROM klines WHERE interval='1m' GROUP BY symbol")}
         self._market_bounds = source.market_bounds()
@@ -398,7 +398,7 @@ class HistoricalSnapshot:
             sum(not row['indicator_only'] for row in bars[-n:])/n for n in (1440, 240)]
         perpetual = specs['expireDate'] in (None, 0) and specs['isInverse'] is False
         asset = specs.get('assetClass')
-        return dict(specs, filter_mode='candle-only filters', active=True, perpetual=perpetual,
+        result = dict(specs, filter_mode='candle-only filters', active=True, perpetual=perpetual,
             quote_currency=specs.get('quoteCurrency'), asset_class=asset.lower() if isinstance(asset, str) else None,
             membership_basis='observed_candles',
             listed_at_ms=self._index[pair][0], observed_at_ms=at_ms,
@@ -410,6 +410,29 @@ class HistoricalSnapshot:
             funding_signal_basis='unknown historical funding sign assumed neutral',
             filter_assumptions=['spread, book depth and funding filters unavailable',
                                 'copied contract metadata is retrospective, not historical observation'])
+        available = self._causal_quote(pair, at_ms)
+        if available is not None:
+            result = dict(available[1], filter_mode='quote/book filters',
+                quote_turnover_24h=turnover, turnover_basis=basis, candle_volume_unit=self.volume_unit,
+                listed_at_ms=self._index[pair][0], membership_basis='observed_candles',
+                candle_coverage_ratio=min(ratios), candle_coverage=coverage,
+                metadata_basis='causal copied quote/book contract record')
+        return result
+
+    def _causal_quote(self, pair, at_ms):
+        previous = self._quote_cache.get(pair)
+        if previous is not None and previous[0] == at_ms:
+            return previous[1]
+        first, last = self._market_bounds
+        row = self.source.market(pair, at_ms) if first is not None and first <= at_ms <= last+3600000 else None
+        result = None
+        if row and row.get('bid') is not None and row.get('ask') is not None:
+            context = _scanner_market(row)
+            observed = context.get('observed_at_ms')
+            if observed is not None and 0 <= at_ms-observed <= 3600000:
+                result = row, context
+        self._quote_cache[pair] = at_ms, result
+        return result
 
     def _prepared_record(self, pair, at_ms):
         previous = self._record_cache.get(pair)
@@ -441,11 +464,9 @@ class HistoricalSnapshot:
         return list(self.iter_records(at_ms, pairs))
 
     def market(self, pair, at_ms):
-        first, last = self._market_bounds
-        actual = self.source.market(pair, at_ms) if first is not None and first <= at_ms <= last else None
-        if actual and all(actual.get(key) is not None for key in ('bid', 'ask', 'book_observed_at_ms')):
-            if 0 <= at_ms-actual['book_observed_at_ms'] <= 3600000:
-                return actual
+        available = self._causal_quote(pair, at_ms)
+        if available is not None:
+            return available[0]
         block = self._block(pair, at_ms)
         index = bisect_left(block['times'], at_ms)-1
         if index < 0:
