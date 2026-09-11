@@ -30,16 +30,37 @@ def _validate_policy(policy):
     if not isinstance(policy, dict):
         raise ValueError('exact public policy fields are required')
     strategy = policy.get('strategy')
-    if strategy not in ('grid-kucoin-policy-v2', 'grid-kucoin-v3-positive'):
+    if strategy not in ('grid-kucoin-policy-v2', 'grid-kucoin-v3-positive', 'grid-kucoin-v3-income-chart'):
         raise ValueError('strategy must identify an explicitly supported paper policy')
-    zeros = {'minimum_grid_net_usdt', 'range_exit_stop_pct'} if strategy == 'grid-kucoin-v3-positive' else set()
-    if set(policy) != {'strategy', *REQUIRED_POLICY, *zeros}:
+    chart = strategy == 'grid-kucoin-v3-income-chart'
+    zeros = {'minimum_grid_net_usdt', 'range_exit_stop_pct'} if chart or strategy == 'grid-kucoin-v3-positive' else set()
+    chart_fields = {'fee_safety_ratio', 'min_grids', 'max_grids', 'bias_mode',
+                    'regime_gate', 'minimum_confidence', 'registration_sha256'} if chart else set()
+    if set(policy) != {'strategy', *REQUIRED_POLICY, *zeros, *chart_fields}:
         raise ValueError('exact public policy fields are required')
     if any(type(policy[key]) is not int or policy[key] != value
            for key, value in REQUIRED_POLICY.items()):
         raise ValueError('policy requires two 1000+200 USDT bots at fixed 5x')
     if any(type(policy[key]) not in (int, float) or policy[key] != 0 for key in zeros):
         raise ValueError('positive paper policy requires explicit zero minimum net and range-hit exit')
+    if chart:
+        _validate_chart_policy(policy)
+
+
+def _validate_chart_policy(policy):
+    for key in ('fee_safety_ratio', 'minimum_confidence'):
+        value = policy[key]
+        if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+            raise ValueError('chart confidence and fee safety must be finite and nonnegative')
+    if policy['minimum_confidence'] > 1:
+        raise ValueError('confidence must not exceed one')
+    if any(type(policy[key]) is not int for key in ('min_grids', 'max_grids')) or not 2 <= policy['min_grids'] <= policy['max_grids'] <= 200:
+        raise ValueError('grid-count search must be bounded within 2..200')
+    if policy['bias_mode'] not in ('4h-only', '1d+4h') or type(policy['regime_gate']) is not bool:
+        raise ValueError('explicit supported chart and regime variant required')
+    digest = policy['registration_sha256']
+    if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest):
+        raise ValueError('full preregistration digest required')
 
 
 def arm_evaluation(policy, previous_run_id=None, source_revision=None):
