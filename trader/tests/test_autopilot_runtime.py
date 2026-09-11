@@ -62,6 +62,17 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(read_json(self.snapshot)['equity'], view['equity'])
         self.assertEqual(self.state.stat().st_mode & 0o777, 0o600)
 
+    def test_tick_age_follows_the_fetch_not_the_thinnest_trade(self):
+        runner = self.runner(); runner.pass_once()
+        self.clock[0] += 10000
+        stale_trade = self.clock[0] - 600000
+        original = self.client.all_tickers
+        self.client.all_tickers = lambda: [dict(r, ts_ms=stale_trade) for r in original()]
+        view = runner.pass_once()
+        self.assertTrue(view['kucoin_ok'])
+        self.assertEqual(view['tick_age_s'], 0)
+        self.assertEqual(runner.state['runtime']['last_tick_ms'], self.clock[0])
+
     def test_radar_mtime_triggers_decision_and_cooldown(self):
         runner = self.runner()
         runner.pass_once()

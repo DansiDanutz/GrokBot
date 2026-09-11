@@ -270,6 +270,27 @@ the publisher. The supervised market-data collector is safe to leave running;
 keep it collecting for the radar and paper autopilot. If you also want to stop the paper autopilot, boot out its exact
 label separately. Do not delete its state, the market DB or the control runtime.
 
+## Deployed 2026-09-11 (Claude cutover, evening)
+
+All four agents plus a dashboard agent are installed and running from a dedicated
+production worktree `/Users/davidai/ZCodeProject/GrokBot-prod` (detached at the
+merged default head), so Codex's development checkout can switch branches without
+changing what runs. To roll production forward: `cd ~/ZCodeProject/GrokBot-prod &&
+git fetch origin && git checkout --detach origin/codex/mac-studio-foundation &&
+npm run verify`, then `launchctl kickstart -k gui/$(id -u)/<label>` for the
+autopilot and dashboard (the radar, collector and publisher pick the new code up on
+their next run or session).
+
+| Agent | Label | Role |
+|---|---|---|
+| Collector | `com.danslab.trader-market-data` | 24 h sessions under KeepAlive, `phase-2-20260911/market.sqlite3` |
+| Radar | `com.danslab.trader-radar` | hourly at :05, Telegram |
+| Autopilot | `com.danslab.trader-autopilot` | 10 s ticks, 5 min decisions, Telegram |
+| Publisher | `com.danslab.trader-publisher` | every 5 min to danslabtrader.vercel.app |
+| Dashboard | `com.danslab.trader-dashboard` | read-only server on 127.0.0.1:8875, tailnet only at `https://dans-mac-studio.tailc56ca0.ts.net:8444/paper` via `tailscale serve --https=8444` (443 stays the existing funnel to the webhook proxy) |
+
+Old publisher plist preserved at `~/Sandbox/grokbot/vercel-publisher/publisher-before-phase-c.plist`.
+
 ## Boundaries
 
 No real orders, trade-enabled exchange keys, paid calls or secrets in repository
