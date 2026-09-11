@@ -15,7 +15,7 @@ class ServerTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.monitor = server.Monitor(Path(self.temp.name))
+        self.monitor = server.Monitor(Path(self.temp.name).resolve())
         self.http = ThreadingHTTPServer(('127.0.0.1', 0), server.make_handler(self.monitor, 0))
         self.port = self.http.server_port
         self.http.RequestHandlerClass = server.make_handler(self.monitor, self.port)

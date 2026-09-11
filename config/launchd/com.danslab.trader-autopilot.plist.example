@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.danslab.trader-publisher</string>
+	<string>com.danslab.trader-autopilot</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>/usr/bin/python3</string>
@@ -12,15 +12,21 @@
 		<string>/Users/davidai/.config/danslab/credentials/telegram.json</string>
 		<string>--</string>
 		<string>/opt/homebrew/bin/python3</string>
-		<string>/Users/davidai/ZCodeProject/GrokBot/paper_grid/publish_vercel.py</string>
-		<string>--runtime</string>
-		<string>/Users/davidai/Sandbox/grokbot/zmarty-paper-runtime</string>
+		<string>-m</string>
+		<string>trader.autopilot</string>
+		<string>run</string>
+		<string>--database</string>
+		<string>/Users/davidai/Sandbox/grokbot/market-data/phase-2-20260911/market.sqlite3</string>
 		<string>--state</string>
-		<string>/Users/davidai/Sandbox/grokbot/vercel-publisher</string>
-		<string>--radar-snapshot</string>
+		<string>/Users/davidai/Sandbox/grokbot/autopilot/state.json</string>
+		<string>--radar</string>
 		<string>/Users/davidai/Sandbox/grokbot/radar/radar.json</string>
-		<string>--autopilot-snapshot</string>
+		<string>--snapshot</string>
 		<string>/Users/davidai/Sandbox/grokbot/autopilot/autopilot.json</string>
+		<string>--telegram-chat-id</string>
+		<string>REPLACE_WITH_DAN_CHAT_ID</string>
+		<string>--telegram-state</string>
+		<string>/Users/davidai/Sandbox/grokbot/autopilot/telegram-state.json</string>
 	</array>
 	<key>WorkingDirectory</key>
 	<string>/Users/davidai/ZCodeProject/GrokBot</string>
@@ -29,10 +35,12 @@
 	<key>ProcessType</key>
 	<string>Background</string>
 	<key>StandardOutPath</key>
-	<string>/Users/davidai/Sandbox/grokbot/vercel-publisher/publisher.stdout.log</string>
+	<string>/Users/davidai/Sandbox/grokbot/autopilot/autopilot.stdout.log</string>
 	<key>StandardErrorPath</key>
-	<string>/Users/davidai/Sandbox/grokbot/vercel-publisher/publisher.stderr.log</string>
-	<key>StartInterval</key>
-	<integer>300</integer>
+	<string>/Users/davidai/Sandbox/grokbot/autopilot/autopilot.stderr.log</string>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
 </dict>
 </plist>

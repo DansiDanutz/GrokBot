@@ -51,6 +51,32 @@ class PublisherTests(unittest.TestCase):
              patch.object(publisher.subprocess, 'run', side_effect=action):
             return publisher.publish(self.runtime, self.state, now=1234567)
 
+    def test_paper_control_and_radar_each_have_own_csp(self):
+        stage = self.root / 'stage'
+        stage.mkdir()
+        (stage / 'index.html').write_text('<script>paper()</script>')
+        for page in ('paper', 'radar', 'control'):
+            (stage / page).mkdir()
+            (stage / page / 'index.html').write_text('<script>' + page + '()</script>')
+        rules = {row['source']: row['headers'][0]['value'] for row in publisher._csp_routes(stage)}
+        self.assertEqual(rules['/'], rules['/paper'])
+        for page in ('paper', 'radar', 'control'):
+            digest = base64.b64encode(hashlib.sha256((page + '()').encode()).digest()).decode()
+            self.assertIn(digest, rules['/' + page])
+            self.assertEqual(rules['/' + page], rules['/' + page + '/(.*)'])
+
+    def test_explicit_snapshot_paths_forwarded_without_provider_calls(self):
+        def export(runtime, stage, now, health, **kwargs):
+            self.assertEqual(kwargs, {'radar_path': self.root / 'radar.json',
+                                      'autopilot_path': self.root / 'autopilot.json'})
+            return self.export(runtime, stage, now, health)
+        with patch.object(publisher.public_snapshot, 'export_snapshot', side_effect=export), \
+             patch.object(publisher, '_health', return_value=None), \
+             patch.object(publisher, '_deploy', return_value='https://test.vercel.app'):
+            result = publisher.publish(self.runtime, self.state, now=1234567,
+                radar_path=self.root / 'radar.json', autopilot_path=self.root / 'autopilot.json')
+        self.assertEqual(result['status'], 'published')
+
     def test_static_csp_hashes_exact_dashboard_bytes_without_reused_nonce(self):
         stage = self.root / 'stage'
         stage.mkdir()

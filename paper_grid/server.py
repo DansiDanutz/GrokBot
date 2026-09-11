@@ -11,10 +11,11 @@ import subprocess
 import sys
 import threading
 import time
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from paper_grid import cli, experiment, analytics, csp
+from paper_grid import cli, experiment, analytics, csp, public_autopilot
+from trader.autopilot.storage import read_json, read_events
 
 
 class Monitor:
@@ -64,7 +65,26 @@ class Monitor:
         return result
 
 
-def make_handler(monitor, port):
+def _tailnet_host(value):
+    if not isinstance(value, str) or len(value) > 253:
+        raise ValueError('invalid tailnet hostname')
+    labels = value.split('.')
+    if (len(labels) < 3 or labels[-2:] != ['ts', 'net'] or
+            any(not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', label)
+                for label in labels)):
+        raise ValueError('invalid tailnet hostname')
+    return value
+
+
+def make_handler(monitor, port, *, autopilot_snapshot=None, events_dir=None,
+                 radar_snapshot=None, tailnet_host=None):
+    allowed_hosts = {f'127.0.0.1:{port}', f'localhost:{port}'}
+    if tailnet_host is not None:
+        host = _tailnet_host(tailnet_host)
+        allowed_hosts.update((host, host + ':443'))
+    autopilot_snapshot = Path(autopilot_snapshot or monitor.runtime.parent / "autopilot" / "autopilot.json")
+    events_dir = Path(events_dir or autopilot_snapshot.parent)
+    radar_snapshot = Path(radar_snapshot or monitor.runtime.parent / "radar" / "radar.json")
     analytics_lock = threading.Lock()
     analytics_cache = {'at': 0, 'payload': None}
 
@@ -96,10 +116,13 @@ def make_handler(monitor, port):
             self.wfile.write(content)
 
         def do_GET(self):
-            if self.headers.get('Host') not in (f'127.0.0.1:{port}', f'localhost:{port}'):
+            if (len(self.headers.get_all('Host', [])) != 1 or
+                    self.headers.get('Host') not in allowed_hosts):
                 return self.send(403, b'Local access only', 'text/plain')
             path = urlsplit(self.path).path
-            if path == '/':
+            if path in ('/', '/paper', '/paper/'):
+                return self.send(200, Path(__file__).with_name('paper.html').read_bytes(), 'text/html; charset=utf-8', dashboard=True)
+            if path in ('/control', '/control/'):
                 return self.send(200, Path(__file__).with_name('dashboard.html').read_bytes(), 'text/html; charset=utf-8', dashboard=True)
             if path in ('/radar', '/radar/'):
                 return self.send(200, Path(__file__).with_name('radar.html').read_bytes(),
@@ -114,14 +137,32 @@ def make_handler(monitor, port):
                     return self.send(404, b'Not found', 'text/plain')
                 kind = {'html': 'text/html; charset=utf-8', 'json': 'application/json', 'md': 'text/plain; charset=utf-8'}[file.suffix[1:]]
                 return self.send(200, file.read_bytes(), kind)
-            if path not in ('/api/report', '/api/health', '/api/audits', '/api/analytics', '/api/radar'):
+            if path not in ('/api/report', '/api/health', '/api/audits', '/api/analytics', '/api/radar', '/api/autopilot', '/api/events'):
                 return self.send(404, b'Not found', 'text/plain')
+            since = 0
+            after_event_id = None
+            if path == '/api/events':
+                query = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
+                values = query.get('since', ['0'])
+                if (set(query) - {'since', 'after_event_id'} or len(values) != 1 or
+                        not re.fullmatch(r'[0-9]{1,16}', values[0]) or
+                        int(values[0]) > 1e15):
+                    return self.send(400, b'{"error":"invalid since"}', 'application/json')
+                since = int(values[0])
+                if 'after_event_id' in query:
+                    cursor = query['after_event_id']
+                    if (len(cursor) != 1 or not re.fullmatch(r'[0-9]{1,16}', cursor[0])
+                            or int(cursor[0]) > 1e15):
+                        return self.send(400, b'{"error":"invalid cursor"}', 'application/json')
+                    after_event_id = int(cursor[0])
             try:
-                if path == '/api/radar':
-                    file = monitor.runtime.parent / 'radar' / 'radar.json'
-                    if file.is_symlink() or not file.is_file() or file.stat().st_size > 2 * 1024 * 1024:
-                        raise ValueError('radar unavailable')
-                    payload = json.loads(file.read_text())
+                if path == '/api/autopilot':
+                    payload = public_autopilot.safe(read_json(autopilot_snapshot))
+                elif path == '/api/events':
+                    payload = {'events': public_autopilot.events(read_events(events_dir, since, limit=500, after_event_id=after_event_id))}
+                elif path == '/api/radar':
+                    from paper_grid.public_snapshot import _radar
+                    payload = _radar(read_json(radar_snapshot))
                 elif path == '/api/analytics':
                     payload = read_analytics()
                 elif path == '/api/audits':
@@ -148,11 +189,21 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--runtime', type=Path, default=cli.DEFAULT_RUNTIME)
     parser.add_argument('--port', type=int, default=8873)
+    parser.add_argument('--tailnet-host', type=_tailnet_host, help='Exact tailnet hostname for the read-only proxy')
+    parser.add_argument('--read-only', action='store_true', help='Serve files without starting the control scheduler')
+    root = Path.home() / 'Sandbox' / 'grokbot'
+    parser.add_argument('--autopilot-snapshot', type=Path, default=root / 'autopilot' / 'autopilot.json')
+    parser.add_argument('--radar-snapshot', type=Path, default=root / 'radar' / 'radar.json')
+    parser.add_argument('--events-dir', type=Path, default=root / 'autopilot')
     args = parser.parse_args(argv)
+    if args.tailnet_host and not args.read_only:
+        parser.error('--tailnet-host requires --read-only')
     monitor = Monitor(args.runtime)
-    server = ThreadingHTTPServer(('127.0.0.1', args.port), make_handler(monitor, args.port))
+    server = ThreadingHTTPServer(('127.0.0.1', args.port), make_handler(monitor, args.port,
+        autopilot_snapshot=args.autopilot_snapshot, radar_snapshot=args.radar_snapshot,
+        events_dir=args.events_dir, tailnet_host=args.tailnet_host))
     awake = None
-    if sys.platform == 'darwin':
+    if not args.read_only and sys.platform == 'darwin':
         try:
             info = experiment.report(args.runtime)['experiment']
             if info.get('continuous') is True and info['status'] == 'running':
@@ -163,7 +214,8 @@ def main(argv=None):
                     awake = subprocess.Popen(['/usr/bin/caffeinate', '-i', '-t', str(remaining), '-w', str(os.getpid())])
         except (OSError, ValueError, KeyError):
             print('paper monitor: bounded sleep prevention unavailable', file=sys.stderr, flush=True)
-    monitor.thread.start()
+    if not args.read_only:
+        monitor.thread.start()
 
     def shutdown(*_):
         monitor.stop.set()
@@ -176,7 +228,8 @@ def main(argv=None):
     finally:
         monitor.stop.set()
         server.server_close()
-        monitor.thread.join(timeout=5)
+        if not args.read_only:
+            monitor.thread.join(timeout=5)
         if awake is not None and awake.poll() is None:
             awake.terminate()
 

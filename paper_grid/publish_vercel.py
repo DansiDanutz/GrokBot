@@ -142,14 +142,16 @@ def _site_config(stage, config):
 
 def _csp_routes(stage):
     dashboard = csp.static_policy((stage / 'index.html').read_bytes())
-    radar = stage / 'radar' / 'index.html'
     reports = b''.join(_safe_path(path).read_bytes()
                        for path in sorted((stage / 'reports').glob('*.html')))
-    policies = (('/', dashboard), ('/index.html', dashboard),
-                ('/radar', csp.static_policy(radar.read_bytes()) if radar.is_file() else csp.policy()),
-                ('/radar/(.*)', csp.static_policy(radar.read_bytes()) if radar.is_file() else csp.policy()),
-                ('/reports/(.*)', csp.static_policy(reports, scripts=False)),
-                ('/data/(.*)', csp.policy()))
+    policies = [('/', dashboard), ('/index.html', dashboard)]
+    for name in ('paper', 'radar', 'control'):
+        page = stage / name / 'index.html'
+        policy = (csp.static_policy(_safe_path(page).read_bytes())
+                  if page.is_file() else csp.policy())
+        policies.extend([('/' + name, policy), ('/' + name + '/(.*)', policy)])
+    policies.extend([('/reports/(.*)', csp.static_policy(reports, scripts=False)),
+                     ('/data/(.*)', csp.policy())])
     return [{'source': path, 'headers': [{'key': 'Content-Security-Policy', 'value': value}]}
             for path, value in policies]
 
@@ -192,7 +194,8 @@ def _deploy(stage, state, config):
     return urls[-1]
 
 
-def publish(runtime=DEFAULT_RUNTIME, state=DEFAULT_STATE, *, now=None):
+def publish(runtime=DEFAULT_RUNTIME, state=DEFAULT_STATE, *, now=None,
+            radar_path=None, autopilot_path=None):
     """Return sanitized status; a failed deployment never deletes the prior site."""
     runtime, state = _safe_path(runtime), _safe_path(state)
     _separate(runtime, state)
@@ -223,7 +226,10 @@ def publish(runtime=DEFAULT_RUNTIME, state=DEFAULT_STATE, *, now=None):
                 stage = _safe_path(directory)
                 _separate(stage, runtime)
                 _separate(stage, state)
-                metadata = public_snapshot.export_snapshot(runtime, stage, now=at, health=_health())
+                paths = {key: value for key, value in
+                         (('radar_path', radar_path), ('autopilot_path', autopilot_path))
+                         if value is not None}
+                metadata = public_snapshot.export_snapshot(runtime, stage, now=at, health=_health(), **paths)
                 _site_config(stage, config)
                 phase = 'deployment_failed'
                 deployment = _deploy(stage, state, config)
@@ -243,9 +249,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--runtime', type=Path, default=DEFAULT_RUNTIME)
     parser.add_argument('--state', type=Path, default=DEFAULT_STATE)
+    parser.add_argument('--radar-snapshot', type=Path)
+    parser.add_argument('--autopilot-snapshot', type=Path)
     args = parser.parse_args()
     try:
-        result = publish(args.runtime, args.state)
+        result = publish(args.runtime, args.state, radar_path=args.radar_snapshot,
+                         autopilot_path=args.autopilot_snapshot)
     except (OSError, ValueError):
         result = {'status': 'failed', 'error': 'publisher_paths_or_state_invalid'}
     print(json.dumps(result, allow_nan=False))

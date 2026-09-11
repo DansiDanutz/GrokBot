@@ -17,12 +17,14 @@ import tempfile
 import time
 
 from paper_grid import audits, engine, experiment, analytics, public_trade_metrics
+from paper_grid.public_autopilot import safe as _autopilot
 from paper_grid.telemetry_constants import READABLE_BUY_REJECTION_REASONS
 
 MAX_BYTES = 5 * 1024 * 1024
 MAX_REPORTS = 100
 PUBLIC_INDEX = Path(__file__).parent / 'public' / 'index.html'
 RADAR_PAGE = Path(__file__).parent / 'radar.html'
+PAPER_PAGE = Path(__file__).parent / 'paper.html'
 SYMBOL = re.compile(r'[A-Z0-9]{1,24}USDTM\Z')
 REASONS = frozenset(('invalid_contract stale_quote low_turnover wide_spread atr_outside_bounds '
     'not_lower_range no_completed_rebound strong_downtrend insufficient_rebound_room '
@@ -311,9 +313,9 @@ def _no_symlinks(path):
         raise ValueError('symlink paths cannot be published')
 
 
-def _read_json(path):
+def _read_json(path, max_bytes=32 * 1024 * 1024):
     _no_symlinks(path)
-    if not path.is_file() or path.stat().st_size > 32 * 1024 * 1024:
+    if not path.is_file() or path.stat().st_size > max_bytes:
         raise ValueError('missing or oversized publication source')
     return json.loads(path.read_text())
 
@@ -333,13 +335,16 @@ def _write(path, payload):
             os.unlink(temporary)
 
 
-def export_snapshot(runtime, output_dir, now=None, *, health=None):
+def export_snapshot(runtime, output_dir, now=None, *, health=None,
+                    radar_path=None, autopilot_path=None):
     """Write public data and sanitized archives into a caller-owned staging tree.
 
     ``health`` is an optional local-server response supplied by the publisher;
     absent worker status is unknown, never inferred from a successful file read.
     Caller deploys the staging tree only after this function completes. No runtime
     locks, report acknowledgement or provider access occurs during export.
+    Missing default snapshots publish unavailable data. An explicitly supplied
+    snapshot path must exist; invalid, oversized or symlink sources fail closed.
     """
     runtime, output = Path(runtime).absolute(), Path(output_dir).absolute()
     _no_symlinks(runtime)
@@ -367,12 +372,27 @@ def export_snapshot(runtime, output_dir, now=None, *, health=None):
     _no_symlinks(index)
     if not index.is_file() or index.stat().st_size > 512 * 1024:
         raise ValueError('missing or oversized public dashboard')
-    payloads['index.html'] = index.read_bytes()
-    radar = runtime.parent / 'radar' / 'radar.json'
-    if radar.exists() or radar.is_symlink():
-        payloads['data/radar.json'] = _encoded(_radar(_read_json(radar)))
-        _no_symlinks(RADAR_PAGE)
-        payloads['radar/index.html'] = RADAR_PAGE.read_bytes()
+    payloads['control/index.html'] = index.read_bytes()
+    for name, page in (('paper', PAPER_PAGE), ('radar', RADAR_PAGE)):
+        _no_symlinks(page)
+        if not page.is_file() or page.stat().st_size > 512 * 1024:
+            raise ValueError('missing or oversized public dashboard')
+        payloads[name + '/index.html'] = page.read_bytes()
+    payloads['index.html'] = payloads['paper/index.html']
+    for name, explicit, clean in (('radar', radar_path, _radar),
+                                   ('autopilot', autopilot_path, _autopilot)):
+        path = (Path(explicit).absolute() if explicit is not None
+                else runtime.parent / name / (name + '.json'))
+        _no_symlinks(path)
+        if explicit is not None or path.exists():
+            source = _read_json(path, max_bytes=2 * 1024 * 1024)
+            if not isinstance(source, dict):
+                raise ValueError('invalid publication snapshot')
+            snapshot = clean(source)
+        else:
+            snapshot = dict(schema_version=1, status='unavailable')
+        snapshot['published_at_ms'] = int(published_at * 1000)
+        payloads['data/' + name + '.json'] = _encoded(snapshot)
     rows = []
     for row in audits.list_reports(runtime)[:MAX_REPORTS]:
         identifier = _identifier(row.get('id'))
