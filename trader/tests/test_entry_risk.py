@@ -85,5 +85,5 @@ class EntryRiskTests(unittest.TestCase):
         for prices in ({},{'A':80}):
             state,_=policy.decide(policy.new_state(0),radar,prices,1000,'0',require_live_prices=True)
             self.assertEqual(state['open_bots'],[])
-        state,_=policy.decide(policy.new_state(0),radar,{'A':101},1000,'0',require_live_prices=True)
-        self.assertEqual(state['open_bots'][0]['engine']['opening_price'],101)
+        state,_=policy.decide(policy.new_state(0),radar,{'A':100.5},1000,'0',require_live_prices=True)
+        self.assertEqual(state['open_bots'][0]['engine']['opening_price'],100.5)

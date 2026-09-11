@@ -9,7 +9,8 @@ import json
 
 from trader.radar.rates import K_STANDARD, K_MAJOR, expected_grids_per_hour
 from trader.radar.scoring import score_row
-from trader.radar.support import levels
+from trader.radar.support import levels, candidates
+from trader.radar.layout import select_range, layout_valid
 from trader.radar.spacing import economics, choose_count, align_bounds
 
 
@@ -96,7 +97,10 @@ def _direction(hourly, price):
 
 
 def _sections(rows):
-    passed = [row for row in rows if row["passes_liquidity"] and row.get("range_verified", 1) and row.get("spacing_viable", 1) and row.get("risk_verified", 1)]
+    passed = [row for row in rows if row["passes_liquidity"] and row.get("range_verified", 1) and row.get("spacing_viable", 1) and row.get("risk_verified", 1) and layout_valid(
+                  row["range_low"], row.get("grid_interval",0), row["grids"], row["price"],
+                  "SHORT" if row["direction"] in ("SHORT","TURNING-DOWN") else
+                  "NEUTRAL" if row["direction"] == "NEUTRAL" else "LONG")]
     groups = {
         "majors": [row for row in rows if row["symbol"] in MAJORS],
         "turning_up": [row for row in passed if row["direction"] == "TURNING-UP"],
@@ -118,7 +122,6 @@ def _sections(rows):
 
 def analyse(database, asof_ms=None):
     """Read one SQLite snapshot and return the prototype's deterministic radar."""
-    from trader.autopilot.risk import sizing
     path = Path(database).expanduser().absolute()
     if not path.is_file() or path.is_symlink():
         raise ValueError("database must be a regular non-symlink file")
@@ -225,15 +228,18 @@ def analyse(database, asof_ms=None):
                                 and spread <= MAX_SPREAD_PCT and age_days >= MIN_LISTING_AGE_DAYS
                                 and snapshot_age_min <= MAX_SNAPSHOT_AGE_MIN,
         }
-        try:
-            if not verified or not viable:
-                raise ValueError('unverified setup')
-            row.update(sizing(row, side, 1000, 5, grids))
-            row['risk_verified'] = 1
-        except ValueError:
-            row['risk_verified'] = 0
-            if not row['setup_rejection']:
-                row['setup_rejection'] = 'LIQUIDATION_OR_LOT_LIMIT'
+        supports, resistances = candidates([r for r in hourly if r[0]+HOUR_MS <= now], price, atr_1h)
+        selected, rejection = select_range(supports,resistances,row,side)
+        row['layout_viable'] = int(selected is not None)
+        row['risk_verified'] = int(selected is not None)
+        row['setup_rejection'] = rejection
+        if selected:
+            row.update(selected)
+            row['range_verified'] = row['spacing_viable'] = 1
+            row['step_pct'] = row['grid_interval']/price*100
+            row['expected_grids_per_hour'] = round(expected_grids_per_hour(
+                atr_1h_pct,row['step_pct'],turnover),2)
+            row['rank_score'] = row['expected_grids_per_hour']*min(1.0,turnover/8_000_000)
         try:
             row.update(score_row(row))
         except ValueError:
