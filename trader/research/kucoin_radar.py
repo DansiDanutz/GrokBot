@@ -1,7 +1,7 @@
 """Point-in-time candidate filters and a crossing proxy, never claimed as fills."""
 import math
 from trader.strategies.grid_features import features
-from trader.strategies.grid_setup import build_setup
+from trader.strategies.grid_setup import build_setup, minimum_grid_net_usdt
 from trader.strategies.candle_coverage import prepare, is_prepared_history
 
 HOUR_MS = 3_600_000
@@ -183,10 +183,15 @@ def crossing_score(bars, setup, asof_ms):
                 limitation='close-only step crossings are not executed fills or completed grids')
 
 
-def _candidate_context(market, prepared, form, score):
+def _actual_cash_net(form):
+    value = form.get('preview',{}).get('profit_per_grid_min')
+    return None if isinstance(value,bool) else _number(value)
+
+
+def _candidate_context(market, prepared, form, score, minimum=0.):
     candle_only = market['filter_mode'] == 'candle-only filters'
-    floor = _number(form.get('preview', {}).get('profit_per_grid_min'))
-    if floor is None or floor < 1:
+    floor = _actual_cash_net(form)
+    if floor is None or floor <= 0 or floor < minimum:
         return None
     return dict(filter_mode=market['filter_mode'],
                 skipped_filters=['spread', 'depth', 'funding_window'] if candle_only else [],
@@ -199,12 +204,16 @@ def _candidate_context(market, prepared, form, score):
                 quote_turnover_24h=_number(market['quote_turnover_24h']),
                 turnover_basis=market.get('turnover_basis', 'observed quote turnover'),
                 candle_coverage=prepared['coverage'],
-                actual_net_usdt_per_grid=floor, expected_gph=score['score'],
+                actual_net_usdt_per_grid=floor,minimum_grid_net_usdt=minimum,expected_gph=score['score'],
                 grid_income_per_hour=score['score']*floor, quantity_calibrated=False,
                 income_basis='expected crossing GPH times minimum modeled net per grid; existing quantity remains uncalibrated')
 
 
 def _evaluate(record, asof_ms, options, prepared, market):
+    try:
+        minimum = minimum_grid_net_usdt(options.get('setup'))
+    except ValueError as exc:
+        return None,str(exc)
     reason = _market_reason(market, asof_ms, options)
     if reason:
         return None, reason
@@ -222,10 +231,12 @@ def _evaluate(record, asof_ms, options, prepared, market):
     if not candle_only and any(depth is None or depth < notional for depth in depths):
         return None, 'top-of-book depth unknown or below one grid notional on either side'
     score = crossing_score(bars, form, asof_ms)
-    context = _candidate_context(market, prepared, form, score)
+    context = _candidate_context(market, prepared, form, score, minimum)
     if context is None:
-        unknown = _number(form.get('preview', {}).get('profit_per_grid_min')) is None
-        return None, 'actual modeled net profit per grid '+('unknown' if unknown else 'below 1 USDT')
+        unknown = _actual_cash_net(form) is None
+        failure = ('unknown' if unknown else 'not strictly positive after both fill fees' if minimum == 0
+                   else f'below configured {minimum:g} USDT cash floor or nonpositive')
+        return None,'actual modeled net profit per grid '+failure
     reason = form['reason'] + ('; candle-only filters' if candle_only else '')
     return dict(pair=record['pair'], asof_ms=asof_ms, **score, **context, setup=form,
                 direction=form['direction'], reason=reason,

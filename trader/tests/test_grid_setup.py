@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import unittest
 
-from trader.strategies.grid_setup import build_setup, setup, grid_profit_preview
+from trader.strategies.grid_setup import build_setup, setup, grid_profit_preview, grid_cash_profit
 from trader.tests.test_grid_features import candles
 
 
@@ -20,7 +20,7 @@ def safe_preview(config):
 
 
 MARKET = dict(price=100., tick_size=.01, lot_size=.001, multiplier=1., funding_rate=0.)
-PARAMS = dict(preview_fn=safe_preview)
+PARAMS = dict(preview_fn=safe_preview, minimum_grid_net_usdt=1.)
 
 
 class SetupTests(unittest.TestCase):
@@ -117,8 +117,8 @@ class SetupTests(unittest.TestCase):
             self.assertAlmostEqual(step_pct, .87, delta=.02)
             self.assertAlmostEqual(bot['grid_profit']/bot['arbitrage_total'], .89, delta=.01)
 
-    def test_default_replica_uses_fixed_reserve_and_checks_both_buffers(self):
-        result = build_setup('TESTUSDT', feature_set(), MARKET)
+    def test_explicit_cash_floor_preserves_fixed_reserve_and_buffers(self):
+        result = build_setup('TESTUSDT', feature_set(), MARKET,dict(minimum_grid_net_usdt=1.))
         self.assertTrue(result['eligible'], result)
         self.assertEqual(result['leverage'], 5)
         self.assertEqual(result['reserved_margin'],200)
@@ -163,11 +163,11 @@ class SetupTests(unittest.TestCase):
                    if grid_profit_preview(1.1,2.,n,5,1000)['kucoin_profit_usdt_min'] >= 1.]
         self.assertEqual(max(passing), 44)
 
-    def test_setup_reports_and_enforces_nominal_percent_and_usdt_floor(self):
+    def test_nominal_preview_is_separate_from_explicit_actual_cash_floor(self):
         result = build_setup('TESTUSDT',feature_set(),MARKET,PARAMS)
         self.assertTrue(result['eligible'],result['reason'])
         preview = result['preview']
-        self.assertGreaterEqual(preview['kucoin_profit_usdt_min'],1.)
+        self.assertLess(preview['kucoin_profit_usdt_min'],1.)
         self.assertGreaterEqual(preview['profit_per_grid_min'],1.)
         expected = grid_profit_preview(result['low'],result['high'],result['grids'],result['leverage'],result['used_margin'],result['entry'])
         for key in ('kucoin_profit_pct_min','kucoin_profit_pct_max','kucoin_profit_usdt_min','kucoin_profit_usdt_max'):
@@ -178,7 +178,7 @@ class SetupTests(unittest.TestCase):
 
     def test_neutral_default_preview_accounts_for_both_order_legs(self):
         neutral = feature_set(position_24h=.5,position_7d=.5,ema_slope_4h=0.,ema_slope_24h=0.,structure_4h=0.,structure_24h=0.,funding_sign=0.)
-        result = build_setup('TESTUSDT',neutral,MARKET)
+        result = build_setup('TESTUSDT',neutral,MARKET,dict(minimum_grid_net_usdt=1.))
         self.assertTrue(result['eligible'],result['reason'])
         self.assertEqual(result['preview']['order_count'],2*result['grids'])
         self.assertGreaterEqual(result['preview']['profit_per_grid_min'],1.)
@@ -252,3 +252,41 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(observed[-1].adaptive_liquidation_clearance_pct,.01)
         from trader.strategies.kucoin_grid import GridConfig
         self.assertFalse(GridConfig(pair='HISTORICAL',low=80.,high=120.).adaptive_range_stops)
+
+    def test_default_accepts_positive_sub_dollar_cash_grids_and_reports_floor(self):
+        result = build_setup('TESTUSDT',feature_set(),MARKET,dict(preview_fn=safe_preview))
+        historical = build_setup('TESTUSDT',feature_set(),MARKET,PARAMS)
+        self.assertTrue(result['eligible'],result['reason'])
+        self.assertGreater(result['preview']['profit_per_grid_min'],0.)
+        self.assertLess(result['preview']['profit_per_grid_min'],1.)
+        self.assertGreater(result['grids'],historical['grids'])
+        self.assertEqual(result['minimum_grid_net_usdt'],0.)
+        self.assertEqual(result['target_profit_per_grid'],0.)
+        self.assertEqual(historical['minimum_grid_net_usdt'],1.)
+        self.assertGreaterEqual(historical['preview']['profit_per_grid_min'],1.)
+        for buy,sell in zip(result['levels'],result['levels'][1:]):
+            self.assertGreater(grid_cash_profit(result['quantity'],buy,sell),0)
+        self.assertIn('display',result['preview']['nominal_profit_basis'])
+
+    def test_exact_break_even_rejected_but_small_genuine_cash_profit_allowed(self):
+        self.assertEqual(grid_cash_profit(1,4997,5003),0)
+        self.assertGreater(grid_cash_profit(1,4996,5002),0)
+        self.assertLess(grid_cash_profit(1,4998,5004),0)
+        def boundary_setup(low,high,entry):
+            data = feature_set(price=entry,low_7d=low,high_7d=high,low_24h=low,high_24h=high,
+                               atr_1m=1.,position_24h=.8,position_7d=.8,ema_slope_4h=-.5,
+                               ema_slope_24h=-.5,structure_4h=-1.,structure_24h=-1.,funding_sign=1.)
+            return build_setup('BOUNDARY',data,dict(MARKET,price=entry,tick_size=1.),
+                               dict(min_grids=2,max_grids=2,preview_fn=lambda config:dict(liquidation_price_short=10000.)))
+        self.assertFalse(boundary_setup(4991,5003,5000)['eligible'])
+        positive = boundary_setup(4990,5002,4999)
+        self.assertTrue(positive['eligible'],positive['reason'])
+        self.assertGreater(positive['preview']['profit_per_grid_min'],0.)
+        self.assertLess(positive['preview']['profit_per_grid_min'],.01)
+
+    def test_minimum_grid_net_parameter_rejects_invalid_values(self):
+        for value in (-1.,float('nan'),float('inf'),True,False,None,'1'):
+            with self.subTest(value=value):
+                result = build_setup('TESTUSDT',feature_set(),MARKET,dict(preview_fn=safe_preview,minimum_grid_net_usdt=value))
+                self.assertFalse(result['eligible'])
+                self.assertIn('minimum_grid_net_usdt',result['reason'])

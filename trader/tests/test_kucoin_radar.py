@@ -242,11 +242,11 @@ class RadarTests(unittest.TestCase):
         self.assertEqual(result['radar'][0]['candle_coverage']['fraction'], 1)
 
     @patch('trader.research.kucoin_radar.features', return_value={})
-    def test_unknown_net_floor_is_coverage_gap_but_known_subtarget_floor_is_not(self, _):
+    def test_explicit_one_dollar_floor_distinguishes_unknown_from_subtarget(self, _):
         for floor, missing in [(None, True), (.5, False)]:
             form = dict(setup(), preview={'profit_per_grid_min': floor})
             with patch('trader.research.kucoin_radar.build_setup', return_value=form):
-                result = radar([dict(pair='T', bars=candles(), market=market())], NOW)
+                result = radar([dict(pair='T', bars=candles(), market=market())], NOW,parameters={'setup':{'minimum_grid_net_usdt':1.}})
             self.assertEqual(result['radar'], [])
             self.assertEqual(result['rejected'][0]['coverage_issue'], missing)
 
@@ -295,6 +295,38 @@ class RadarTests(unittest.TestCase):
                     result = radar([record], NOW)
                 self.assertEqual(normalize.call_count, 1)
                 self.assertEqual(result['radar'], [])
+
+    @patch('trader.research.kucoin_radar.features', return_value={})
+    def test_default_positive_cash_grids_below_one_dollar_rank_by_income(self, unused):
+        def forms(pair,*args):
+            return dict(setup(),preview={'profit_per_grid_min':.1 if pair == 'LOW' else .5,
+                                        'kucoin_profit_usdt_min':-10.})
+        with patch('trader.research.kucoin_radar.build_setup',forms):
+            result = radar([dict(pair=pair,bars=candles(),market=market()) for pair in ('LOW','HIGH')],NOW)
+        self.assertEqual([row['pair'] for row in result['radar']],['HIGH','LOW'])
+        for row in result['radar']:
+            self.assertEqual(row['minimum_grid_net_usdt'],0.)
+            self.assertEqual(row['grid_income_per_hour'],row['score']*row['actual_net_usdt_per_grid'])
+
+    @patch('trader.research.kucoin_radar.features', return_value={})
+    def test_default_rejects_zero_negative_and_unknown_actual_cash_net(self, unused):
+        for floor,missing in ((0.,False),(-.01,False),(None,True),(float('nan'),True),(True,True)):
+            with self.subTest(floor=floor):
+                with patch('trader.research.kucoin_radar.build_setup',return_value=dict(setup(),preview={'profit_per_grid_min':floor})):
+                    result = radar([dict(pair='T',bars=candles(),market=market())],NOW)
+                self.assertFalse(result['radar'])
+                self.assertEqual(result['rejected'][0]['coverage_issue'],missing)
+                if not missing:
+                    self.assertIn('positive',result['rejected'][0]['reason'])
+
+    @patch('trader.research.kucoin_radar.features', return_value={})
+    @patch('trader.research.kucoin_radar.build_setup', setup)
+    def test_radar_validates_requested_cash_minimum_even_for_supplied_form(self, unused):
+        for minimum in (False,-1.,float('nan'),'1'):
+            result = radar([dict(pair='T',bars=candles(),market=market())],NOW,
+                           parameters={'setup':{'minimum_grid_net_usdt':minimum}})
+            self.assertFalse(result['radar'])
+            self.assertIn('minimum_grid_net_usdt',result['rejected'][0]['reason'])
 
 
 if __name__ == '__main__':

@@ -157,4 +157,4 @@ class ObservedProfitAllModesTests(unittest.TestCase):
                        for buy, sell in zip(levels, levels[1:])]
             self.assertAlmostEqual(result['preview']['profit_per_grid_min'], float(min(profits)), places=8)
             self.assertAlmostEqual(result['preview']['profit_per_grid_max'], float(max(profits)), places=8)
-            self.assertGreaterEqual(result['preview']['profit_per_grid_min'], 1)
+            self.assertGreater(result['preview']['profit_per_grid_min'], 0)

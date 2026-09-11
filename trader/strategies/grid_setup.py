@@ -18,15 +18,17 @@ position in the proposed range and contract the range to N integer steps.
 Quantity is BASE units rounded down to multiplier*lot_size. Reserve never buys
 exposure. Sizing sets q <= used*L/(legs*N*entry), where neutral has two legs,
 and other modes one, additionally reserving taker opening
-fees from the used margin. +1 is a net FLOOR across all adjacent pairs; tick/lot
-constraints prevent an exact +1 guarantee. Both the user margin-per-grid formula
-and actual fixed-quantity fill PnL must clear the floor. Highest feasible N wins. Reducing N
+fees from the used margin. Default admission requires strictly positive planned
+cash net after both fill fees at every adjacent pair. An explicit nonnegative
+minimum_grid_net_usdt retains optional cash-floor research (1 means >=1 USDT).
+Only actual base-quantity cash PnL governs admission; nominal margin/grids and
+percent previews are display estimates. Highest feasible N wins. Reducing N
 widens the step. A step wider than median minute range emits a warning; actual
 crossings determine the radar ranking, without an extra economic rejection.
 Liquidation must clear BOTH 10% of range width and 10% of the losing edge price.
 """
 import math
-from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
+from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_FLOOR
 from types import SimpleNamespace
 
 from trader.strategies.grid_features import features
@@ -40,6 +42,31 @@ FIXED_RESERVED_MARGIN = 200.
 DEFAULT_WEIGHTS = {'ema_slope_4h': 2., 'ema_slope_24h': 2.,
                    'structure_4h': 1., 'structure_24h': 1.,
                    'position_24h': 1.5, 'position_7d': 1.5, 'funding_sign': .5}
+
+
+def minimum_grid_net_usdt(parameters=None):
+    """Zero requests strictly positive cash net; a positive value is a cash floor."""
+    value = (parameters or {}).get('minimum_grid_net_usdt',0.)
+    if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or value < 0:
+        raise ValueError('minimum_grid_net_usdt must be a finite nonnegative number')
+    return float(value)
+
+
+def grid_cash_profit(quantity, buy_price, sell_price):
+    """Exact decimal planned USDT cash net from base quantity and both fill fees.
+
+    Decimal input conversion keeps a mathematical break-even at zero instead of
+    admitting floating-point crumbs. This calculation imposes no USDT epsilon.
+    """
+    try:
+        values = tuple(Decimal(str(value)) for value in (quantity,buy_price,sell_price))
+    except InvalidOperation as exc:
+        raise ValueError('Cash profit inputs must be finite positive numbers') from exc
+    if (any(isinstance(value,bool) for value in (quantity,buy_price,sell_price)) or
+            any(not value.is_finite() or value <= 0 for value in values)):
+        raise ValueError('Cash profit inputs must be finite positive numbers')
+    quantity,buy,sell = values
+    return quantity*(sell-buy-Decimal('0.0006')*(buy+sell))
 
 
 def grid_profit_preview(low, high, grids, leverage, used_margin, price=None, tick_size=None):
@@ -163,6 +190,12 @@ def build_setup(pair, data, market, parameters=None):
         result['reason'] = data.get('reason', 'Invalid feature history')
         return result
     try:
+        minimum = minimum_grid_net_usdt(params)
+        cash_floor = Decimal(str(minimum))
+        requirement = ('strictly positive actual per-order cash net' if minimum == 0 else
+                       f'at least {minimum:g} USDT actual per-order cash net')
+        result.update(minimum_grid_net_usdt=minimum,target_profit_per_grid=minimum,
+                      target_semantics=requirement+' after both 0.06% fill fees; nominal previews are display only')
         direction, score, components, weights = _direction(data, params)
         result.update(direction=direction, direction_score=score, direction_components=components,
                       direction_weights=weights,
@@ -233,7 +266,7 @@ def build_setup(pair, data, market, parameters=None):
             level_cache = {n:_levels(lower,upper,entry,n,tick) for n in range(min_n,max_n+1)}
             attempt = {'range_stage':stage,'losing_width_factor':factor,'leverage':leverage,
                        'used_margin':used,'reserved_margin':reserve,'low':lower,'high':upper,
-                       'eligible':False,'reason':'No valid lot/tick grid reaches +1 USDT net'}
+                       'eligible':False,'reason':'No valid lot/tick grid produces '+requirement}
             result['attempts'].append(attempt)
             for n in range(max_n,min_n-1,-1):
                 prices = level_cache[n]
@@ -244,15 +277,12 @@ def build_setup(pair, data, market, parameters=None):
                         direction == 'short' and entry < centre-tick*1e-6):
                     attempt['reason'] = 'Clipped range entry is outside the required half'
                     continue
-                margin_preview = grid_profit_preview(prices[0],prices[-1],n,leverage,used,entry,tick)
-                if margin_preview['kucoin_profit_usdt_min'] < 1.:
-                    continue
                 # Opening taker fees remain within used margin rather than silently exceeding $1000.
                 quantity = _round(used*leverage/(legs*n*entry*(1+leverage*fee)),quantity_unit)
                 if quantity <= 0:
                     continue
-                min_profit = quantity*((prices[-1]-prices[-2])-fee*(prices[-1]+prices[-2]))
-                if min_profit < 1.:
+                min_profit = grid_cash_profit(quantity,prices[-2],prices[-1])
+                if min_profit <= 0 or min_profit < cash_floor:
                     continue
                 step = prices[1]-prices[0]
                 config = dict(pair=pair,low=prices[0],high=prices[-1],grids=n,leverage=leverage,
@@ -262,9 +292,17 @@ def build_setup(pair, data, market, parameters=None):
                               adaptive_liquidation_clearance_pct=.01)
                 estimate = dict(_preview(config,params.get('preview_fn')))
                 step = estimate.get('grid_step',step)
-                min_profit = min(min_profit, estimate.get('profit_per_grid_min', min_profit))
-                if min_profit < 1.:
-                    attempt['reason'] = 'Actual per-order net PnL is below +1 USDT'
+                modeled_net = estimate.get('profit_per_grid_min',min_profit)
+                if isinstance(modeled_net,bool) or not isinstance(modeled_net,(int,float,Decimal)):
+                    attempt['reason'] = 'Actual per-order net PnL is unknown'
+                    continue
+                modeled_cash = Decimal(str(modeled_net))
+                if not modeled_cash.is_finite():
+                    attempt['reason'] = 'Actual per-order net PnL is unknown'
+                    continue
+                min_profit = min(min_profit,modeled_cash)
+                if min_profit <= 0 or min_profit < cash_floor:
+                    attempt['reason'] = 'Actual per-order cash net fails '+requirement
                     continue
                 liq_long = estimate.get('liquidation_price_long',estimate.get('estimated_liquidation_price'))
                 liq_short = estimate.get('liquidation_price_short',estimate.get('estimated_liquidation_price_high',estimate.get('estimated_liquidation_price')))
@@ -297,9 +335,12 @@ def build_setup(pair, data, market, parameters=None):
                         (direction in ('short','neutral') and not stops['short'] < liq_short)):
                     attempt['reason'] = '5% range exit stop must precede losing-side liquidation'
                     continue
+                margin_preview = grid_profit_preview(prices[0],prices[-1],n,leverage,used,entry,tick)
                 estimate.update({key:value for key,value in margin_preview.items() if key.startswith('kucoin_profit_')})
-                estimate.update(profit_per_grid_min=min_profit,
-                                profit_per_grid_max=quantity*(step-fee*(prices[0]+prices[1])),
+                estimate.update(profit_per_grid_min=float(min_profit),
+                                profit_per_grid_max=float(grid_cash_profit(quantity,prices[0],prices[1])),
+                                actual_profit_basis='base quantity times price difference minus both fill fees',
+                                nominal_profit_basis='margin/grids estimate and percent preview; display only, not admission',
                                 quantity=quantity, order_count=estimate.get('order_count',legs*n),
                                 range_exit_stop_low=analytic_low,range_exit_stop_high=analytic_high,
                                 app_stop_low=stops['long'],app_stop_high=stops['short'],
@@ -312,7 +353,7 @@ def build_setup(pair, data, market, parameters=None):
                 if step > movement + tick*1e-6:
                     result['warnings'].append('Step exceeds typical 1m movement; reducing grid count widens the step. Highest feasible count minimizes step; use actual crossings to rank.')
                 range_evidence.update(final_low=prices[0],final_high=prices[-1])
-                result.update(eligible=True,reason=f'{result["direction_reason"]}; safe {leverage}x, {n} grids, net floor {min_profit:.4f} USDT',
+                result.update(eligible=True,reason=f'{result["direction_reason"]}; safe {leverage}x, {n} grids, planned cash net {min_profit:.8g} USDT',
                               low=prices[0],high=prices[-1],levels=prices,step=step,interval=step,grids=n,leverage=leverage,
                               used_margin=used,reserved_margin=reserve,quantity=quantity,contracts_per_grid=quantity/multiplier,
                               per_grid_notional=quantity*entry,stop_loss=stops.get(direction,stops.get('long')),
@@ -322,10 +363,9 @@ def build_setup(pair, data, market, parameters=None):
                               adaptive_liquidation_clearance_pct=.01,
                               hard_stop_low=stops['long'],hard_stop_high=stops['short'],
                               stop_tick_adjustment='App stops round inward by less than one tick, closing no later than 5% outside each edge',
-                              target_profit_per_grid=1.,target_semantics='both margin-per-grid estimate and actual per-order PnL >=1 after two 0.06% fees; exact equality limited by tick/lot sizes',
                               opening_fee_budget=legs*quantity*n*entry*fee,typical_movement_1m=movement)
                 return result
-        result['reason'] = 'No safe positive-lot setup reaches +1 USDT after fees at fixed 5x with 1000 used + 200 reserve (1200 total)'
+        result['reason'] = 'No safe positive-lot setup produces '+requirement+' after fees at fixed 5x with 1000 used + 200 reserve (1200 total)'
     except (KeyError, TypeError, ValueError, OverflowError) as exc:
         result['reason'] = str(exc)
     return result
