@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-09-11",
+  "coverage_complete": false,
+  "basis": "Manually maintained ecosystem classifications from public KuCoin educational material; not the exchange Solana-tab universe.",
+  "historical_basis": "Retrospective operational classification; not point-in-time historical exchange membership evidence.",
+  "contract_identifier_policy": "Apply these classifications only if the independent contract universe supplies the exact identifier. This file does not assert present or historical tradability.",
+  "members": {
+    "SOLUSDTM": {
+      "basis": "SOL is the native asset of Solana.",
+      "sources": ["https://www.kucoin.com/learn/glossary/solana-sol"]
+    },
+    "RAYUSDTM": {
+      "basis": "Raydium and its RAY token belong to the Solana DEX ecosystem.",
+      "sources": ["https://www.kucoin.com/learn/crypto/top-decentralized-exchanges-dexs-in-the-solana-ecosystem"]
+    },
+    "JUPUSDTM": {
+      "basis": "Jupiter and its JUP token are part of the Solana DEX ecosystem.",
+      "sources": ["https://www.kucoin.com/learn/web3/what-is-jupiter-jup-solana-dex-and-how-to-use-it"]
+    },
+    "JTOUSDTM": {
+      "basis": "Jito and the JTO governance token are part of Solana staking infrastructure.",
+      "sources": ["https://www.kucoin.com/en-au/price/JTO", "https://www.kucoin.com/learn/crypto/restaking-on-solana-comprehensive-guide"]
+    },
+    "ORCAUSDTM": {
+      "basis": "Orca and its ORCA token belong to the Solana DEX ecosystem.",
+      "sources": ["https://www.kucoin.com/learn/crypto/top-decentralized-exchanges-dexs-in-the-solana-ecosystem"]
+    }
+  },
+  "non_members": {
+    "XBTUSDTM": {
+      "basis": "Operational classification of the native Bitcoin asset, not wrapped Bitcoin tokens on other networks.",
+      "sources": ["https://www.kucoin.com/knowledge-base/Knowledge/what-is-bitcoin-btc", "https://www.kucoin.com/docs-new/rest/futures-trading/market-data/get-all-symbols"]
+    },
+    "ETHUSDTM": {
+      "basis": "Operational classification of native Ether on Ethereum, not wrapped Ether tokens on other networks.",
+      "sources": ["https://www.kucoin.com/learn/glossary/ethereum-eth"]
+    }
+  }
+}
