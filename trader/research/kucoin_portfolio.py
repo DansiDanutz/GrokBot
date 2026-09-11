@@ -12,7 +12,7 @@ HOUR_MS = 3600000
 DAY_MS = 24 * HOUR_MS
 METRICS = ('completed_grids', 'completed_grids_per_hour', 'completed_grids_per_day',
     'completed_grids_per_hour_at_net_1_usdt', 'completed_at_target', 'completed_below_target',
-    'grid_profit', 'grid_net_profit', 'seed_pnl', 'floating_pnl', 'realized_switch_pnl',
+    'grid_profit', 'grid_net_profit', 'grid_income_per_hour', 'grid_income_per_day', 'seed_pnl', 'floating_pnl', 'realized_switch_pnl',
     'realized_close_pnl', 'funding', 'fees', 'net', 'max_drawdown', 'max_drawdown_fraction_of_margin',
     'max_unrealized_loss', 'max_unrealized_loss_conservative_bound',
     'max_drawdown_conservative_bound', 'max_drawdown_conservative_fraction_of_margin', 'closest_liquidation_range_pct', 'stop_loss_hits',
@@ -82,6 +82,8 @@ def _metrics(report, bots):
         completed_grids_per_hour_at_net_1_usdt=target/hours,
         completed_at_target=target, completed_below_target=len(fills)-target,
         grid_profit=sum(s.grid_profit for s in states), grid_net_profit=sum(s.grid_net_profit for s in states),
+        grid_income_per_hour=sum(s.grid_net_profit for s in states)/hours,
+        grid_income_per_day=sum(s.grid_net_profit for s in states)/hours*24,
         seed_pnl=sum(s.seed_pnl for s in states), floating_pnl=sum(floating_pnl(s, s.price) for s in states),
         realized_switch_pnl=sum(row['gross_pnl'] for row in report['ledger']
             if row['bot_id'] in ids and row['kind'] == 'replacement'),

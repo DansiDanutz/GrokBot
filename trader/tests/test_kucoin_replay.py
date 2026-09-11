@@ -325,3 +325,15 @@ class ReplayTests(unittest.TestCase):
             report['bots'] = [dict(active=True, state=SimpleNamespace(status='running', config=SimpleNamespace(pair='A')))]
             _scan(MemorySnapshot(), report, START, {})
             self.assertEqual(scan_call.call_count, 2)
+
+    @patch('trader.research.kucoin_replay.radar', side_effect=scan)
+    def test_realized_grid_income_rates_exclude_seed_pnl_and_use_window_hours(self, unused):
+        snapshot = MemorySnapshot()
+        original = snapshot.candles
+        snapshot.candles = lambda pair, start, end: [dict(row, low=97, high=103)
+                                                    for row in original(pair, start, end)]
+        result = run_window(snapshot, START, START+2*HOUR)
+        metrics = result['metrics']
+        self.assertGreater(metrics['grid_net_profit'], 0)
+        self.assertAlmostEqual(metrics['grid_income_per_hour'], metrics['grid_net_profit']/2)
+        self.assertAlmostEqual(metrics['grid_income_per_day'], metrics['grid_net_profit']*12)
