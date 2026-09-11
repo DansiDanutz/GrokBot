@@ -53,4 +53,26 @@ The shared k(step) implementation lives in `trader/radar/rates.py`: the standard
 coefficient is `1.9 * sqrt(step_pct / 0.8)`; at turnover >=50M it is
 `0.45 * sqrt(step_pct / 0.52)`. The table above shows the unchanged base-step values.
 
-Entry boundaries use repeated pivots in the last seven days of completed hourly candles: two candles confirm each pivot, two distinct tests at least three hours apart confirm a cluster, and clustering tolerance is the smaller of 0.25 hourly ATR and 0.5% of price. The nearest confirmed support below price anchors Long; resistance above price anchors Short; Neutral requires both. Two completed closes beyond a former resistance/support allow it to change roles. Setups without the required level are withheld. These are modeled levels, not a guarantee of support. Entered boundaries remain fixed; the paper bot exits on the first observed boundary touch, including a loss.
+Entry boundaries use repeated pivots in the last seven days of completed hourly candles: two candles confirm each pivot, two distinct tests at least three hours apart confirm a cluster, and clustering tolerance is the smaller of 0.25 hourly ATR and 0.5% of price. Every direction requires the nearest confirmed support below price and resistance above price. Two completed closes beyond a former resistance/support allow it to change roles. Setups without both required levels are withheld. These are modeled levels, not a guarantee of support. Entered boundaries remain fixed; the paper bot exits on the first observed boundary touch, including a loss.
+
+
+## Range capacity and fees — Dan clarification, 11 September 2026
+
+New entries in every direction require both confirmed support and resistance;
+their fixed prices define the range. Do not expand a range to accommodate a
+requested count. Choose the number of geometric intervals from that range and
+the target step (0.8%, 0.52% on majors, 0.45% for Neutral), capped at 200.
+The actual step is 100 × ((high / low) ** (1 / grids) − 1); use it for the
+expected grids/hour estimate and the bot, rather than the target step.
+
+Validate every adjacent pair: quantity × (sell − buy) − quantity × fee_rate ×
+(buy + sell) must be positive and at least 20% of the two fees. The shared
+configurable safety-margin default is 0.20; the paper fee is 0.0006 per fill.
+For geometric spacing this inequality is identical at every price because
+quantity and the lower line price factor out. A 100..102 range with 70 grids
+fails; fewer grids can fit. Radar reduces the count without moving the bounds;
+if even one interval fails it reports GRID_FEES and withholds the setup.
+Externally supplied counts fail admission if their actual spacing fails, even
+when their claimed step is larger. MISSING_STRUCTURE means either chart level
+is absent. Existing open grids are not resized. This is a fee feasibility check;
+funding, initial inventory costs, and exit losses still affect total bot net PnL.

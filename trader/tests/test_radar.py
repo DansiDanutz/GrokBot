@@ -1,3 +1,4 @@
+from trader.radar.rates import expected_grids_per_hour
 import json
 from pathlib import Path
 import sqlite3
@@ -71,12 +72,12 @@ class RadarTests(unittest.TestCase):
         self.assertEqual(rows["TURNUSDTM"]["direction"], "TURNING-UP")
         self.assertEqual(rows["NEUTRALUSDTM"]["direction"], "NEUTRAL")
         self.assertFalse(rows["ILLIQUIDUSDTM"]["passes_liquidity"])
-        self.assertEqual(rows["UPUSDTM"]["step_pct"], 0.8)
-        self.assertEqual(rows["XBTUSDTM"]["step_pct"], 0.52)
+        self.assertGreaterEqual(rows["UPUSDTM"]["step_pct"], 0.8)
+        self.assertGreaterEqual(rows["XBTUSDTM"]["step_pct"], 0.52)
         self.assertAlmostEqual(rows["UPUSDTM"]["expected_grids_per_hour"],
-                               round(1.9 * rows["UPUSDTM"]["atr_1h_pct"] / 0.8, 2))
+                               round(expected_grids_per_hour(rows["UPUSDTM"]["atr_1h_pct"], rows["UPUSDTM"]["step_pct"], rows["UPUSDTM"]["turnover_24h_usdt"]), 2))
         self.assertAlmostEqual(rows["XBTUSDTM"]["expected_grids_per_hour"],
-                               round(0.45 * rows["XBTUSDTM"]["atr_1h_pct"] / 0.52, 2))
+                               round(expected_grids_per_hour(rows["XBTUSDTM"]["atr_1h_pct"], rows["XBTUSDTM"]["step_pct"], rows["XBTUSDTM"]["turnover_24h_usdt"]), 2))
         self.assertLess(rows["UPUSDTM"]["range_low"], rows["UPUSDTM"]["price"])
         self.assertGreaterEqual(rows["UPUSDTM"]["range_high"], rows["UPUSDTM"]["high_7d"])
         self.assertLessEqual(rows["UPUSDTM"]["grids"], 200)
