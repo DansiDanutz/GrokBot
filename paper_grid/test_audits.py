@@ -61,6 +61,13 @@ class AuditTests(unittest.TestCase):
             for suffix in ('html','md','json'):
                 self.assertTrue((self.root/'audits'/(r['id']+'.'+suffix)).is_file())
 
+    def test_generation_requests_only_due_observation_windows(self):
+        with patch.object(audits.metric_evidence, 'load',
+                          wraps=audits.metric_evidence.load) as loader:
+            records = self.generate()
+        expected = [(row['start_at'], row['end_at']) for row in records]
+        self.assertEqual(loader.call_args.kwargs.get('windows'), expected)
+
     def test_daily_and_weekly_local_boundaries(self):
         records = self.generate(timestamp('2026-09-14T09:00:00+03:00'))
         weekly = next(r for r in records if r['kind']=='weekly')

@@ -424,7 +424,8 @@ def generate_due(runtime=cli.DEFAULT_RUNTIME, now=None):
         if not due:
             return []
         latest = max(w[2] for w in due)
-        doc = metric_evidence.load(runtime,doc,latest)
+        doc = metric_evidence.load(
+            runtime, doc, latest, windows=[(begin, end) for _, begin, end in due])
         created = []
         for kind, begin, end in due:
             prior = None
