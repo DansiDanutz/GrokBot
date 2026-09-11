@@ -68,16 +68,16 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(weekly['end_at'], timestamp('2026-09-14T09:00:00+03:00'))
         for r in records:
             if r['kind']=='daily':
-                self.assertEqual(datetime.fromtimestamp(r['end_at'], audits.ZONE).hour, 9)
+                self.assertEqual(datetime.fromtimestamp(r['end_at'], audits.ZONE).hour, 0)
         daily = [r for r in records if r['kind']=='daily']
         self.assertEqual(daily[1]['start_at'], daily[0]['end_at'])
 
     def test_dst_daily_is_calendar_time_and_audit_is_elapsed(self):
-        before = timestamp('2026-03-28T09:00:00+02:00')
+        before = timestamp('2026-03-29T00:00:00+02:00')
         after = audits._next('daily', before)
         self.assertEqual(after-before, 23*3600)
         self.assertEqual(audits._next('audit48h', before)-before, 48*3600)
-        autumn = timestamp('2026-10-24T09:00:00+03:00')
+        autumn = timestamp('2026-10-25T00:00:00+03:00')
         self.assertEqual(audits._next('daily', autumn)-autumn, 25*3600)
         monday = timestamp('2026-03-23T09:00:00+02:00')
         self.assertEqual(audits._next('weekly', monday), timestamp('2026-03-30T09:00:00+03:00'))

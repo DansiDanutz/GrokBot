@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 import time
 
-from paper_grid import audits, coinglass, retention, telemetry_metrics, trade_metrics
+from paper_grid import calendar_day, audits, coinglass, retention, telemetry_metrics, trade_metrics
 
 ARMS = ('baseline', 'liquidation_filter')
 MAX_BYTES = 200 * 1024 * 1024
@@ -33,7 +33,7 @@ DEFINITIONS = [
     'Good trades are closes with positive net PnL. Profit and loss include entry fees, exit fees and modeled funding already.',
     'Fees paid counts entry/add fees and exit fees paid inside the window; it must not be subtracted again from net PnL.',
     'Add cohorts classify completed position lifecycles. Unknown means the opening history is unavailable.',
-    'Daily chart buckets use UTC dates; weekly and daily audit schedules retain their own local-time boundaries.',
+    'Daily chart buckets and halt days use Europe/Bucharest midnight boundaries; archive files retain UTC dates.',
 ]
 LIMITATIONS = [
     'Paper results are simulated and do not establish future profitability or live execution quality.',
@@ -241,7 +241,7 @@ def _window(doc, start, end, trades):
     days, coins, shortlist, scans = {}, {}, set(), {}
 
     def day(at):
-        stamp = retention._day(at)
+        stamp = calendar_day.day_label(at)
         return days.setdefault(stamp, dict(day=stamp, checks=0, **{a: _counts() for a in ARMS}))
 
     def coin(symbol):
@@ -250,8 +250,8 @@ def _window(doc, start, end, trades):
                                              filtered_eligible=0, **{a: _counts() for a in ARMS}))
 
     # Preserve zero-count days for honest chart spacing, bounded to the run.
-    for at in range(int(start)//DAY, int(end)//DAY+1):
-        day(max(start, at*DAY))
+    for at in calendar_day.day_samples(start, end):
+        day(at)
     for obs in success:
         day(obs['time'])['checks'] += 1
         market = obs.get('market', {})

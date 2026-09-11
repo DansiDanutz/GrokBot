@@ -1,6 +1,6 @@
 """Pure lifecycle reporting from saved paper evidence; no provider or write path."""
 import math
-from paper_grid import coinglass, engine
+from paper_grid import calendar_day, coinglass, engine
 from paper_grid.metric_constants import (ARMS, CLOSE_REASONS, SYMBOL,
     SECONDS_PER_HOUR, MAX_REPORTED_TRADES, MAX_REPORTED_SYMBOLS, DEFAULT_TICK_SECONDS,
     COHORT_NOTE, EXCURSION_NOTE)
@@ -223,10 +223,11 @@ def _summary(trades):
         per_symbol_total=len(symbols))
 
 
-def report(doc,arm,start,end,include_start=False):
+def report(doc,arm,start,end,include_start=False,include_end=True):
     """Window closes retain full known lifecycle history; exposure clips to window."""
     closed,active=lifecycles(doc.get('events',[]),end)
-    selected=[t for t in closed[arm] if (start<=t['closed_at'] if include_start else start<t['closed_at'])]
+    selected=[t for t in closed[arm] if calendar_day.contains(t['closed_at'], start, end,
+              include_start=include_start, include_end=include_end)]
     observations={o['time']:o for o in doc.get('observations',[]) if not o.get('skipped')}
     decorated=[dict({k:v for k,v in t.items() if not k.startswith('_')},
                     **_excursions(t,observations,doc.get('config'),doc.get('tick_seconds',DEFAULT_TICK_SECONDS)))

@@ -1,7 +1,7 @@
 """Persistent, read-only portfolio audits; scheduling writes only the audit archive.
 
 48-hour windows are elapsed UTC time from the original experiment start. Daily
-and weekly windows end at 09:00 Europe/Bucharest (Monday for weekly). Reporting
+windows end at Bucharest midnight; weekly ends Monday at 09:00. Reporting
 never changes accounts, fetches data, enables trading, or changes strategy rules.
 """
 import argparse
@@ -18,22 +18,22 @@ import re
 import sys
 import tempfile
 import time
-from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from paper_grid import cli, retention, coinglass, telemetry_metrics, trade_metrics, metric_evidence
+from paper_grid import calendar_day, cli, retention, coinglass, telemetry_metrics, trade_metrics, metric_evidence
 from paper_grid.telemetry_constants import DEFAULT_TICK_SECONDS, DEFAULT_REPORT_SECONDS
 
 KINDS = ('audit48h', 'daily', 'weekly')
 ARMS = ('baseline', 'liquidation_filter')
-ZONE = ZoneInfo('Europe/Bucharest')
+ZONE = calendar_day.ZONE
 MAX_CATCHUP = 8
 ID = re.compile(r'^(audit48h|daily|weekly)-[0-9]{8}T[0-9]{6}Z$')
 LIMITATIONS = [
     'Paper only. No real orders, account transfers, or strategy changes are performed by this report.',
     'Returns are experimental and do not establish profitability or statistical significance.',
     'Equity and drawdown combine recorded per-tick samples after instrumentation with older publication marks; intratick losses may be larger.',
-    'Event windows are (start, end]. Equity uses the last available mark at or before each boundary, with its timestamp disclosed.',
+    'Daily events use [start, end); weekly and 48-hour events use (start, end]. All days use Europe/Bucharest; archive dates remain UTC.',
+    'Equity uses the last available post-tick mark at or before each boundary, with its timestamp disclosed; midnight costs can cross event-window accounting boundaries.',
     'Closed-trade PnL includes lifetime entry/exit fees and modeled funding, including costs incurred before this window.',
     'Fees paid during the window and funding attached to closes are different accounting views; do not subtract them again from net PnL.',
     'Window funding accrual and historical open-position inventory are unavailable in legacy snapshots; no invented period funding total is shown.',
@@ -69,14 +69,16 @@ def _local(at):
 def _next(kind, after):
     if kind == 'audit48h':
         return after + 48 * 3600
+    if kind == 'daily':
+        return calendar_day.next_midnight(after)
     local = datetime.fromtimestamp(after, ZONE)
     day = local.date()
     if kind == 'weekly':
         day += timedelta(days=(0-day.weekday()) % 7)
-    boundary = datetime(day.year, day.month, day.day, 9, tzinfo=ZONE)
+    boundary = datetime(day.year, day.month, day.day, calendar_day.WEEKLY_BOUNDARY_HOUR, tzinfo=ZONE)
     if boundary.timestamp() <= after:
         day += timedelta(days=7 if kind == 'weekly' else 1)
-        boundary = datetime(day.year, day.month, day.day, 9, tzinfo=ZONE)
+        boundary = datetime(day.year, day.month, day.day, calendar_day.WEEKLY_BOUNDARY_HOUR, tzinfo=ZONE)
     return boundary.timestamp()
 
 
@@ -130,8 +132,9 @@ def _atomic_text(path, content):
             os.unlink(name)
 
 
-def _window(rows, start, end):
-    return [r for r in rows if _number(r.get('time')) and start < r['time'] <= end]
+def _window(rows, start, end, *, include_start=False, include_end=True):
+    return [r for r in rows if _number(r.get('time'))
+            and calendar_day.contains(r['time'], start, end, include_start=include_start, include_end=include_end)]
 
 
 def _last(points, at):
@@ -139,8 +142,9 @@ def _last(points, at):
     return matches[-1] if matches else None
 
 
-def _coverage(times, start, end, expected_seconds):
-    times = sorted(set(t for t in times if start < t <= end))
+def _coverage(times, start, end, expected_seconds, *, include_start=False, include_end=True):
+    times = sorted(set(t for t in times if calendar_day.contains(t, start, end,
+                       include_start=include_start, include_end=include_end)))
     gaps = [b-a for a, b in zip([start]+times, times+[end])]
     expected = max(0, math.floor((end-start)/expected_seconds))
     return dict(observed=len(times), expected_approximately=expected,
@@ -204,11 +208,12 @@ def _mark_metrics(doc, arm, start, end):
             estimated_tick_samples=sum(ticks[at][1] for at in tick_times), resolution=resolution))
 
 
-def _arm_metrics(doc, arm, start, end):
+def _arm_metrics(doc, arm, start, end, *, include_start=False, include_end=True):
+    edges = dict(include_start=include_start, include_end=include_end)
     marked = _mark_metrics(doc, arm, start, end)
     first, last = marked['start_mark'], marked['end_mark']
     initial = doc['accounts'][arm].get('statistics', {}).get('initial_equity')
-    events = [e for e in _window(doc.get('events', []), start, end) if e.get('account') == arm]
+    events = [e for e in _window(doc.get('events', []), start, end, **edges) if e.get('account') == arm]
     closes = [e for e in events if e.get('type') == 'close' and _number(e.get('net_pnl'))]
     pnl = [e['net_pnl'] for e in closes]
     realized = sum(pnl)
@@ -216,7 +221,7 @@ def _arm_metrics(doc, arm, start, end):
     fees += sum(e.get('exit_fee', 0) for e in closes if _number(e.get('exit_fee', 0)))
     delta = marked['equity_change']
     counts = Counter(e.get('type', 'unknown') for e in events)
-    return dict(**marked, performance=trade_metrics.report(doc,arm,start,end), closed_trade_net_pnl=realized,
+    return dict(**marked, performance=trade_metrics.report(doc,arm,start,end,**edges), closed_trade_net_pnl=realized,
         non_realized_equity_change_residual=delta-realized if delta is not None else None,
         fills=sum(counts[t] for t in ('open', 'add', 'close')), opens=counts['open'], adds=counts['add'],
         closed_trades=len(pnl), wins=sum(v>0 for v in pnl), losses=sum(v<0 for v in pnl),
@@ -228,14 +233,15 @@ def _arm_metrics(doc, arm, start, end):
         period_funding_accrual=None,
         risk_halts=counts['daily_halt'], deferred_exits=counts['deferred_exit'], event_counts=dict(counts),
         close_reasons=dict(Counter(e.get('reason', 'unknown') for e in closes)),
-        buy_rejections=telemetry_metrics.rejections(events, _window(doc.get('observations', []), start, end), arm),
+        buy_rejections=telemetry_metrics.rejections(events, _window(doc.get('observations', []), start, end, **edges), arm),
         cumulative=dict(initial_equity=initial, marked_equity=last['equity'] if last else None,
             marked_pnl_since_start=last['equity']-initial if last and _number(initial) else None,
             closed_trade_net_since_start=None, closed_trades_since_start=None))
 
 
-def _data_metrics(doc, start, end):
-    observations = _window(doc.get('observations', []), start, end)
+def _data_metrics(doc, start, end, *, include_start=False, include_end=True):
+    edges = dict(include_start=include_start, include_end=include_end)
+    observations = _window(doc.get('observations', []), start, end, **edges)
     executed = [o for o in observations if not o.get('skipped')]
     rejected, filtered_rejected, coins = Counter(), Counter(), {}
     quote_ages, future_quotes = [], 0
@@ -272,23 +278,24 @@ def _data_metrics(doc, start, end):
                 filtered_rejected['coinglass_missing_or_stale' if missing else 'coinglass_filter_not_met'] += 1
     for row in coins.values():
         row['coinglass_missing_rate'] = row['missing_or_stale_coinglass']/row['observations']
-    return dict(cycle_coverage=_coverage([o['time'] for o in executed], start, end, doc.get('tick_seconds', 300)),
+    return dict(cycle_coverage=_coverage([o['time'] for o in executed], start, end, doc.get('tick_seconds', 300), **edges),
         observation_records=len(observations), skipped_records=sum(bool(o.get('skipped')) for o in observations),
         skipped_reasons=dict(Counter(str(o.get('skipped')) for o in observations if o.get('skipped'))),
         coins=coins, baseline_signal_rejections=dict(rejected), additional_filter_rejections=dict(filtered_rejected),
         maximum_quote_age_seconds=max(quote_ages) if quote_ages else None, future_quote_observations=future_quotes,
-        errors=_window(doc.get('errors', []), start, end))
+        errors=_window(doc.get('errors', []), start, end, **edges))
 
 
 def _build(doc, kind, start, end, generated, prior=None):
-    accounts = {arm:_arm_metrics(doc, arm, start, end) for arm in ARMS}
+    edges = dict(include_start=kind == 'daily', include_end=kind != 'daily')
+    accounts = {arm:_arm_metrics(doc, arm, start, end, **edges) for arm in ARMS}
     for arm, metrics in accounts.items():
         previous = prior['accounts'][arm]['cumulative'] if prior else {}
         if start == doc['start_at'] or prior is not None:
             metrics['cumulative']['closed_trade_net_since_start'] = previous.get('closed_trade_net_since_start', 0) + metrics['closed_trade_net_pnl']
             metrics['cumulative']['closed_trades_since_start'] = previous.get('closed_trades_since_start', 0) + metrics['closed_trades']
         metrics['cumulative']['ledger_method'] = 'Original start plus consecutive committed windows of this report cadence; excludes inherited pre-experiment trades.'
-    data = _data_metrics(doc, start, end)
+    data = _data_metrics(doc, start, end, **edges)
     findings = []
     coverage = data['cycle_coverage']
     if coverage['observed'] == 0:
@@ -314,7 +321,7 @@ def _build(doc, kind, start, end, generated, prior=None):
     report = dict(schema=1, id=_identifier(kind, end), kind=kind, mode='paper', severity=severity,
         generated_at=generated, run_start_at=doc['start_at'], window=dict(start_at=start, end_at=end,
             start_utc=_iso(start), end_utc=_iso(end), start_local=_local(start), end_local=_local(end),
-            duration_seconds=end-start, boundary_convention='(start, end]'),
+            duration_seconds=end-start, boundary_convention='[start, end)' if kind == 'daily' else '(start, end]'),
         accounts=accounts, data=data, findings=findings,
         comparison=dict(filtered_minus_baseline_equity_change=delta[1]-delta[0] if all(v is not None for v in delta) else None,
             interpretation='Descriptive paired comparison only; not statistical significance, a causal claim, or a recommendation for live trading.'),

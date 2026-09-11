@@ -1,6 +1,7 @@
 """Deterministic replay checks; no provider, account or runtime access."""
 from copy import deepcopy
 import json
+import hashlib
 from pathlib import Path
 import sys
 import tempfile
@@ -108,6 +109,14 @@ class ReplayTests(unittest.TestCase):
         self.assertGreater(arm['sampled_max_drawdown'], 0)
         self.assertEqual(sum(arm['close_reasons'].values()), 1)
         self.assertLess(arm['net_equity_change'], 0)
+
+    def test_dependency_hashes_cover_day_and_rejection_semantics(self):
+        hashes = replay.replay_fixture(fixture())['provenance']['code_hashes']
+        for name in ('calendar_day.py', 'telemetry_constants.py'):
+            with self.subTest(name=name):
+                self.assertIn(name, hashes)
+                expected = hashlib.sha256((Path(replay.__file__).parent/name).read_bytes()).hexdigest()
+                self.assertEqual(hashes[name], expected)
 
     def test_explicit_override_changes_provenance_without_mutation(self):
         doc = fixture()

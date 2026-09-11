@@ -47,7 +47,7 @@ def _code_hashes():
     directory = Path(__file__).resolve().parent
     return {name: hashlib.sha256((directory / name).read_bytes()).hexdigest()
             for name in ('engine.py', 'market.py', 'coinglass.py', 'experiment.py',
-                         'telemetry_constants.py', 'diagnostics.py')}
+                         'telemetry_constants.py', 'diagnostics.py', 'calendar_day.py')}
 
 
 def _load(runtime):

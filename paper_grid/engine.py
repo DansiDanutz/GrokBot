@@ -8,14 +8,13 @@ Only full orders fitting the displayed top-of-book contract size may fill.
 Thin/missing depth defers exits, including stops; partial fills are not modeled.
 """
 from copy import deepcopy
-from datetime import datetime
 import math
-from zoneinfo import ZoneInfo
+from paper_grid import calendar_day
 from paper_grid.telemetry_constants import BUY_REJECTION_REASONS, POSITION_CAP_EPSILON
 
 
 def default_config():
-    return dict(initial_balance=1000.0, max_positions=2, leverage=1, timezone='Europe/Bucharest',
+    return dict(initial_balance=1000.0, max_positions=2, leverage=1, timezone=calendar_day.ZONE_NAME,
                 position_notional_cap=200.0, tranches=[50.0, 65.0, 85.0],
                 add_drop_pct=[1.0, 2.0], target_net_profit=1.0,
                 fee_rate=0.0006, slippage_rate=0.0002, max_quote_age=90.0,
@@ -38,7 +37,8 @@ def _config(config):
         raise ValueError('paper mode supports only 1x and at most two positions')
     for key, value in c.items():
         if key == 'timezone':
-            ZoneInfo(value)
+            if value != calendar_day.ZONE_NAME:
+                raise ValueError('timezone must be Europe/Bucharest')
         elif key in ('tranches', 'add_drop_pct'):
             if not isinstance(value, list) or not all(_number(v, True) for v in value):
                 raise ValueError('invalid ' + key)
@@ -52,7 +52,7 @@ def _config(config):
 
 
 def _day(now, c):
-    return datetime.fromtimestamp(now, ZoneInfo(c['timezone'])).date().isoformat()
+    return calendar_day.day_label(now)
 
 
 def initial_state(config, now):

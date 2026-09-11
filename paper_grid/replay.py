@@ -135,7 +135,7 @@ def replay_fixture(doc, overrides=None):
     """Return deterministic evidence; never mutate inputs, fetch data or write files."""
     start, config, checkpoint, rows = _fixture(doc, overrides)
     code = {name: hashlib.sha256((Path(__file__).parent / name).read_bytes()).hexdigest()
-            for name in ('engine.py', 'coinglass.py', 'replay.py')}
+            for name in ('engine.py', 'coinglass.py', 'replay.py', 'calendar_day.py', 'telemetry_constants.py')}
     provenance = dict(schema=1, checkpoint_hash=_hash(checkpoint), input_hash=_hash(doc),
                       config_hash=_hash(config), config_overrides=deepcopy(overrides or {}),
                       code_hashes=code, checkpoint_at=start)

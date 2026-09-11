@@ -224,7 +224,9 @@ def _audit(source, identifier, published_at):
         raise ValueError('invalid audit window')
     result = dict(schema=1, id=identifier, kind=source['kind'], mode='paper', published_at=published_at,
                   generated_at=_stamp(source.get('generated_at'), True),
-                  window=dict(start_at=start, end_at=end, duration_seconds=end-start), accounts={},
+                  window=dict(start_at=start, end_at=end, duration_seconds=end-start,
+                      boundary_convention=window.get('boundary_convention')
+                      if window.get('boundary_convention') in ('[start, end)', '(start, end]') else 'unknown'), accounts={},
                   severity=source.get('severity') if source.get('severity') in ('critical', 'warning', 'info') else 'warning')
     for arm in experiment.ARMS:
         row = _object(_object(source.get('accounts')).get(arm))
