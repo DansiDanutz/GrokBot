@@ -8,10 +8,11 @@ from trader.autopilot import policy
 from trader.autopilot.liquidation import enrich
 from trader.autopilot.constants import (MAJORS, DECISION_INTERVAL_S, SNAPSHOT_MAX_INTERVAL_S,
                                         TICK_STALE_ALERT_S, KUCOIN_DOWN_ALERT_S)
-from trader.autopilot.market import ingest_open_minutes, candles_after, rates_at
+from trader.autopilot.market import ingest_open_minutes, candles_after
 from trader.autopilot.storage import atomic_json, read_json, EventLog, _safe
 from trader.data.kucoin_public import PublicClient
-from trader.papergrid.engine import FUNDING_INTERVAL_MS, _mark
+from trader.papergrid.engine import _mark
+from trader.autopilot.funding import charge
 
 
 def guarded_paths(database, state, radar, snapshot):
@@ -86,15 +87,8 @@ class Runner:
             bot = wrapper['engine']; update = updates.get(bot['symbol'])
             if update is None or update['ts_ms'] <= bot['last_ts_ms']:
                 continue
-            first = max(bot['last_ts_ms'], bot['last_funding_ts_ms']) // FUNDING_INTERVAL_MS + 1
-            boundaries = list(range(first * FUNDING_INTERVAL_MS, update['ts_ms'] + 1, FUNDING_INTERVAL_MS))
-            rates = rates_at(self.database, bot['symbol'], boundaries)
-            for boundary in boundaries:
-                rate = rates.get(boundary, bot['funding_pct'])
-                bot['funding_paid'] += bot['position_contracts'] * bot['last_price'] * rate / 100
-                bot['last_funding_ts_ms'] = boundary
-            if boundaries:
-                _mark(bot, bot['last_price'])
+            charge(self.database, bot, update['ts_ms'])
+            _mark(bot, bot['last_price'])
         self.state = adjusted
 
     def _apply(self, updates):

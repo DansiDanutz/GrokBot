@@ -15,7 +15,7 @@ import tempfile
 MAX_BYTES = 2 * 1024 * 1024
 MAX_EVENT_BYTES = 65536
 EVENT_TYPES = frozenset({"OPEN", "FILL", "GRID", "CLOSE", "RANGE_BREAK",
-                         "STOP_LOSS", "ALERT", "RECOVER", "ERROR",
+                         "STOP_LOSS", "RESERVE", "ALERT", "RECOVER", "ERROR",
                          "PROMOTE", "DEMOTE", "DROP", "DIRECTION_CHANGE"})
 
 

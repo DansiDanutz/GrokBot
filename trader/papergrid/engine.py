@@ -2,10 +2,11 @@
 
 from copy import deepcopy
 import math
+from decimal import Decimal
 
 FEE_RATE = 0.0006
 FUNDING_INTERVAL_MS = 8 * 60 * 60 * 1000
-CLOSE_REASONS = ('LABEL_FLIP', 'RANGE_BREAK', 'STOP_LOSS', 'DROPPED', 'MAX_AGE', 'MANUAL', 'PROFILE_UPDATE')
+CLOSE_REASONS = ('LABEL_FLIP', 'RANGE_BREAK', 'STOP_LOSS', 'DROPPED', 'MAX_AGE', 'MANUAL', 'PROFILE_UPDATE', 'RISK_LIMIT')
 
 
 def _number(value, *, positive=False):
@@ -44,9 +45,12 @@ def _position_fill(bot, quantity, price):
 
 
 def _mark(bot, price):
+    if 'hedge_books' in bot:
+        from .neutral import _sync
+        return _sync(bot, price)
     bot['last_price'] = price
     bot['unrealized_pnl'] = bot['position_contracts'] * (price - bot['avg_entry'])
-    bot['equity'] = (bot['notional_usdt'] + bot['realized_pnl'] + bot['unrealized_pnl']
+    bot['equity'] = (bot['notional_usdt'] + bot.get('reserve_added_usdt', 0) + bot['realized_pnl'] + bot['unrealized_pnl']
                      - bot['fees_paid'] - bot['funding_paid'])
     bot['peak_equity'] = max(bot['peak_equity'], bot['equity'])
     drawdown = 100 * (bot['peak_equity'] - bot['equity']) / bot['peak_equity']
@@ -54,6 +58,13 @@ def _mark(bot, price):
 
 
 def open_bot(spec, price, now_ms):
+    if spec.get('accounting_version') == 2 and spec.get('direction') == 'NEUTRAL':
+        from .neutral import open_neutral
+        return open_neutral(spec, price, now_ms)
+    return _open_single_bot(spec, price, now_ms)
+
+
+def _open_single_bot(spec, price, now_ms):
     """Create a paper bot, seeding trend inventory at the supplied opening price."""
     _number(price, positive=True)
     _timestamp(now_ms)
@@ -78,16 +89,25 @@ def open_bot(spec, price, now_ms):
         interval = _number(spec['grid_interval'], positive=True)
         if low + grids * interval > high + high*1e-12:
             raise ValueError('arithmetic grid exceeds configured range')
-        lines = [low + i * interval for i in range(grids + 1)]
+        lines = [float(Decimal(str(low)) + i * Decimal(str(interval))) for i in range(grids + 1)]
     empty = min(range(len(lines)), key=lambda i: abs(lines[i] - price))
-    quantity = spec['notional_usdt'] * spec['leverage'] / grids / price
+    if spec.get('accounting_version') == 2 and spec['direction'] in ('LONG','SHORT'):
+        offset=(price-low)/spec['grid_interval']
+        empty=min(grids,max(0,math.ceil(offset-1e-12) if spec['direction']=='LONG' else math.floor(offset+1e-12)))
+    quantity = spec.get('quantity_per_grid', spec['notional_usdt'] * spec['leverage'] / grids / price)
     _number(quantity, positive=True)
     bot = {key: deepcopy(spec[key]) for key in (
         'bot_id', 'symbol', 'direction', 'range_low', 'range_high', 'step_pct', 'grids',
         'notional_usdt', 'leverage', 'funding_pct')}
-    for key in ('grid_interval', 'profit_pct_min', 'profit_pct_max'):
+    for key in ('grid_interval', 'profit_pct_min', 'profit_pct_max', 'accounting_version',
+                'contract_lots', 'contract_multiplier', 'maintain_margin', 'risk_limit'):
         if key in spec:
             bot[key] = _number(spec[key], positive=True)
+    bot['funding_managed'] = spec.get('funding_managed', False)
+    bot['reserve_added_usdt'] = 0.0
+    bot['opening_price'] = price
+    bot['risk_metadata_at_ms'] = now_ms
+    bot['quantity_is_observed'] = spec.get('quantity_is_observed', 0)
     bot.update(lines=lines, orders=[], empty_line=empty, contracts_per_line=quantity,
                fills=0, completed_grids=0, grid_profit=0.0, realized_pnl=0.0,
                unrealized_pnl=0.0, position_contracts=0.0, avg_entry=0.0,
@@ -104,6 +124,9 @@ def open_bot(spec, price, now_ms):
                   or (spec['direction'] == 'SHORT' and side == 'buy'))
         bot['orders'].append(dict(line=i, side=side,
                                  paired_line=(i - 1 if side == 'sell' else i + 1) if seeded else None))
+    if spec.get('accounting_version') == 2:
+        for order in bot['orders']:
+            order['pair_entry'] = price if order['paired_line'] is not None else None
     seed_count = sum(order['paired_line'] is not None for order in bot['orders'])
     if seed_count:
         _position_fill(bot, quantity * seed_count * (1 if spec['direction'] == 'LONG' else -1), price)
@@ -112,6 +135,8 @@ def open_bot(spec, price, now_ms):
 
 
 def _fund(bot, at, rate):
+    if bot.get('funding_managed'):
+        return
     # Every crossed boundary uses the pre-update position and last known price.
     start = max(bot['last_ts_ms'], bot['last_funding_ts_ms'])
     count = at // FUNDING_INTERVAL_MS - start // FUNDING_INTERVAL_MS
@@ -140,13 +165,14 @@ def _price_update(bot, price, at, events):
         events.append(_event(bot, at, 'FILL', price=fill_price, contracts=quantity,
                              side=sign, fee=fee, line=i))
         if order['paired_line'] is not None and abs(bot['position_contracts']) < position_before:
-            profit = quantity * abs(fill_price - bot['lines'][order['paired_line']])
+            pair_entry = order.get('pair_entry') if bot.get('accounting_version') == 2 else bot['lines'][order['paired_line']]
+            profit = quantity * abs(fill_price - pair_entry)
             bot['completed_grids'] += 1
             bot['grid_profit'] += profit
             events.append(_event(bot, at, 'GRID', price=fill_price, profit=profit,
                                  completed_grids=bot['completed_grids']))
         bot['orders'].remove(order)
-        bot['orders'].append(dict(line=empty, side='sell' if sign == 1 else 'buy', paired_line=i))
+        bot['orders'].append(dict(line=empty, side='sell' if sign == 1 else 'buy', paired_line=i, pair_entry=fill_price))
         bot['orders'].sort(key=lambda row: row['line'])
         bot['empty_line'] = i
         _mark(bot, fill_price)
@@ -169,6 +195,14 @@ def step(bot, tick_or_candle, *, funding_pct=None):
     result = deepcopy(bot)
     if bot['closed_ms'] is not None or at <= bot['last_ts_ms']:
         return result, []
+    if 'hedge_books' in bot:
+        from .neutral import step_neutral
+        events = []
+        for price in path:
+            result['last_ts_ms'] = bot['last_ts_ms']
+            result, emitted = step_neutral(result, price, at)
+            events.extend(emitted)
+        return result, events
     _fund(result, at, rate)
     events = []
     for price in path:
@@ -188,6 +222,9 @@ def step(bot, tick_or_candle, *, funding_pct=None):
 
 def close_bot(bot, price, now_ms, reason):
     """Cancel orders and flatten once, without adding any grid-ledger profit."""
+    if 'hedge_books' in bot:
+        from .neutral import close_neutral
+        return close_neutral(bot, price, now_ms, reason)
     _number(price, positive=True)
     _timestamp(now_ms)
     if reason not in CLOSE_REASONS or now_ms < bot['last_ts_ms']:
