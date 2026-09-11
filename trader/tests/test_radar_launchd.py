@@ -14,6 +14,9 @@ class RadarLaunchdTests(unittest.TestCase):
         self.assertIn('trader.radar', arguments)
         self.assertIn('/Users/davidai/Sandbox/grokbot/market-data/phase-2-20260911/market.sqlite3', arguments)
         self.assertIn('/Users/davidai/Sandbox/grokbot/radar/radar.json', arguments)
+        self.assertIn('scripts/credential-exec.py', arguments)
+        self.assertIn('/Users/davidai/.config/danslab/credentials/telegram.json', arguments)
+        self.assertIn('--telegram-chat-id', arguments)
         self.assertNotIn('EnvironmentVariables', config)
 
 

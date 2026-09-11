@@ -33,6 +33,8 @@ def main(argv=None, printer=print):
     parser.add_argument("--database", required=True)
     parser.add_argument("--json", required=True)
     parser.add_argument("--asof-ms", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--telegram-chat-id")
+    parser.add_argument("--telegram-state")
     args = parser.parse_args(argv)
     report = analyse(args.database, args.asof_ms)
     destination = Path(args.json).expanduser().absolute()
@@ -45,4 +47,9 @@ def main(argv=None, printer=print):
     for key, title in LABELS:
         for line in _table(title, report["sections"][key], key == "majors"):
             printer(line)
+    if args.telegram_chat_id or args.telegram_state:
+        if not args.telegram_chat_id or not args.telegram_state:
+            parser.error("Telegram delivery requires both --telegram-chat-id and --telegram-state")
+        from trader.radar.telegram import deliver
+        deliver(report, args.telegram_chat_id, args.telegram_state)
     return 0
