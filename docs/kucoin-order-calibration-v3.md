@@ -1,5 +1,9 @@
 # KuCoin order-quantity evidence, v3
 
+Dan’s latest rule requires **strictly positive cash after both fill fees**, with
+exit on either exact range boundary. The older +1-USDT comparisons below are
+historical diagnostics; they no longer define success or admission.
+
 Dan authorized inspection of his signed-in Chrome account on 11 September 2026.
 The redacted fixture records only strategy parameters and quantities from History
 → Parameters, plus three RAY Order History cycles. Account identifiers, bot IDs,
@@ -55,7 +59,7 @@ reviewed [margin guide](https://www.kucoin.com/support/48142946142344).
 Those facts justify checking creation and amendment history; they do not prove
 that quantities are unchanged after every amendment.
 
-No new quantity rule is adopted. Automatic +1-USDT grid-count recomputation and
+No new quantity rule is adopted. Automatic quantity-dependent grid-count selection and
 its associated expected income remain unvalidated until a rule predicts the
 independently observed quantities from known creation inputs. Existing sizing in
 v3 candle replays is labeled an uncalibrated sensitivity model, not an executable
@@ -69,14 +73,14 @@ floating PnL, funding and switching costs separate from completed-grid income.
 The following bands use each independently observed order quantity and the whole
 configured grid ladder; Long intervals remain inferred as described above.
 
-| Observed configuration | Net USDT/completed grid, after two fees | Every grid reaches +1? |
-| --- | ---: | --- |
-| HEMI Long 4x, 114 lots | 0.84505008–0.93189072 | No |
-| BTR Long 4x, 68 lots | 0.83070976–0.91629184 | No |
-| MOVR Long 6x, 1698 lots | 1.33836360–1.51971000 | Yes, accounting only |
-| SOL Long 5x, 27 lots | 1.15120116–1.34361828 | Yes, accounting only |
-| RAY Neutral 5x, 17 lots | 0.17701216–0.19502944 | No |
-| Archived BTR Long 5x, 171 lots | 0.57554496–0.65532672 | No |
+| Observed configuration | Net USDT/completed grid, after two fees | Positive after fees? | Legacy ≥1 check |
+| --- | ---: | --- | --- |
+| HEMI Long 4x, 114 lots | 0.84505008–0.93189072 | Yes | No |
+| BTR Long 4x, 68 lots | 0.83070976–0.91629184 | Yes | No |
+| MOVR Long 6x, 1698 lots | 1.33836360–1.51971000 | Yes | Yes |
+| SOL Long 5x, 27 lots | 1.15120116–1.34361828 | Yes | Yes |
+| RAY Neutral 5x, 17 lots | 0.17701216–0.19502944 | Yes | No |
+| Archived BTR Long 5x, 171 lots | 0.57554496–0.65532672 | Yes | No |
 
 These describe captured configurations, not a fresh inventory of the account.
 Passing a cash floor does not establish net profitability or liquidation safety.
@@ -113,18 +117,21 @@ but minimum investment is another KuCoin output; this is not a prediction from
 form inputs or an identified allocation algorithm.
 
 For a candidate grid count N and independently obtained order quantity q(N), the
-cash-floor test is:
+current cash test is strict positivity at every adjacent pair:
 
-`min over adjacent buy/sell prices: q(N) * multiplier * ((sell - buy) - 0.0006 * (buy + sell)) >= 1`.
+`min over adjacent buy/sell prices: q(N) * multiplier * ((sell - buy) - 0.0006 * (buy + sell)) > 0`.
 
-Equivalently, for fixed base quantity Q and buy price B, the minimum step is
-`(1 / Q + 2 * 0.0006 * B) / (1 - 0.0006)`, rounded up to the price tick.
-This algebra assumes the target is one USDT after the two fill fees only.
+For fixed base quantity Q, buy price B and an explicit positive historical
+cash target T, the step floor is `(T / Q + 2 * 0.0006 * B) / (1 - 0.0006)`.
+The new zero-floor rule instead requires a tick-aligned step **strictly greater**
+than `2 * 0.0006 * B / (1 - 0.0006)`. Exact break-even does not pass.
+There is no additional arbitrary USDT epsilon.
 
 Choose the largest feasible N only after evaluating its own quoted quantity and
-rounded interval. Using the observed 30-grid Neutral draft gives 1.021866–1.060494
+rounded interval. For the archived one-USDT comparison, the observed 30-grid Neutral draft gives 1.021866–1.060494
 USDT per completed cycle; the 31-grid draft gives 0.9582696–0.9958536. Thus 30
-passes and 31 fails among these tested previews. This is not an exhaustive
+passes the old one-USDT floor and 31 fails it; both have positive modeled
+cycle cash under the new rule. This is not an exhaustive
 search, a current recommendation, or a universal 30-grid rule. Fees, funding,
 contract rules and prices must still be checked for a real configuration.
 
@@ -132,3 +139,8 @@ Radar income/hour uses crossing-rate estimates times quantity-based minimum
 net USDT/grid. The KuCoin percentage preview is displayed separately and is not
 substituted for actual cash income. Until independent allocation calibration
 passes, automatic forms and historical results remain research only.
+
+The new source policy uses exact decimal arithmetic for cash admission and
+cycle classification. It exits at low/high inclusively and does not wait 5% or
+1% outside the range. Closed positions retain historical risk diagnostics without
+blocking a funded new entry. Actual liquidation is still a trial failure.
