@@ -117,6 +117,7 @@ class PublicSnapshotTests(unittest.TestCase):
         self.export(autopilot_path=source)
         published = json.loads((self.root / 'site/data/autopilot.json').read_text())
         self.assertTrue(published['recent_events_available'])
+        self.assertEqual(len(published['completed_grid_events']), 60)
         self.assertEqual([e['event_id'] for e in published['recent_events']], list(range(11,61)))
         self.assertNotIn('diagnostic', json.dumps(published['recent_events']))
         self.assertEqual(published['account']['starting_equity'], 10000)

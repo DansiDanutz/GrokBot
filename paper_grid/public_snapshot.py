@@ -394,8 +394,9 @@ def export_snapshot(runtime, output_dir, now=None, *, health=None,
             snapshot = dict(schema_version=1, status='unavailable')
         if name == 'autopilot' and 'equity' in snapshot:
             try:
-                recent = read_events(path.parent, max(0, int(published_at*1000)-30*86400000), limit=50, latest=True)
-                snapshot['recent_events'] = _public_events(recent)
+                recent = read_events(path.parent, max(0, int(published_at*1000)-30*86400000), limit=500, latest=True)
+                snapshot['recent_events'] = _public_events(recent[-50:])
+                snapshot['completed_grid_events'] = _public_events([e for e in recent if e['type'] == 'GRID'])
                 snapshot['recent_events_available'] = True
             except (OSError, ValueError):
                 snapshot['recent_events'] = []

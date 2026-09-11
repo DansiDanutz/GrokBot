@@ -22,6 +22,14 @@ class PositionVisibilityTests(unittest.TestCase):
         self.assertEqual(result['realized_pnl'], 10)
         self.assertEqual(result['unrealized_pnl'], -30)
 
+    def test_grid_sizing_and_current_empty_level_are_public(self):
+        source = dict(schema_version=1, equity=10000, open_bots=[dict(bot_id=1,
+            symbol='RAYUSDTM', direction='NEUTRAL', contracts_per_line=17,
+            empty_line=32)], closed_bots=[], groups={}, totals={})
+        result = safe(source)['open_bots'][0]
+        self.assertEqual(result['contracts_per_line'], 17)
+        self.assertEqual(result['empty_line'], 32)
+
     def test_recent_events_are_latest_not_first_and_keep_existing_pagination(self):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder).resolve();log=EventLog(path)
