@@ -1,6 +1,7 @@
 """Storage contracts tested with disposable local SQLite databases."""
 
 from copy import deepcopy
+from contextlib import closing
 import json
 from pathlib import Path
 import sqlite3
@@ -224,11 +225,11 @@ class StoreTests(unittest.TestCase):
                 store.upsert(table, [row])
 
     def test_future_schema_refused_without_downgrade(self):
-        with sqlite3.connect(self.path) as connection:
+        with closing(sqlite3.connect(self.path)) as connection, connection:
             connection.execute("PRAGMA user_version=999")
         with self.assertRaisesRegex(ValueError, "newer"):
             Store(self.path)
-        with sqlite3.connect(self.path) as connection:
+        with closing(sqlite3.connect(self.path)) as connection, connection:
             self.assertEqual(
                 connection.execute("PRAGMA user_version").fetchone()[0], 999
             )
@@ -247,7 +248,7 @@ class StoreTests(unittest.TestCase):
         ):
             with self.assertRaises(sqlite3.OperationalError):
                 Store(self.path)
-        with sqlite3.connect(self.path) as connection:
+        with closing(sqlite3.connect(self.path)) as connection, connection:
             self.assertEqual(
                 connection.execute("PRAGMA user_version").fetchone()[0], 0
             )
@@ -294,7 +295,7 @@ class StoreTests(unittest.TestCase):
             Store(self.path)
 
     def test_unversioned_nonempty_database_fails_closed(self):
-        with sqlite3.connect(self.path) as connection:
+        with closing(sqlite3.connect(self.path)) as connection, connection:
             connection.execute("CREATE TABLE unrelated (id INTEGER)")
         with self.assertRaisesRegex(ValueError, "unversioned"):
             Store(self.path)
