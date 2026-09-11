@@ -72,3 +72,4 @@ npm run verify
 ```
 
 For upstream behavior, follow the pinned runtime's `docs/verification/README.md`. Use its isolated fake-engine fixture, never a model turn against the user's active account. Upstream desktop packaging, paid providers, cloud VMs and fleet task dispatch are separate acceptance work.
+ARCHIVED 2026-09-11, superseded by trader/radar
