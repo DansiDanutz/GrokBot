@@ -2,6 +2,7 @@
 import math
 from trader.strategies.grid_features import features
 from trader.strategies.grid_setup import build_setup, minimum_grid_net_usdt
+from trader.strategies.recommender_setup import build_recommender_setup
 from trader.strategies.candle_coverage import prepare, is_prepared_history
 
 HOUR_MS = 3_600_000
@@ -126,7 +127,7 @@ def _identity_reason(market):
     return None
 
 
-def _market_reason(market, asof_ms, options):
+def _market_reason(market, asof_ms, options, *, funding_check=True):
     candle_only = market.get('filter_mode') == 'candle-only filters'
     observed, age = market.get('observed_at_ms'), options.get('market_max_age_ms', HOUR_MS)
     if not candle_only and (observed is None or not 0 <= asof_ms-observed <= age):
@@ -144,7 +145,7 @@ def _market_reason(market, asof_ms, options):
     listed = _number(market.get('listed_at_ms'))
     if listed is None or asof_ms-listed < 7*DAY_MS:
         return 'listing age unknown or below seven days'
-    if not candle_only:
+    if not candle_only and funding_check:
         funding = market.get('funding_rate_8h')
         if funding is None or abs(funding) > .001:
             return 'normalized eight-hour funding unknown or outside 0.1 percent'
@@ -243,6 +244,87 @@ def _evaluate(record, asof_ms, options, prepared, market):
                 coverage='complete' if prepared['coverage']['fraction'] == 1 else 'partial'), None
 
 
+def _chart_funding(record, asof_ms, candle_only):
+    terms = record.get('funding_terms')
+    if terms is None:
+        return None, None
+    if not isinstance(terms, dict):
+        return None, 'chart funding terms must be a rate/interval mapping or unknown'
+    rate, interval = terms.get('rate'), terms.get('interval_ms')
+    observed = terms.get('observed_at_ms')
+    if (any(type(value) not in (int,float) or not math.isfinite(value) for value in (rate,interval))
+            or interval <= 0 or observed is not None and
+            (type(observed) not in (int,float) or not math.isfinite(observed) or not 0 <= observed <= asof_ms)):
+        return None, 'chart funding terms have invalid rate, interval or causal observation time'
+    normalized = abs(rate)*8*HOUR_MS/interval
+    if not candle_only and normalized > .0005:
+        return terms, 'normalized eight-hour funding outside 0.05 percent'
+    return terms, None
+
+
+def _chart_view(form):
+    chart = form.get('chart',{})
+    cells = chart.get('five_cells',{})
+    return dict(setup=form,five_cells=cells,top_grid_counts=form.get('candidates',[]),
+        chart_reasons=dict(bias=chart.get('bias_reason'),entry=form.get('entry_signal',{}).get('reason'),
+                           gate=form.get('gate_reason'),setup=form.get('reason')),
+        timeframe_coverage={tf:{key:cell.get(key) for key in
+            ('available','fresh','last_closed_ms','indicator_observed_fraction','estimated_buckets')}
+            for tf,cell in cells.items()},
+        offered=form.get('offered') is True,entry_eligible=form.get('entry_eligible') is True,
+        can_arm=form.get('can_arm') is True,funded_entry_eligible=form.get('funded_entry_eligible') is True,
+        funded_economics_eligible=form.get('funded_economics_eligible') is True,
+        provisional=form.get('provisional',True),quantity_calibrated=False,liquidation_estimated=True,
+        **{key:form.get(key) for key in ('net_usdt_per_grid','funding_adjusted_net_usdt_per_grid',
+            'estimated_fee_only_net_usdt_per_grid','net_usdt_per_grid_basis','kucoin_profit_pct_min',
+            'kucoin_profit_pct_max','kucoin_percent_basis')})
+
+
+def _evaluate_chart(record, asof_ms, options, prepared, market):
+    reason = _market_reason(market,asof_ms,options,funding_check=False)
+    if reason:
+        return None,reason
+    if not prepared['valid']:
+        return None,prepared['reason']
+    candle_only = market['filter_mode']=='candle-only filters'
+    funding,reason = _chart_funding(record,asof_ms,candle_only)
+    if reason:
+        return None,reason
+    bars = prepared['bars']
+    market = dict(market)
+    if candle_only:
+        market['price'] = _observed_prepared(prepared)[-1]['close']
+    elif market.get('price') is None:
+        market['price'] = (_number(market['bid'])+_number(market['ask']))/2
+    form = build_recommender_setup(record['pair'],bars,market,record.get('frames',{}),asof_ms,
+        options.get('setup'),regime=record.get('regime'),funding=funding)
+    view = _chart_view(form)
+    if not form.get('offered'):
+        return view,form.get('reason','chart setup unavailable')
+    notional = form['quantity']*form['entry']
+    if not candle_only and any(_number(market.get(side+'_depth_usdt')) is None or
+            _number(market[side+'_depth_usdt']) < notional for side in ('bid','ask')):
+        return view,'top-of-book depth unknown or below one grid notional on either side'
+    income,rate = _number(form.get('grid_income_per_hour')),_number(form.get('expected_gph'))
+    floor = _actual_cash_net(form)
+    if income is None or rate is None or income < 0 or rate < 0 or floor is None or floor <= 0:
+        return view,'actual modeled chart income, completed rate or positive cash net is unknown or invalid'
+    skipped = ['spread','depth','funding_window'] if candle_only else ['funding_window'] if funding is None else []
+    return dict(view,pair=record['pair'],asof_ms=asof_ms,strategy='income_chart_v3',
+        direction=form['direction'],reason=form['reason'],kind='paired_completed_grid_income_estimate',
+        score=rate,expected_gph=rate,grid_income_per_hour=income,actual_net_usdt_per_grid=floor,
+        funding_adjusted_income_per_hour=form.get('funding_adjusted_income_per_hour'),
+        fee_net_income_per_hour=form.get('fee_net_income_per_hour'),ranking_basis=form.get('ranking_basis'),
+        income_basis='minimum of 24h and 7d paired completed-cycle income estimates; funding/quantity assumptions remain explicit',
+        funding_terms=funding,funding_diagnostics=record.get('funding_diagnostics'),regime=record.get('regime'),
+        funding_filter_status='skipped_candle_only' if candle_only else 'unknown_skipped_provisional' if funding is None else 'passed_known_0.05_percent_8h_limit',
+        filter_mode=market['filter_mode'],skipped_filters=skipped,candle_coverage=prepared['coverage'],
+        quote_turnover_24h=_number(market.get('quote_turnover_24h')),turnover_basis=market.get('turnover_basis','observed quote turnover'),
+        membership_basis=market.get('membership_basis','supplied market metadata'),
+        membership_disclosure=market.get('membership_disclosure'),
+        coverage='complete' if prepared['coverage']['fraction']==1 else 'partial'),None
+
+
 def _rejection_coverage(record, asof_ms, reason, market):
     """Known filter failures do not mean data is missing for the strategy."""
     if reason.startswith('quote turnover'):
@@ -264,7 +346,8 @@ def _rejection_coverage(record, asof_ms, reason, market):
         return market.get('quote_currency') is None
     if reason.startswith('actual modeled net profit'):
         return reason.endswith('unknown')
-    return reason.startswith(('unknown, stale', 'requires seven days',
+    return reason.startswith(('fresh one-hour', 'one-hour indicator minute coverage',
+                              'chart funding terms', 'actual modeled chart income', 'unknown, stale', 'requires seven days',
                               'seven-day candle', 'missing one-minute'))
 
 
@@ -321,11 +404,13 @@ def radar(records, asof_ms, running_pairs=(), parameters=None):
             rejected.append(dict(pair=pair, reason='already running', coverage_issue=False,
                                  candle_coverage=prepared['coverage'], filter_mode=market['filter_mode']))
             continue
-        candidate, reason = _evaluate(record, asof_ms, options, prepared, market)
+        evaluate = _evaluate_chart if options.get('strategy')=='income_chart_v3' else _evaluate
+        candidate, reason = evaluate(record, asof_ms, options, prepared, market)
         if reason:
             rejected.append(dict(pair=pair, reason=reason,
                                  coverage_issue=reason == prepared.get('reason') or _rejection_coverage(record, asof_ms, reason, market),
-                                 candle_coverage=prepared['coverage'], filter_mode=market['filter_mode']))
+                                 candle_coverage=prepared['coverage'], filter_mode=market['filter_mode'],
+                                 **(candidate or {})))
         else:
             selected.append(dict(candidate, **{key: value for key, value in context.items() if key != 'pair'}))
     selected.sort(key=lambda row: (-row['grid_income_per_hour'], -row['score'], row['pair']))
@@ -333,7 +418,8 @@ def radar(records, asof_ms, running_pairs=(), parameters=None):
                                   -(row['volatility_proxy_pct'] or 0), row['pair']))
     return dict(asof_ms=asof_ms, radar=selected[:count], rejected=rejected, volatility_universe=universe,
                 volatility_basis='independent 24h amplitude context; KuCoin UI definition remains unverified',
-                coverage=dict(observed=len(seen), eligible=len(selected), rejected=len(rejected)))
+                coverage=dict(observed=len(seen), eligible=len(selected), rejected=len(rejected)),
+                **({'strategy':'income_chart_v3'} if options.get('strategy')=='income_chart_v3' else {}))
 
 
 def volatility_proxy(high_24h, low_24h):

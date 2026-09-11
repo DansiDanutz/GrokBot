@@ -8,6 +8,7 @@ import re
 from dataclasses import asdict
 from trader.research.kucoin_radar import radar, normalize_market, crossing_score
 from trader.research.kucoin_tracker import track_bars, track_summary
+from trader.research.funded_cycles import funded_cycles
 from trader.research.kucoin_replacement import decide_portfolio_replacement, select_funded_entries
 from trader.research.kucoin_replay import close_cost_summary, range_policy_parameters
 from trader.strategies.grid_features import features
@@ -39,8 +40,14 @@ def _config(bot, parameters=None):
 
 
 def _validate_bot(bot, asof_ms, parameters=None):
-    if not isinstance(bot, dict) or not REQUIRED <= bot.keys() or bot.keys()-REQUIRED-OPTIONAL:
+    income_strategy = (parameters or {}).get('strategy')=='income_chart_v3'
+    optional = OPTIONAL | ({'expected_start_income_per_hour'} if income_strategy else set())
+    if not isinstance(bot, dict) or not REQUIRED <= bot.keys() or bot.keys()-REQUIRED-optional:
         raise ValueError('running bot has missing or unknown form fields; credentials are not accepted')
+    if 'expected_start_income_per_hour' in bot:
+        income = bot['expected_start_income_per_hour']
+        if type(income) not in (int,float) or not math.isfinite(income) or income < 0:
+            raise ValueError('expected_start_income_per_hour must be finite and nonnegative')
     for key in ('bot_id', 'pair'):
         if not isinstance(bot[key], str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', bot[key]):
             raise ValueError('invalid bot_id or pair')
@@ -104,6 +111,22 @@ def _direction(snapshot, bot, at, parameters):
     if not records:
         return dict(known=False, flipped=False, candidate=None, reason='direction observations unavailable')
     record = records[0]
+    if parameters.get('strategy')=='income_chart_v3':
+        scan = radar(records,at,parameters={'strategy':'income_chart_v3','setup':parameters})
+        rows = scan['radar'] or scan['rejected']
+        row = rows[0] if rows else {}
+        form = row.get('setup',{})
+        chart = form.get('chart',{})
+        cells = chart.get('five_cells',{})
+        names = ('4h',) if chart.get('bias_mode')=='4h-only' else ('1d','4h')
+        known = all(cells.get(name,{}).get('available') is True and
+                    type(cells[name].get('confidence')) in (int,float) and
+                    cells[name]['confidence'] >= chart.get('minimum_confidence',.75) for name in names)
+        direction = form.get('direction')
+        flipped = known and direction is not None and direction != bot['direction']
+        return dict(known=known,flipped=flipped,
+            candidate=row if flipped and form.get('can_arm') is True else None,
+            reason=form.get('reason',row.get('reason','chart direction unavailable')))
     market = normalize_market(record['market'], at)
     observed = market.get('observed_at_ms')
     if observed is None or not 0 <= at-observed <= HOUR_MS:
@@ -154,8 +177,12 @@ def _hour(snapshot, bot, state, at, ending, parameters):
         candles = snapshot.candles(bot['pair'], at, ending)
         if len(candles) != (ending-at)//60000:
             raise ValueError('missing completed minute candles for running bot')
+        tracking = {}
+        if parameters.get('strategy')=='income_chart_v3':
+            tracking = dict(funding_mode='recorded_events',
+                            funding_coverage=_funding_coverage(snapshot,bot,ending))
         result = track_bars(state, candles, snapshot.funding(bot['pair'], at, ending),
-                            bot['start_ms'], ending, bot['expected_start_gph'])
+                            bot['start_ms'], ending, bot['expected_start_gph'],**tracking)
     direction = _direction(snapshot, bot, ending, parameters)
     summary = dict(result['summary'], direction_flip=direction['flipped'],
                    direction_flip_known=direction['known'], direction_reason=direction['reason'])
@@ -171,6 +198,52 @@ def _decision(state, summary, bot_id, quote):
     return decision
 
 
+def _funding_coverage(snapshot, bot, ending):
+    reader = getattr(snapshot,'funding_coverage',None)
+    value = reader(bot['pair'],bot['start_ms'],ending) if callable(reader) else {}
+    return value if isinstance(value,dict) else {}
+
+
+def _running_income(snapshot, bot, ledger, summary, ending):
+    """Attribute full holding history before selecting closes in the last six hours.
+
+    No supplied income totals are accepted. Numeric income remains a recorded
+    settlement model, even when its inferred coverage is complete. Verified
+    exchange cash stays unknown through funded_cycles(coverage_known=False).
+    """
+    start = bot['start_ms']
+    cut = max(start,ending-6*HOUR_MS)
+    proof = _funding_coverage(snapshot,bot,ending)
+    if summary.get('funding_mode') != 'recorded_events':
+        # Plain initial/terminal track_summary has only model cash. It cannot
+        # restore verified funding after recorded-event coverage was unknown.
+        summary = dict(summary,funding_mode='recorded_events',funding=None,
+            funding_modeled_cash=summary.get('funding'),funding_coverage_complete=False,
+            funding_modeled_complete=proof.get('modeled_complete') is True,
+            funding_coverage=proof,
+            funding_unknown_reasons=['initial/terminal summary preserves model cash without independent funding verification'])
+    cycles = funded_cycles(ledger,cut,ending,coverage_known=False)
+    measured = cycles['summary']
+    bounds = proof.get('start_ms'),proof.get('end_ms')
+    spanning = all(type(value) is int for value in bounds) and bounds[0] <= start and ending <= bounds[1]
+    reasons = []
+    if ending-start < 6*HOUR_MS:
+        reasons.append('six-hour warmup is incomplete')
+    if proof.get('modeled_complete') is not True or not spanning:
+        reasons.append('recorded funding model does not cover the complete holding history')
+    if measured['modeled_unknown']:
+        reasons.append('one or more completed-cycle model amounts are unknown')
+    known = not reasons
+    return dict(summary,expected_start_income_per_hour=bot.get('expected_start_income_per_hour'),
+        starting_income_basis='immutable user-supplied starting estimate; never recalculated from current radar',
+        start_ms=start,asof_ms=ending,income_coverage_6h_known=known,income_6h_estimated=True,
+        realized_grid_income_per_hour_6h=measured['modeled_grid_income_per_hour'] if known else None,
+        realized_gph_6h=measured['completed_grids']/6 if known else None,
+        income_coverage_reason='; '.join(reasons) if reasons else None,
+        income_coverage_basis='full reconstructed ledger with inferred recorded-settlement coverage; not independently verified',
+        funding_history_coverage=proof,funded_cycle_summary_6h=measured)
+
+
 def _track_bot(snapshot, bot, asof, pairs, parameters):
     state, at = create_bot(_config(bot, parameters), bot['entry'], bot['start_ms']), bot['start_ms']
     history, flip = [], None
@@ -183,11 +256,15 @@ def _track_bot(snapshot, bot, asof, pairs, parameters):
             if event['event_id'] not in seen:
                 ledger.append(event)
                 seen.add(event['event_id'])
+        if parameters.get('strategy')=='income_chart_v3':
+            summary = _running_income(snapshot,bot,ledger,summary,ending)
         history.append(summary)
         at = ending
     summary = dict(history[-1] if history else
                    track_summary(state, bot['start_ms'], asof, bot['expected_start_gph']),
                    running_pairs=pairs)
+    if parameters.get('strategy')=='income_chart_v3' and not history:
+        summary = _running_income(snapshot,bot,ledger,summary,asof)
     quote = _quote(snapshot, bot['pair'], asof) if state.status not in TERMINAL else None
     decision = _decision(state, summary, bot['bot_id'], quote)
     estimate = preview(state.config)
@@ -221,10 +298,15 @@ def _portfolio(tracked, candidates, parameters, available_cash):
 
 def _funded_decisions(scan, tracked, parameters, capital):
     horizon = parameters.get('replacement_horizon_hours', parameters.get('horizon_hours', 6))
-    entries = select_funded_entries(scan['radar'], [bot['form']['pair'] for bot in tracked],
+    candidates = scan['radar']
+    if parameters.get('strategy')=='income_chart_v3':
+        candidates = [row for row in candidates if row.get('setup',{}).get('can_arm') is True
+                      and row['setup'].get('funded_entry_eligible') is True
+                      and row['setup'].get('funded_economics_eligible') is True]
+    entries = select_funded_entries(candidates, [bot['form']['pair'] for bot in tracked],
                                     capital['available_cash_usdt'], 2, horizon, parameters=parameters)
     proposed_pairs = {row['pair'] for row in entries['selected']}
-    challengers = [row for row in scan['radar'] if row['pair'] not in proposed_pairs]
+    challengers = [row for row in candidates if row['pair'] not in proposed_pairs]
     portfolio = _portfolio(tracked, challengers, parameters, entries['remaining_cash'])
     forms = [row['setup'] for row in entries['selected']]
     if portfolio['action'] == 'replace':
@@ -238,12 +320,14 @@ def operator_report(snapshot, asof_ms, running_document, parameters=None):
     bots = validate_running(running_document, asof_ms, parameters)
     pairs = [bot['pair'] for bot in bots]
     reader = getattr(snapshot, 'iter_records', snapshot.records)
-    scan = radar(reader(asof_ms), asof_ms, pairs,
-                 {'setup': parameters, 'radar_size': parameters.get('radar_size', 10)})
+    scan_options = {'setup':parameters,'radar_size':parameters.get('radar_size',10)}
+    if parameters.get('strategy')=='income_chart_v3':
+        scan_options['strategy'] = 'income_chart_v3'
+    scan = radar(reader(asof_ms),asof_ms,pairs,scan_options)
     tracked = [_track_bot(snapshot, bot, asof_ms, pairs, parameters) for bot in bots]
     capital = _capital_snapshot(running_document, asof_ms)
     entries, portfolio, forms = _funded_decisions(scan, tracked, parameters, capital)
-    return dict(schema_version=1, asof_ms=asof_ms,
+    report = dict(schema_version=1, asof_ms=asof_ms,
         interpretation='offline counterfactual OHLC research; fills are modeled, not KuCoin account trades',
         live_use=dict(actionable=False, status='blocked_calibration_and_holdout_validation',
                       reason='All four bot calibration, volatility fixture validation and two disjoint monthly holdouts must pass.'),
@@ -258,3 +342,12 @@ def operator_report(snapshot, asof_ms, running_document, parameters=None):
                       execution_costs_complete=all(bot['execution_cost_coverage']['complete'] for bot in tracked)),
         refresh_radar_after_switch=True,
         instructions='Research proposals only. This command never starts, stops or replaces an exchange bot.')
+    if parameters.get('strategy')=='income_chart_v3':
+        report.update(strategy='income_chart_v3',offered_forms=[row['setup'] for row in scan['radar']],
+            funding_withheld_offers=[dict(pair=row['pair'],reason=row['setup'].get('status',
+                'entry signal or funding economics not eligible')) for row in scan['radar']
+                if row['setup'].get('can_arm') is not True or row['setup'].get('funded_entry_eligible') is not True
+                   or row['setup'].get('funded_economics_eligible') is not True],
+            live_use=dict(actionable=False,status='research_only_live_execution_unavailable',
+                reason='Estimated paper offers are shown without a calibration gate; this command has no live exchange execution. Quantity and liquidation remain estimates.'))
+    return report
