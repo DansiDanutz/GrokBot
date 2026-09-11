@@ -1,0 +1,24 @@
+{
+  "experiment": "grid-5x",
+  "status": "not_run_on_market_data",
+  "decision": "shelve",
+  "decision_reason": "Insufficient evidence: no detached offline snapshot supplied; no historical sweep was run.",
+  "source_base": "3db5613",
+  "registration": {
+    "commit": "a1add0e01d88355566e6ce4da6ab3cfc482c10f8",
+    "sha256": "114ba23be0b69ed808430465b405826d1252548c01d5bb5b3180ecfe80f2f774"
+  },
+  "real_metrics": null,
+  "holdout_results": null,
+  "current_best_coin": null,
+  "operator_form": null,
+  "exchange_replica_verified": false,
+  "limitations": [
+    "Neutral startup allocation is a documented paper assumption.",
+    "Liquidation uses a modeled maintenance rate, not verified exchange tiers.",
+    "One-minute OHLC cannot establish actual queue fills or intraminute execution.",
+    "Scanner normalizes known funding periods to eight hours; replay requires actual eight-hour settlement records.",
+    "Historical candles alone cannot prove historical spread, depth or funding coverage."
+  ],
+  "next_input": "Detached checkpointed SQLite copy outside all protected paths with snapshot.json attestation."
+}
