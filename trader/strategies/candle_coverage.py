@@ -357,16 +357,37 @@ def combine_histories(histories):
                             _token=_VALIDATED_TOKEN)
 
 
-def prepare_validated(history, asof_ms, window_minutes=MAX_WINDOW_MINUTES, prior_seed=None, previous=None):
+def _prepared_coverage(history, first, stop, start, end, window_minutes, seed, missing_seed):
+    actual = stop-first
+    eligible = actual*100 >= window_minutes*95
+    coverage = dict(actual=actual,expected=window_minutes,fraction=actual/window_minutes,
+                    eligible=eligible,indicators_valid=not missing_seed,
+                    duplicates=history._prefix[stop]-history._prefix[first],
+                    window_start_ms=start,window_end_ms=end,threshold=.95,
+                    synthetic=window_minutes-actual,seed_timestamp_ms=seed['timestamp_ms'] if seed else None)
+    reason = ('Leading gap has no earlier actual seed; indicators cannot use future backfill' if missing_seed else
+              f'Observed candle coverage {actual}/{window_minutes} is below 95%' if not eligible else '')
+    return coverage, reason
+
+
+def prepare_validated(history, asof_ms, window_minutes=MAX_WINDOW_MINUTES, prior_seed=None, previous=None,
+                      *, omit_invalid_bars=False):
     """Exact prepare output with cached validation and safe forward-window reuse.
 
     Reuse requires the same immutable history and actual-candle membership in
     the overlapping time span. Leading candles are
     rebuilt until an actual observation establishes the current window's seed;
     an older prepared window can never backfill a newly unseeded leading gap.
+
+    Explicit omit_invalid_bars may omit dense indicator placeholders only after
+    validation proves the window invalid. Such results have bars=[],
+    dense_omitted=True and exact coverage/reason/observed_bars. They cannot supply
+    previous-window dense reuse. The default and all valid windows stay dense.
     """
     if type(history) is not ValidatedHistory:
         raise TypeError('prepare_validated requires ValidatedHistory')
+    if type(omit_invalid_bars) is not bool:
+        raise ValueError('omit_invalid_bars must be boolean')
     def reference():
         result = prepare(history._expanded(),asof_ms,window_minutes,prior_seed)
         observed = tuple(_freeze(row) for row in result['bars'] if not row.get('synthetic'))
@@ -392,6 +413,11 @@ def prepare_validated(history, asof_ms, window_minutes=MAX_WINDOW_MINUTES, prior
                 seed = candidate
     except (KeyError,TypeError,ValueError,OverflowError):
         return reference()
+    missing_leading_seed = seed is None and (first == stop or times[first] > start)
+    if omit_invalid_bars and ((stop-first)*100 < window_minutes*95 or missing_leading_seed):
+        coverage, reason = _prepared_coverage(history,first,stop,start,end,window_minutes,seed,missing_leading_seed)
+        return PreparedHistory(dict(bars=[],coverage=coverage,valid=False,reason=reason,dense_omitted=True),
+                               history._identity,records[first:stop],membership=None,_token=_VALIDATED_TOKEN)
     previous_close = seed['close'] if seed is not None else None
     previous_actual = seed['timestamp_ms'] if seed is not None else None
     reuse = (is_prepared_history(previous) and getattr(previous,'_identity',None) is history._identity
@@ -435,14 +461,6 @@ def prepare_validated(history, asof_ms, window_minutes=MAX_WINDOW_MINUTES, prior
             missing_seed |= previous_close is None
             previous_actual = None
         dense.append(value)
-    actual = stop-first
-    eligible = actual*100 >= window_minutes*95
-    coverage = dict(actual=actual,expected=window_minutes,fraction=actual/window_minutes,
-                    eligible=eligible,indicators_valid=not missing_seed,
-                    duplicates=history._prefix[stop]-history._prefix[first],
-                    window_start_ms=start,window_end_ms=end,threshold=.95,
-                    synthetic=window_minutes-actual,seed_timestamp_ms=seed['timestamp_ms'] if seed else None)
-    reason = ('Leading gap has no earlier actual seed; indicators cannot use future backfill' if missing_seed else
-              f'Observed candle coverage {actual}/{window_minutes} is below 95%' if not eligible else '')
-    return PreparedHistory(dict(bars=dense,coverage=coverage,valid=eligible and not missing_seed,reason=reason),
+    coverage, reason = _prepared_coverage(history,first,stop,start,end,window_minutes,seed,missing_seed)
+    return PreparedHistory(dict(bars=dense,coverage=coverage,valid=coverage['eligible'] and not missing_seed,reason=reason),
                            history._identity,records[first:stop],membership=(first,stop),_token=_VALIDATED_TOKEN)

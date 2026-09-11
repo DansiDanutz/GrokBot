@@ -301,6 +301,10 @@ class HistoricalSnapshot:
         self.connection = source.connection
         self._cache, self._history, self._metadata_cache = {}, {}, {}
         self._prepared_cache, self._record_cache, self._quote_cache = {}, {}, {}
+        self._omit_invalid_bars = (self.parameters.get('strategy') == 'income_chart_v3'
+                                   and self.parameters.get('omit_invalid_bars', True))
+        if type(self._omit_invalid_bars) is not bool:
+            raise ValueError('omit_invalid_bars must be boolean')
         self._index = {row[0]: (row[1], row[2]+MINUTE_MS) for row in self.connection.execute(
             "SELECT symbol,MIN(time_ms),MAX(time_ms) FROM klines WHERE interval='1m' GROUP BY symbol")}
         self._market_bounds = source.market_bounds()
@@ -447,7 +451,8 @@ class HistoricalSnapshot:
             bars, coverage = self.history(pair, at_ms)
             return dict(pair=pair, bars=bars, prior_seed=seed,
                         market=self._scanner_market(pair, at_ms, bars, coverage))
-        prepared = prepare_validated(view, at_ms, prior_seed=seed, previous=self._prepared_cache.get(pair))
+        prepared = prepare_validated(view, at_ms, prior_seed=seed, previous=self._prepared_cache.get(pair),
+                                     omit_invalid_bars=self._omit_invalid_bars)
         coverage = dict(observed=len(view), expected=10080, ratio=len(view)/10080)
         record = dict(pair=pair, bars=view.rows, prior_seed=seed, prepared=prepared,
                       market=self._scanner_market(pair, at_ms, view.rows, coverage, sparse=True, seed=seed))
