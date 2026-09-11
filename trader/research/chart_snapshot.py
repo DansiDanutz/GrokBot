@@ -15,6 +15,8 @@ forecast terms until the upstream helper's historical irregularity is resolved.
 from bisect import bisect_left
 from collections import OrderedDict
 from copy import deepcopy
+import hashlib
+import json
 
 from trader.features.chart_read import read_chart
 from trader.features.regime import gate_entry
@@ -70,6 +72,14 @@ def _funding_inputs(histories):
         provenance[pair] = {'traversal_complete': value.get('complete') is True
                             if isinstance(value, dict) else False}
     return records, provenance
+
+
+def _canonical_digest(value):
+    try:
+        encoded = json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf-8')
+    except (TypeError, ValueError) as exc:
+        raise ValueError('Chart input provenance must be finite JSON-serializable data') from exc
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _chart_parameters(parameters):
@@ -142,6 +152,9 @@ class ChartSnapshot:
         self._reader = source.source if isinstance(source, HistoricalSnapshot) else source
         self._funding, self._funding_provenance = _funding_inputs(funding_histories)
         self.membership = deepcopy(membership)
+        self.manifest.update(chart_membership_sha256=_canonical_digest(self.membership),
+            chart_funding_sha256=_canonical_digest({'records': self._funding,
+                                                   'traversal_provenance': self._funding_provenance}))
         self._capacity = cache_symbols
         self._cache = OrderedDict()
         self._references = None

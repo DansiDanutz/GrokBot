@@ -234,6 +234,41 @@ class ChartSnapshotTests(unittest.TestCase):
         self.assertEqual(changed.parameters['setup']['target'], 2)
         self.assertEqual(original.parameters['setup']['target'], 1)
 
+    def test_membership_manifest_digest_binds_content_and_ignores_dict_order(self):
+        first = {'schema_version': 1, 'members': {PAIR: {'basis': 'test', 'sources': ['source']}},
+                 'non_members': {}}
+        reordered = {'non_members': {}, 'members': {PAIR: {'sources': ['source'], 'basis': 'test'}},
+                     'schema_version': 1}
+        adapter = ChartSnapshot(FakeSnapshot(), membership=first)
+        digest = adapter.manifest['chart_membership_sha256']
+        self.assertEqual(len(digest), 64)
+        self.assertEqual(digest, ChartSnapshot(FakeSnapshot(), membership=reordered).manifest['chart_membership_sha256'])
+        changed = ChartSnapshot(FakeSnapshot(), membership=dict(first, schema_version=2))
+        self.assertNotEqual(digest, changed.manifest['chart_membership_sha256'])
+        self.assertNotEqual(ChartSnapshot(FakeSnapshot(), membership=None).manifest['chart_membership_sha256'],
+                            ChartSnapshot(FakeSnapshot(), membership={}).manifest['chart_membership_sha256'])
+        self.assertEqual(digest, adapter.for_parameters({'regime_gate': False}).manifest['chart_membership_sha256'])
+
+    def test_manifest_rejects_nonfinite_and_unserializable_membership(self):
+        for member in ({'weight': float('nan')}, {'weight': float('inf')}, {'members': {PAIR}}):
+            with self.subTest(member=member), self.assertRaises(ValueError):
+                ChartSnapshot(FakeSnapshot(), membership=member)
+
+    def test_funding_manifest_digest_binds_records_and_traversal_provenance(self):
+        rows = [{'symbol': PAIR, 'timestamp_ms': BASE, 'rate': .001},
+                {'symbol': PAIR, 'timestamp_ms': BASE+HOUR, 'rate': .002}]
+        initial = ChartSnapshot(FakeSnapshot(), funding_histories={PAIR: {'records': rows, 'complete': True}})
+        digest = initial.manifest['chart_funding_sha256']
+        reordered = ChartSnapshot(FakeSnapshot(), funding_histories={PAIR: {'complete': True, 'records': rows[::-1]}})
+        self.assertEqual(digest, reordered.manifest['chart_funding_sha256'])
+        changed = copy.deepcopy(rows)
+        changed[0]['rate'] = .003
+        altered = ChartSnapshot(FakeSnapshot(), funding_histories={PAIR: {'records': changed, 'complete': True}})
+        self.assertNotEqual(digest, altered.manifest['chart_funding_sha256'])
+        incomplete = ChartSnapshot(FakeSnapshot(), funding_histories={PAIR: {'records': rows, 'complete': False}})
+        self.assertNotEqual(digest, incomplete.manifest['chart_funding_sha256'])
+        self.assertEqual(digest, initial.for_parameters({'bias_mode': '4h-only'}).manifest['chart_funding_sha256'])
+
     def test_indicator_source_rows_do_not_become_crossing_observations(self):
         source = FakeSnapshot()
         record = next(source.iter_records(BASE, [PAIR]))
