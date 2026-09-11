@@ -1,7 +1,7 @@
 {
   "source_repository": "https://github.com/DansiDanutz/ZmartyChat",
   "source_commit": "6ee309c2134ad88e63c0cd3c021859a6c02df03b",
-  "scope": "paper_grid/ only; byte-identical import",
+  "scope": "Historical byte-identical paper_grid/ import manifest; hashes describe the original import, not current development source",
   "files": {
     "paper_grid/ACTIVATION_48H.md": "660e0d81b2a2bbea8c5e83634f6aabc5a076bd64e8735970e9777f03f7db7c61",
     "paper_grid/CONTINUOUS.md": "73469e53810b220e9a74c6afa8f9d51188176dc114a4f5cb1d031018d0f14745",
@@ -33,5 +33,16 @@
     "paper_grid/test_publish_vercel.py": "0078f1ad4294578474fb595e2bc3c759ddb6af6e7445e9c6ad5a566bbf996ffa",
     "paper_grid/test_retention.py": "f59549eed3df4ba05750f93b2c8184a2a4e3c568d1110a365b5bc096be7a0d2e",
     "paper_grid/test_server.py": "6ff586e029473ec96d343aee95d11f6deada1b33b404865d72ebc196685d1557"
+  },
+  "development_source": {
+    "repository": "https://github.com/DansiDanutz/GrokBot",
+    "path": "paper_grid/",
+    "policy": "Development source; never synchronize into v1 during roadmap work"
+  },
+  "v1_control": {
+    "frozen": true,
+    "baseline_commit": "6ee309c2134ad88e63c0cd3c021859a6c02df03b",
+    "telemetry_followup_commit": "e0e10a77",
+    "policy": "Original baseline remains the control; a telemetry-only followup preceded this roadmap. Do not edit, restart, reseal or repoint the active checkout or services."
   }
 }

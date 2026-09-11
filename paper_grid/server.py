@@ -14,7 +14,7 @@ import time
 from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from paper_grid import cli, experiment, analytics
+from paper_grid import cli, experiment, analytics, csp
 
 
 class Monitor:
@@ -80,7 +80,10 @@ def make_handler(monitor, port):
         def log_message(self, *args):
             pass
 
-        def send(self, code, content, content_type):
+        def send(self, code, content, content_type, *, dashboard=False):
+            policy = csp.policy()
+            if content_type.startswith('text/html'):
+                content, policy = csp.nonce_document(content, scripts=dashboard)
             self.send_response(code)
             self.send_header('Content-Type', content_type)
             self.send_header('Content-Length', str(len(content)))
@@ -88,7 +91,7 @@ def make_handler(monitor, port):
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.send_header('X-Frame-Options', 'DENY')
             self.send_header('Referrer-Policy', 'no-referrer')
-            self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'")
+            self.send_header('Content-Security-Policy', policy)
             self.end_headers()
             self.wfile.write(content)
 
@@ -97,7 +100,7 @@ def make_handler(monitor, port):
                 return self.send(403, b'Local access only', 'text/plain')
             path = urlsplit(self.path).path
             if path == '/':
-                return self.send(200, Path(__file__).with_name('dashboard.html').read_bytes(), 'text/html; charset=utf-8')
+                return self.send(200, Path(__file__).with_name('dashboard.html').read_bytes(), 'text/html; charset=utf-8', dashboard=True)
             if path.startswith('/audits/'):
                 name = path[len('/audits/'):]
                 if not re.fullmatch(r'[a-zA-Z0-9_-]+\.(html|json|md)', name):

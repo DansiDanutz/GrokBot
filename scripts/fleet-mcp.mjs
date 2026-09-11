@@ -19,7 +19,7 @@ const tools = [
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const error = (id, code, message) => ({ jsonrpc: '2.0', id, error: { code, message } });
 
-export async function handleRequest(request) {
+export async function handleRequest(request, { probe, stderr = process.stderr } = {}) {
   const hasId = object(request) && Object.hasOwn(request, 'id');
   const validId = !hasId || request.id === null || typeof request.id === 'string' || (typeof request.id === 'number' && Number.isFinite(request.id));
   if (!object(request) || request.jsonrpc !== '2.0' || typeof request.method !== 'string' || !validId) {
@@ -48,9 +48,10 @@ export async function handleRequest(request) {
     }
     if (!tools.some((tool) => tool.name === params.name)) return error(id, -32602, 'Unknown tool');
     try {
-      const result = params.name === 'danslab_service_status' ? await serviceStatus() : machineInfo();
+      const result = params.name === 'danslab_service_status' ? await serviceStatus(probe, port => stderr.write(`fleet probe failed: loopback port ${port}\n`)) : machineInfo();
       return success({ content: [{ type: 'text', text: JSON.stringify(result) }] });
     } catch {
+      stderr.write('fleet information probe failed\n');
       return success({ isError: true, content: [{ type: 'text', text: 'Unable to read fleet information.' }] });
     }
   }

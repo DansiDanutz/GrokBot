@@ -40,6 +40,18 @@ test('machine info contains only intended aggregate system fields', () => {
   assert.ok(info.freeMemoryBytes >= 0);
 });
 
+test('failed fleet probes log bounded fixed diagnostics only to stderr', async () => {
+  let stderr = '';
+  const result = await handleRequest(request('tools/call', { name: 'danslab_service_status' }), {
+    probe: async () => { throw new Error('credential=do-not-disclose /private/path'); },
+    stderr: { write: value => { stderr += value; } },
+  });
+  assert.equal(stderr.trim().split('\n').length, SERVICES.length);
+  assert.match(stderr, /fleet probe failed/);
+  assert.doesNotMatch(stderr + JSON.stringify(result), /credential|do-not-disclose|private\/path/);
+  assert.equal(JSON.parse(result.result.content[0].text).services.every(s => !s.tcpReachable), true);
+});
+
 test('real TCP probe reports listener reachability and closed port accurately', async (t) => {
   const server = net.createServer((socket) => socket.end());
   t.after(() => server.close());

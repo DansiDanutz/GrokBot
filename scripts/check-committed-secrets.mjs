@@ -2,22 +2,18 @@
 
 import { execFileSync } from 'node:child_process'
 
-const trackedDrift = execFileSync('git', [
-  'status',
-  '--porcelain',
-  '--untracked-files=no',
-]).toString('utf8')
-
-if (trackedDrift) {
-  console.error('Tracked worktree changes detected; refusing to scan mutable files.')
-  console.error('Commit or restore tracked changes, then scan the exact HEAD revision.')
+// The index is the pre-commit contract; freeze it as a Git tree before reading.
+const unstaged = execFileSync('git', ['diff', '--name-only', '-z']).length
+if (unstaged) {
+  console.error('Unstaged tracked changes detected; stage the intended files before scanning.')
   process.exit(1)
 }
-
-const trackedFiles = execFileSync('git', ['ls-tree', '-r', '--name-only', '-z', 'HEAD'])
-  .toString('utf8')
-  .split('\0')
-  .filter(Boolean)
+const staged = execFileSync('git', ['diff', '--cached', '--name-only', '-z']).length > 0
+const revision = staged
+  ? execFileSync('git', ['write-tree']).toString('utf8').trim()
+  : 'HEAD'
+const trackedFiles = execFileSync('git', ['ls-tree', '-r', '--name-only', '-z', revision])
+  .toString('utf8').split('\0').filter(Boolean)
 
 const findings = []
 const jwtPattern = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g
@@ -46,9 +42,10 @@ const directMainPushPattern = /\bgit\s+push\b.*\borigin\b.*\bmain\b/
 for (const file of trackedFiles) {
   let buffer
   try {
-    buffer = execFileSync('git', ['show', `HEAD:${file}`], { maxBuffer: 64 * 1024 * 1024 })
+    buffer = execFileSync('git', ['show', `${revision}:${file}`], { maxBuffer: 64 * 1024 * 1024 })
   } catch {
-    continue
+    console.error(`Unable to scan tracked file: ${file}`)
+    process.exit(1)
   }
   if (buffer.includes(0)) continue
 
@@ -106,4 +103,4 @@ if (findings.length) {
   process.exit(1)
 }
 
-console.log(`Committed-secret gate passed (${trackedFiles.length} tracked files scanned).`)
+console.log(`${staged ? "Staged" : "Committed"}-secret gate passed (${trackedFiles.length} tracked files scanned).`)

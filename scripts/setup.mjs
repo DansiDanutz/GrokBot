@@ -1,7 +1,8 @@
-import { mkdirSync, existsSync, renameSync } from 'node:fs';
+import { mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { paths, settings, initialize } from './runtime.mjs';
+import { extractOssArchive } from './archive.mjs';
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit', env: { ...process.env, NODE_OPTIONS: process.env.NODE_OPTIONS ?? '--max-old-space-size=1024', ELECTRON_SKIP_BINARY_DOWNLOAD: '1' } });
@@ -17,11 +18,7 @@ try {
     run('git', ['fetch', '--depth=1', 'origin', p.pin.commit], p.source);
     const archive = join(p.runtime, `${p.pin.commit}.tar`);
     run('git', ['archive', '--format=tar', `--output=${archive}`, p.pin.commit], p.source);
-    const staging = join(p.runtime, `extract-${Date.now()}`);
-    mkdirSync(staging, { mode: 0o700 });
-    run('tar', ['-xf', archive, '--exclude=enterprise', '-C', staging], p.root);
-    if (existsSync(join(staging, 'enterprise')) || !existsSync(join(staging, 'LICENSE')) || !existsSync(join(staging, 'NOTICE'))) throw new Error('OSS export validation failed');
-    renameSync(staging, p.upstream);
+    extractOssArchive(archive, p.upstream);
   }
   const pnpm = join(p.root, 'node_modules/pnpm/bin/pnpm.cjs');
   run(process.execPath, [pnpm, 'install', '--frozen-lockfile', '--ignore-scripts'], p.upstream);

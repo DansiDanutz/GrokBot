@@ -1,6 +1,7 @@
 import http.client
 from http.server import ThreadingHTTPServer
 import json
+import re
 from pathlib import Path
 import tempfile
 import threading
@@ -30,6 +31,32 @@ class ServerTests(unittest.TestCase):
         content = response.read()
         conn.close()
         return response, content
+
+    def test_dashboard_nonce_matches_policy_and_changes_per_response(self):
+        first, html = self.request('/')
+        second, other = self.request('/')
+        policy = first.getheader('Content-Security-Policy')
+        nonce = re.search(r"'nonce-([^']+)'", policy)
+        self.assertIsNotNone(nonce)
+        self.assertNotIn('unsafe-inline', policy)
+        self.assertEqual(re.findall(rb'<(?:script|style) nonce="([^"]+)"', html),
+                         [nonce.group(1).encode()] * 2)
+        self.assertNotEqual(policy, second.getheader('Content-Security-Policy'))
+        self.assertNotEqual(html, other)
+        self.assertEqual(int(first.getheader('Content-Length')), len(html))
+        self.assertIn("script-src-attr 'none'", policy)
+
+    def test_json_and_archive_scripts_have_no_authorization(self):
+        response, _ = self.request('/api/health')
+        self.assertIn("script-src 'none'", response.getheader('Content-Security-Policy'))
+        root = self.monitor.runtime / 'audits'
+        root.mkdir()
+        (root / 'audit48-123.html').write_text('<style>body{color:red}</style><script>bad()</script>')
+        response, body = self.request('/audits/audit48-123.html')
+        self.assertIn("script-src 'none'", response.getheader('Content-Security-Policy'))
+        self.assertIn(b'<style nonce=', body)
+        self.assertIn(b'<script>bad()', body)
+        self.assertNotIn(b'<script nonce=', body)
 
     def test_read_only_routes_and_no_directory_or_state_exposure(self):
         for path in ('/account.json', '/experiment.json', '/../../etc/passwd', '/.env'):

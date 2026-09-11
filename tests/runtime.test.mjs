@@ -19,7 +19,7 @@ test('initial configuration pins Astra and subscription CLI with bounded concurr
   assert.equal(cfg.instances.codex.config.fullAuto, false);
   assert.equal(cfg.threads.maxConcurrentPerBot, 2);
   assert.equal(cfg.cliStartup.access, 'local');
-  assert.equal(cfg.mcpServers.danslab_status.command, process.execPath);
+  assert.equal(cfg.mcpServers.danslab_status.command, '/opt/homebrew/bin/node');
 });
 test('setup creates private state and never overwrites app-owned configuration', t => {
   const { p, s } = fixture(t), file = initialize(p, s);
@@ -41,5 +41,39 @@ test('invalid model effort and unbounded port are rejected', t => {
   for (const change of [{ effort: 'none' }, { port: 65535 }, { port: '8799' }, { maxConcurrentPerBot: 10 }, { model: 'gpt-5' }]) {
     writeFileSync(join(root, 'config/workspace.json'), JSON.stringify({ ...s, ...change }));
     assert.throws(() => settings(root), /Invalid/);
+  }
+});
+
+test('doctor detects missing or versioned MCP command without rewriting config', async t => {
+  const { inspectMcpCommand } = await import('../scripts/doctor-config.mjs');
+  const { p, s } = fixture(t), file = initialize(p, s);
+  const config = initialConfig(p, s);
+  config.mcpServers.danslab_status.command = '/opt/homebrew/Cellar/node/24.0.0/bin/node';
+  writeFileSync(file, JSON.stringify(config));
+  const before = readFileSync(file, 'utf8');
+  const report = inspectMcpCommand(p, () => false);
+  assert.equal(report.commandExists, false);
+  assert.equal(report.stableCommand, false);
+  assert.match(report.warning, /stable/);
+  assert.match(report.fix, /mcpServers/);
+  assert.match(report.fix, /opt\/homebrew\/bin\/node/);
+  assert.equal(report.fix.split('\n').length, 1);
+  assert.equal(readFileSync(file, 'utf8'), before);
+  config.mcpServers.danslab_status.command = '/opt/homebrew/bin/node';
+  writeFileSync(file, JSON.stringify(config));
+  assert.equal(inspectMcpCommand(p, () => true).warning, null);
+  assert.match(inspectMcpCommand(p, () => false).warning, /missing/);
+});
+
+test('doctor offers no broken repair command for absent MCP server blocks', async t => {
+  const { inspectMcpCommand } = await import('../scripts/doctor-config.mjs');
+  const { p, s } = fixture(t), file = initialize(p, s);
+  for (const config of [{}, { mcpServers: {} }, { mcpServers: { danslab_status: {} } }]) {
+    writeFileSync(file, JSON.stringify(config));
+    const before = readFileSync(file, 'utf8');
+    const report = inspectMcpCommand(p);
+    assert.equal(report.fix, null);
+    assert.match(report.warning, /missing|invalid/i);
+    assert.equal(readFileSync(file, 'utf8'), before);
   }
 });

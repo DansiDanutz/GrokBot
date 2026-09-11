@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import json
 import math
+import os
 from pathlib import Path
 import re
 import urllib.error
@@ -16,7 +17,8 @@ import urllib.parse
 import urllib.request
 
 URL = 'https://open-api-v4.coinglass.com/api/futures/liquidation/aggregated-history'
-KEY_PATH = Path('/Users/davidai/Desktop/DavidAi/ZmartyChat/.env')
+DEFAULT_SECRETS_FILE = '~/.openclaw-secrets/paper-grid.env'
+SECRETS_FILE_ENV = 'PAPER_GRID_SECRETS_FILE'
 HOUR = 3600
 CACHE_SECONDS = 1800
 MAX_HISTORY_AGE = 2 * HOUR
@@ -67,11 +69,26 @@ def underlying(symbol):
     return 'BTC' if name == 'XBT' else name
 
 
-def read_api_key(path=KEY_PATH):
+def secrets_path(path=None):
+    value = os.environ.get(SECRETS_FILE_ENV, DEFAULT_SECRETS_FILE) if path is None else path
+    if not isinstance(value, (str, Path)) or not str(value).strip():
+        raise CoinGlassError('invalid secrets-file configuration')
+    try:
+        configured = Path(value).expanduser()
+        resolved = configured.resolve()
+    except (OSError, RuntimeError, ValueError):
+        raise CoinGlassError('invalid secrets-file configuration') from None
+    if any(part.casefold() == 'desktop' for part in (*configured.parts, *resolved.parts)):
+        raise CoinGlassError('Desktop secrets files are not allowed; use a private local path')
+    return resolved
+
+
+def read_api_key(path=None):
     """Read only the exact key assignment; never return file contents."""
+    path = secrets_path(path)
     found = None
     try:
-        with Path(path).open(encoding='utf-8') as handle:
+        with path.open(encoding='utf-8') as handle:
             for line in handle:
                 if line.startswith('COINGLASS_API_KEY='):
                     if found is not None:
@@ -156,7 +173,7 @@ def _fresh(envelope, now):
         return False
 
 
-def collect(symbols, now, cache=None, *, api_key=None, key_path=KEY_PATH, getter=None):
+def collect(symbols, now, cache=None, *, api_key=None, key_path=None, getter=None):
     """Collect at most nine names serially; reuse a covered cache for 30 minutes.
 
     Optional getter(symbol, now, api_key) returns history rows for offline tests.
