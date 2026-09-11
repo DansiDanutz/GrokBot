@@ -84,3 +84,26 @@ comparisons separate, states sample sizes, and preserves the existing strategy.
 181 Python tests and 17 Node integration tests passed; browser checks covered
 real empty states, isolated positive/negative outcomes, additional-buy cohorts,
 period/account filters and readable chart axes.
+
+## Rejection telemetry and per-tick equity
+
+A reviewed telemetry-only upgrade records an explicit boundary in
+`experiment.json.telemetry_upgrades`. It preserves accounts, decisions and past
+observations. New successful observations have `telemetry_schema: 1` and a
+per-account `equity` record with an estimate flag. Existing history is not backfilled.
+
+`buy_rejected` records distinguish execution, selection and rotation-trial gates.
+They carry only fixed reasons and finite numeric context. A failed trial creates
+no hypothetical fill. These events never increment fills, trades or fees. They
+cover the instrumented gates, not every possible scanner/portfolio restriction.
+
+The Learning lab labels rejection coverage complete, partial or unavailable.
+Partial periods explicitly count older checks without these logs. Windowed
+drawdown now includes available per-tick marks; older periods retain published
+marks. Mixed sampling has no invented expected sample count or coverage ratio.
+Audit eligibility now calls the same CoinGlass filter as the engine.
+
+See [REPLAY.md](REPLAY.md) for deterministic offline replay from an explicit
+historical checkpoint. The first recorded 10-observation replay ran twice
+identically and matched both live final account states. That establishes
+reproducibility only; the ledger still had no completed trades.

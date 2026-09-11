@@ -162,7 +162,27 @@ def _close(state, symbol, record, now, c, reason, events):
     return True
 
 
-def _buy(state, symbol, record, now, c, events, add=False):
+BUY_REJECTION_REASONS = frozenset({
+    'invalid_unit_cost', 'below_minimum_lot', 'insufficient_ask_depth',
+    'cash_or_position_cap', 'immediate_risk_limit', 'insufficient_expected_net',
+    'below_min_score', 'symbol_cooldown', 'position_capacity',
+})
+
+
+def _reject_buy(events, symbol, now, reason, *, add=False, stage='execution', **context):
+    """Closed vocabulary and finite numeric context only; never a fill."""
+    if reason not in BUY_REJECTION_REASONS or stage not in ('execution', 'selection', 'rotation_trial'):
+        raise ValueError('invalid buy rejection classification')
+    safe = {key: value for key, value in context.items()
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+            and math.isfinite(value)}
+    events.append(dict(type='buy_rejected', symbol=symbol, time=now,
+                       action='add' if add else 'open', stage=stage,
+                       reason=reason, context=safe))
+    return False
+
+
+def _buy(state, symbol, record, now, c, events, add=False, stage='execution'):
     p = state['positions'].get(symbol)
     tranche_index = p['adds'] + 1 if add else 0
     fill = record['ask'] * (1 + c['slippage_rate'])
@@ -172,18 +192,23 @@ def _buy(state, symbol, record, now, c, events, add=False):
                  state['cash'] / (1 + c['fee_rate']))
     unit_cost = fill * record['multiplier'] * record['lot_size']
     if not _number(unit_cost, True) or not math.isfinite(budget / unit_cost):
-        return False
+        return _reject_buy(events, symbol, now, 'invalid_unit_cost', add=add, stage=stage,
+                           unit_cost=unit_cost, budget=budget)
     lots = math.floor(budget / unit_cost)
     if lots < 1:
-        return False
+        return _reject_buy(events, symbol, now, 'below_minimum_lot', add=add, stage=stage,
+                           unit_cost=unit_cost, budget=budget)
     contracts = lots * record['lot_size']
     if not _full_depth(record, 'ask', contracts):
-        return False
+        return _reject_buy(events, symbol, now, 'insufficient_ask_depth', add=add, stage=stage,
+                           required_contracts=contracts, ask_size=record.get('ask_size'))
     quantity = contracts * record['multiplier']
     cost = quantity * fill
     fee = cost * c['fee_rate']
     if cost + fee > state['cash'] or existing + cost > c['position_notional_cap'] + 1e-9:
-        return False
+        return _reject_buy(events, symbol, now, 'cash_or_position_cap', add=add, stage=stage,
+                           cost=cost, fee=fee, cash=state['cash'], existing_cost=existing,
+                           position_cap=c['position_notional_cap'])
     total_quantity = quantity + (p['quantity'] if p else 0)
     total_cost = existing + cost
     total_fees = fee + (p['entry_fees'] if p else 0)
@@ -192,14 +217,17 @@ def _buy(state, symbol, record, now, c, events, add=False):
                      - (p['funding_accrued'] if p else 0))
     weighted_drop = (1 - record['bid'] / (total_cost / total_quantity)) * 100
     if immediate_net <= -c['max_position_loss'] or weighted_drop >= c['max_price_drop_pct']:
-        return False
+        return _reject_buy(events, symbol, now, 'immediate_risk_limit', add=add, stage=stage,
+                           immediate_net=immediate_net, weighted_drop_pct=weighted_drop,
+                           max_position_loss=c['max_position_loss'], max_price_drop_pct=c['max_price_drop_pct'])
     if not add:
         hypothetical_bid = record['bid'] * (1 + record['entry_edge_pct'] / 100)
         exit_proceeds = quantity * hypothetical_bid * (1 - c['slippage_rate'])
         expected_net = exit_proceeds * (1 - c['fee_rate']) - cost - fee
         # Declared price edge is a scanner heuristic, never a profit guarantee.
         if expected_net < c['target_net_profit']:
-            return False
+            return _reject_buy(events, symbol, now, 'insufficient_expected_net', add=add, stage=stage,
+                               expected_net=expected_net, target_net_profit=c['target_net_profit'])
     state['cash'] -= cost + fee
     if p is None:
         p = dict(contracts=0, quantity=0.0, cost_basis=0.0, entry_fees=0.0,
@@ -335,6 +363,17 @@ def step(state, market, now, config):
                     and r['ask'] * (1 + c['slippage_rate']) <=
                     p['last_fill'] * (1 - c['add_drop_pct'][p['adds']] / 100)):
                 _buy(s, symbol, r, now, c, events, add=True)
+        # Explain selection skips only for otherwise eligible, unheld names.
+        for symbol, r in valid.items():
+            if not r['eligible'] or symbol in s['positions'] or symbol in closed_this_tick:
+                continue
+            if r['score'] < c['min_score']:
+                _reject_buy(events, symbol, now, 'below_min_score', stage='selection',
+                            score=r['score'], min_score=c['min_score'])
+            elif now - s['symbol_closed_at'].get(symbol, -math.inf) < c['cooldown_seconds']:
+                _reject_buy(events, symbol, now, 'symbol_cooldown', stage='selection',
+                            elapsed_seconds=now - s['symbol_closed_at'][symbol],
+                            cooldown_seconds=c['cooldown_seconds'])
         candidates = sorted((symbol for symbol, r in valid.items()
                              if r['eligible'] and r['score'] >= c['min_score']
                              and symbol not in s['positions'] and symbol not in closed_this_tick
@@ -355,13 +394,22 @@ def step(state, market, now, config):
                 trial_events = []
                 if not _close(trial, weak, valid[weak], now, c, 'rotation', trial_events):
                     events.extend(trial_events)
-                elif _buy(trial, best, valid[best], now, c, []):
+                elif _buy(trial, best, valid[best], now, c, trial_events, stage='rotation_trial'):
                     if _close(s, weak, valid[weak], now, c, 'rotation', events):
                         _buy(s, best, valid[best], now, c, events)
                         s['last_rotation'] = now
                         candidates.remove(best)
+                else:
+                    # A failed trial must not expose its hypothetical close/fill.
+                    events.extend(e for e in trial_events if e['type'] == 'buy_rejected')
         for symbol in candidates:
             if len(s['positions']) >= c['max_positions']:
+                # Each otherwise eligible candidate is counted once per tick.
+                already_rejected = {e.get('symbol') for e in events if e['type'] == 'buy_rejected'}
+                for blocked in candidates[candidates.index(symbol):]:
+                    if blocked not in already_rejected:
+                        _reject_buy(events, blocked, now, 'position_capacity', stage='selection',
+                                    positions=len(s['positions']), max_positions=c['max_positions'])
                 break
             _buy(s, symbol, valid[symbol], now, c, events)
     s['last_run'] = now

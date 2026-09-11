@@ -18,6 +18,7 @@ from paper_grid import cli, engine, market
 ARMS = ('baseline', 'liquidation_filter')
 TICK_SECONDS = 300
 REPORT_SECONDS = 1800
+TELEMETRY_SCHEMA = 1
 FILE = 'experiment.json'
 
 
@@ -317,9 +318,15 @@ def tick(runtime=cli.DEFAULT_RUNTIME, now=None, collector=None, feature_collecto
                 events.extend(dict(event, account=name) for event in arm_events)
             if _deadline(doc, _now(now)):
                 raise _DeadlineReached()
-            doc.update(accounts=next_accounts, coinglass=features, last_tick_at=decision_at)
+            doc.update(accounts=next_accounts, coinglass=features, last_tick_at=decision_at,
+                       telemetry_schema=TELEMETRY_SCHEMA)
             doc['events'].extend(events)
-            doc['observations'].append(dict(time=decision_at, market=quotes, scan=scan, coinglass=features, events=events))
+            equity = {}
+            for name, account in next_accounts.items():
+                mark = engine.status(account['state'], account['market'], decision_at, doc['config'])
+                equity[name] = {key: mark[key] for key in ('equity', 'equity_is_estimate')}
+            doc['observations'].append(dict(time=decision_at, market=quotes, scan=scan, coinglass=features,
+                                            events=events, telemetry_schema=TELEMETRY_SCHEMA, equity=equity))
             if scan.get('errors'):
                 doc['errors'].append(dict(time=decision_at, type='market_data', details=scan['errors']))
             if features.get('errors'):

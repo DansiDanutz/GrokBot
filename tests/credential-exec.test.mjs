@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, realpathSync, writeFileSync, chmodSync, symlinkSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+const loader=join(import.meta.dirname,'../scripts/credential-exec.py');
+function fixture(t){const root=realpathSync(mkdtempSync(join(tmpdir(),'credential-test-')));t.after(()=>rmSync(root,{recursive:true,force:true}));const file=join(root,'secret.json');writeFileSync(file,JSON.stringify({DLS_TELEGRAM_BOT_TOKEN:'synthetic-value'}),{mode:0o600});return {root,file}}
+function run(file){return spawnSync('python3',[loader,'--credentials',file,'--','/usr/bin/env','python3','-c','import os,sys; sys.exit(0 if os.environ.get("DLS_TELEGRAM_BOT_TOKEN")=="synthetic-value" else 2)'],{encoding:'utf8'})}
+test('private loader preserves credential access without printing values',t=>{const {file}=fixture(t);const r=run(file);assert.equal(r.status,0);assert.equal(r.stdout,'');assert.equal(r.stderr,'')});
+test('private loader rejects readable credential files and symlinks',t=>{const {root,file}=fixture(t);chmodSync(file,0o644);assert.equal(run(file).status,1);chmodSync(file,0o600);const link=join(root,'link.json');symlinkSync(file,link);assert.equal(run(link).status,1)});
+test('private loader sanitizes malformed credential errors',t=>{const {file}=fixture(t);writeFileSync(file,'synthetic-private-invalid-json');const r=run(file);assert.equal(r.status,1);assert.doesNotMatch(r.stderr,/synthetic-private-invalid-json/)});
