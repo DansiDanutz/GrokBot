@@ -11,7 +11,7 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(order_split(75, .5, 100, 100, 'NEUTRAL'), (99, 101))
         for direction, low in [('LONG', 80), ('SHORT', 70), ('NEUTRAL', 75)]:
             self.assertTrue(layout_valid(low, .5, 100, 100, direction))
-        self.assertFalse(layout_valid(80, 1, 50, 100, 'LONG'))
+        self.assertFalse(layout_valid(80, 2, 10, 100, 'LONG'))
         self.assertFalse(layout_valid(80, .5, 100, 105, 'LONG'))
 
     def test_split_matches_engine_on_and_between_grid_lines(self):
@@ -62,3 +62,24 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(supports,[(80,2),(90,2)])
         self.assertEqual(resistances,[(110,2),(130,2)])
         self.assertEqual(levels(candles,100,2)['support'],90)
+
+class GridFloorTests(unittest.TestCase):
+    """A confirmed structural range must stay usable when it is narrow."""
+
+    def test_narrow_confirmed_range_keeps_a_feasible_layout(self):
+        """A 12% structural range has no fee-safe 70-grid layout but must stay usable."""
+        from trader.radar.layout import MIN_GRIDS, layout_valid
+        from trader.radar.spacing import choose_count, economics
+        low, high, tick = .13404, .15055, .00001
+        for direction, price in (('SHORT', .1463), ('NEUTRAL', .1420)):
+            with self.subTest(direction=direction):
+                largest = choose_count(low, high, tick_size=tick, direction=direction)
+                self.assertLess(largest, 70)
+                feasible = [count for count in range(largest, MIN_GRIDS - 1, -1)
+                            if economics(low, high, count, tick_size=tick,
+                                         direction=direction)['viable']
+                            and layout_valid(low, economics(low, high, count, tick_size=tick,
+                                             direction=direction)['interval'],
+                                             count, price, direction)]
+                self.assertTrue(feasible, 'no fee-safe layout survives the grid floor')
+                self.assertLess(max(feasible), 70)

@@ -277,7 +277,7 @@ class EntryLayoutAdmissionTests(unittest.TestCase):
     def test_minimum_grid_count_and_direction_split(self):
         good = self.candidate()
         self.assertTrue(policy.eligible(policy.new_state(0), good, 'LONG', 'long', 0))
-        for changes in ({'grids': 69}, {'price': 105}):
+        for changes in ({'grids': 11}, {'price': 105}):
             with self.subTest(changes=changes):
                 self.assertFalse(policy.eligible(policy.new_state(0), dict(good, **changes), 'LONG', 'long', 0))
 
