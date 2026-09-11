@@ -14,7 +14,9 @@ python3 -m trader.data.universe --database /absolute/path/market.sqlite --refres
 from the latest `observed_at_ms` epoch at or before the chosen time. It neither
 mixes older symbols from other epochs nor includes future snapshots. The CLI
 cannot establish response completeness; absent registry symbols remain as they
-were. `--now-ms` supplies a reproducible UTC millisecond cutoff. A missing
+were. `--now-ms` supplies a reproducible UTC millisecond cutoff. A report timestamp
+older than the persisted registry state is rejected: this table is a current
+snapshot, not a historical as-of store. A missing
 snapshot fails explicitly without resetting existing records. The output gives
 registry rows, parsed coverage objects, age fields and aggregate coverage counts.
 The last metadata observation time remains distinct from metric refresh time.

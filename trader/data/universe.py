@@ -225,6 +225,8 @@ def registry_report(store, *, now_ms):
     """Return registry facts with explicit observed-history age bounds."""
     _timestamp(now_ms)
     rows = store.query("SELECT * FROM universe ORDER BY active DESC, symbol")
+    if any(row["updated_at_ms"] > now_ms for row in rows):
+        raise ValueError("report time precedes newer registry state")
     contracts = []
     for row in rows:
         coverage = json.loads(row["coverage_json"])

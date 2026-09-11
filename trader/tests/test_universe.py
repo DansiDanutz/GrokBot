@@ -57,11 +57,18 @@ class UniverseTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.addCleanup(self.store.close)
 
-    def report(self):
-        return registry_report(self.store, now_ms=NOW)
+    def report(self, now_ms=NOW):
+        return registry_report(self.store, now_ms=now_ms)
 
-    def first(self):
-        return self.report()["contracts"][0]
+    def first(self, now_ms=NOW):
+        return self.report(now_ms)["contracts"][0]
+
+    def test_report_cannot_relabel_newer_metrics_as_historical_evidence(self):
+        self.store.upsert("klines", [candle(NOW-MINUTE, turnover=123)])
+        refresh_registry(self.store, [contract()], now_ms=NOW, complete=True)
+        with self.assertRaisesRegex(ValueError, "newer registry state"):
+            registry_report(self.store, now_ms=NOW-DAY)
+        self.assertEqual(self.report()["contracts"][0]["turnover_30d"], 123)
 
     def test_over_100_contracts_have_listing_ages_and_nullable_evidence(self):
         contracts = [contract(f"COIN{i:03}USDTM") for i in range(110)]
@@ -96,7 +103,7 @@ class UniverseTests(unittest.TestCase):
                 candle(NOW - HOUR, "1h", turnover=999)]
         self.store.upsert("klines", rows)
         refresh_registry(self.store, [contract()], now_ms=NOW + 1234)
-        row = self.first()
+        row = self.first(NOW + 1234)
         coverage = row["coverage"]["turnover_30d"]
         self.assertEqual(row["turnover_30d"], 7)
         self.assertEqual(coverage["status"], "partial")
@@ -135,15 +142,15 @@ class UniverseTests(unittest.TestCase):
         refresh_registry(self.store, [first, second],
                          now_ms=NOW, complete=True)
         refresh_registry(self.store, [first], now_ms=NOW + MINUTE)
-        self.assertEqual(self.report()["stats"]["active"], 2)
+        self.assertEqual(self.report(NOW + MINUTE)["stats"]["active"], 2)
         refresh_registry(self.store, [first], now_ms=NOW + 2 * MINUTE,
                          complete=True)
-        rows = self.report()["contracts"]
+        rows = self.report(NOW + 2 * MINUTE)["contracts"]
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[1]["active"], 0)
         self.assertEqual(rows[1]["listed_at_ms"], DAY)
         refresh_registry(self.store, [second], now_ms=NOW + 3 * MINUTE)
-        self.assertEqual(self.report()["stats"]["active"], 2)
+        self.assertEqual(self.report(NOW + 3 * MINUTE)["stats"]["active"], 2)
 
     def test_invalid_metadata_rejects_whole_refresh_without_deactivation(self):
         refresh_registry(self.store, [contract()], now_ms=NOW)
