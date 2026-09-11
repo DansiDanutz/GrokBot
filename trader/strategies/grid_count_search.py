@@ -91,7 +91,7 @@ def _history(bars, asof_ms):
             raise ValueError('aligned integer candle timestamp required')
         if timestamp < start or timestamp >= asof_ms:
             continue
-        if row.get('synthetic') or row.get('indicator_only'):
+        if row.get('synthetic') or row.get('indicator_only') or row.get('observed') is False:
             continue
         prices = tuple(float(_decimal(row.get(key), key, positive=True)) for key in ('low','high','close'))
         low, high, close = prices

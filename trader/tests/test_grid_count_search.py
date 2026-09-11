@@ -175,6 +175,27 @@ class GridCountSearchTests(unittest.TestCase):
         self.assertIsNone(row['economics']['7d']['short']['median_hold_ms'])
         self.assertFalse(row['funded_economics_eligible'])
 
+    def test_explicitly_unobserved_history_has_no_coverage_or_candidates(self):
+        result = search([dict(row, observed=False) for row in bars()])
+        self.assertEqual(result['coverage'], dict(actual=0, expected=10080,
+                                                  fraction=0., eligible=False))
+        self.assertEqual(result['candidates'], [])
+        self.assertEqual(result['evaluated_count'], 0)
+
+    def test_mixed_history_counts_only_observed_rows_and_censors_gaps(self):
+        rows = bars()
+        for index, row in enumerate(rows):
+            if index % 100 == 0:
+                row['observed'] = False
+            elif index % 2 == 0:
+                row['observed'] = True
+        result = search(rows)
+        observed = [row for row in rows if row.get('observed') is not False]
+        self.assertEqual(result['coverage']['actual'], 9979)
+        self.assertEqual(result['coverage']['fraction'], 9979 / 10080)
+        self.assertTrue(result['coverage']['eligible'])
+        self.assertEqual(result, search(observed))
+
     def test_validation_coverage_future_and_duplicates(self):
         rows = bars()
         with self.assertRaises(ValueError):
