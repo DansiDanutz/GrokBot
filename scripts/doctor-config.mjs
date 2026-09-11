@@ -13,6 +13,9 @@ export function inspectMcpCommand(p, commandExists = existsSync) {
   } catch {
     return { commandExists: false, stableCommand: false, warning: 'MCP configuration missing or unreadable; inspect configuration manually.', fix: null };
   }
+  if (typeof command !== 'string' || !command.trim()) {
+    return { commandExists: false, stableCommand: false, warning: 'MCP server command missing or invalid; inspect the complete server configuration manually.', fix: null };
+  }
   const exists = typeof command === 'string' && commandExists(command);
   const stable = command === STABLE_NODE;
   const warning = !stable ? 'MCP command is not the stable Homebrew Node path; repair explicitly from the repository root.'

@@ -64,3 +64,16 @@ test('doctor detects missing or versioned MCP command without rewriting config',
   assert.equal(inspectMcpCommand(p, () => true).warning, null);
   assert.match(inspectMcpCommand(p, () => false).warning, /missing/);
 });
+
+test('doctor offers no broken repair command for absent MCP server blocks', async t => {
+  const { inspectMcpCommand } = await import('../scripts/doctor-config.mjs');
+  const { p, s } = fixture(t), file = initialize(p, s);
+  for (const config of [{}, { mcpServers: {} }, { mcpServers: { danslab_status: {} } }]) {
+    writeFileSync(file, JSON.stringify(config));
+    const before = readFileSync(file, 'utf8');
+    const report = inspectMcpCommand(p);
+    assert.equal(report.fix, null);
+    assert.match(report.warning, /missing|invalid/i);
+    assert.equal(readFileSync(file, 'utf8'), before);
+  }
+});
