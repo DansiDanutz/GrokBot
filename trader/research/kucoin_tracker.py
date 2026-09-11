@@ -5,6 +5,7 @@ neutral uses its net inventory direction. OHLC cannot establish the true trade
 sequence, so this is a conservative execution convention, not a guaranteed bound.
 """
 from dataclasses import asdict, replace
+from functools import lru_cache
 import math
 from trader.strategies.kucoin_grid import advance, floating_pnl, net_equity, preview
 from trader.strategies.grid_types import Position
@@ -63,16 +64,35 @@ def _before_close(state):
                    close_pnl=state.close_pnl-sum(event.gross_pnl for event in fills))
 
 
+@lru_cache(maxsize=256)
+def _stop_values(config):
+    values = preview(config)
+    names = ('range_exit_stop_low', 'range_exit_stop_high',
+             'effective_stop_loss_low', 'effective_stop_loss_high')
+    return tuple((name, values[name]) for name in names)
+
+
+def _stop_distances(config, price):
+    values = dict(_stop_values(config))
+    effective = [values[key] for key in ('effective_stop_loss_low', 'effective_stop_loss_high')
+                 if values[key] is not None]
+    nearest = min(effective, key=lambda stop: abs(price-stop)) if effective else None
+    values['distance_stop_loss_pct'] = abs(price-nearest)/nearest*100 if nearest else None
+    for side, sign in [('low', 1), ('high', -1)]:
+        for prefix in ('range_exit_stop_', 'effective_stop_loss_'):
+            stop = values[prefix+side]
+            values['distance_'+prefix+side+'_pct'] = sign*(price-stop)/stop*100 if stop else None
+    return values
+
+
 def _distances(state):
     state = _before_close(state)
     config, price = state.config, state.price
     liquidation = _liquidation(state)
     distance = abs(price-liquidation)/liquidation*100 if liquidation else None
-    stops = [value for value in (config.stop_loss, config.stop_loss_high) if value is not None]
-    nearest_stop = min(stops, key=lambda stop: abs(price-stop)) if stops else None
     return dict(distance_low_pct=(price-config.low)/config.low*100,
                 distance_high_pct=(config.high-price)/config.high*100,
-                distance_stop_loss_pct=abs(price-nearest_stop)/nearest_stop*100 if nearest_stop else None,
+                **_stop_distances(config, price),
                 distance_liquidation_pct=distance, liquidation_price=liquidation,
                 liquidation_estimate=True,
                 liquidation_scenario='current inventory; future resting fills excluded',

@@ -45,3 +45,24 @@ class FeatureTests(unittest.TestCase):
         self.assertTrue(features(bars)['valid'])
         bars[800]['timestamp_ms'] += 60000
         self.assertFalse(features(bars)['valid'])
+
+    def test_confirmed_swing_levels_require_two_closed_bars_on_right(self):
+        bars = candles(10082)
+        bars[10070]['low'] = 90.
+        bars[10070]['high'] = 110.
+        bars[10079]['low'] = 80.
+        before = features(bars[:10080])['support_resistance']
+        self.assertEqual(before['confirmation_bars'],2)
+        self.assertEqual([level['price'] for level in before['supports']],[90.])
+        self.assertEqual([level['price'] for level in before['resistances']],[110.])
+        after = features(bars)['support_resistance']
+        self.assertEqual([level['price'] for level in after['supports']],[80.,90.])
+        self.assertEqual(before['support_pivot_count'],1)
+        self.assertEqual(after['support_pivot_count'],2)
+        self.assertEqual(features(bars[:10080])['support_resistance'],before)
+
+    def test_flat_history_does_not_invent_confirmed_pivots(self):
+        evidence = features(candles())['support_resistance']
+        self.assertEqual(evidence['supports'],[])
+        self.assertEqual(evidence['resistances'],[])
+        self.assertEqual(evidence['lookback_minutes'],10080)

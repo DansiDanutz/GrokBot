@@ -20,7 +20,7 @@ MAX_HISTORY_MS = 93 * 24 * HOUR_MS
 REQUIRED = {'bot_id', 'pair', 'direction', 'leverage', 'used_margin',
             'reserved_margin', 'entry', 'low', 'high', 'grids', 'stop_loss',
             'start_ms', 'expected_start_gph'}
-OPTIONAL = {'stop_loss_high', 'trigger', 'quantity', 'multiplier', 'lot_size'}
+OPTIONAL = {'stop_loss_high', 'trigger', 'quantity', 'multiplier', 'lot_size', 'tick_size'}
 TERMINAL = ('stopped', 'liquidated')
 
 
@@ -31,7 +31,8 @@ def _config(bot):
         low=bot['low'], high=bot['high'], grids=bot['grids'],
         stop_loss=bot['stop_loss'], stop_loss_high=bot.get('stop_loss_high'),
         trigger=bot.get('trigger'), quantity=bot.get('quantity'),
-        multiplier=bot.get('multiplier', 1), lot_size=bot.get('lot_size', 1))
+        multiplier=bot.get('multiplier', 1), lot_size=bot.get('lot_size', 1),
+        tick_size=bot.get('tick_size'))
 
 
 def _validate_bot(bot, asof_ms):

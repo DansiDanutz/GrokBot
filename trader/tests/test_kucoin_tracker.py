@@ -53,7 +53,7 @@ class TrackerTests(unittest.TestCase):
         result = track_bars(state(stop_loss=85),
                             [dict(timestamp_ms=0, open=100, high=101, low=80, close=100)])
         self.assertTrue(result['summary']['stop_loss_hit'])
-        self.assertEqual(result['state'].price, 85)
+        self.assertEqual(result['state'].price, 85.5)
         self.assertEqual(result['summary']['positions']['long']['quantity'], 0)
         self.assertGreater(result['summary']['switch_close_fee_paid'], 0)
 
@@ -85,7 +85,8 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(result['grid_net_profit'], running.grid_net_profit)
 
     def test_intrahour_emergency_survives_price_recovery(self):
-        running = replace(state(investment=200, leverage=10), orders=())
+        running = replace(state(investment=200, leverage=10,
+                                range_exit_stop_pct=None), orders=())
         candle = dict(timestamp_ms=0, open=100, high=101, low=83, close=100)
         summary = track_bars(running, [candle])['summary']
         self.assertTrue(summary['emergency'])
@@ -117,7 +118,8 @@ class TrackerTests(unittest.TestCase):
         self.assertGreater(max(expected), result['summary']['net_equity'])
 
     def test_range_risk_keeps_worst_intrahour_distance_after_recovery(self):
-        running = replace(state(investment=200, leverage=10), orders=())
+        running = replace(state(investment=200, leverage=10,
+                                range_exit_stop_pct=None), orders=())
         candle = dict(timestamp_ms=0, open=100, high=101, low=83, close=100)
         summary = track_bars(running, [candle])['summary']
         self.assertLess(summary['closest_liquidation_range_pct'],
@@ -166,3 +168,31 @@ class TrackerTests(unittest.TestCase):
         result = track_bars(initial, [candle])
         self.assertEqual([row['floating_pnl'] for row in result['equity_timeline']], expected)
         self.assertLess(min(expected), result['summary']['floating_pnl'])
+
+    def test_all_modes_expose_both_five_percent_hard_stops_and_distances(self):
+        for direction in ('long', 'short', 'neutral'):
+            with self.subTest(direction=direction):
+                config = GridConfig(pair='T', low=90, high=110, grids=20,
+                                    quantity=1, direction=direction)
+                summary = track_summary(create_bot(config, 100, 0), 0, HOUR)
+                self.assertEqual(summary['range_exit_stop_low'], 85.5)
+                self.assertEqual(summary['range_exit_stop_high'], 115.5)
+                self.assertEqual(summary['effective_stop_loss_low'], 85.5)
+                self.assertEqual(summary['effective_stop_loss_high'], 115.5)
+                self.assertAlmostEqual(summary['distance_range_exit_stop_low_pct'], 14.5/85.5*100)
+                self.assertAlmostEqual(summary['distance_range_exit_stop_high_pct'], 15.5/115.5*100)
+
+    def test_closest_stop_distance_uses_effective_nearer_custom_threshold(self):
+        summary = track_summary(state(stop_loss=88), 0, HOUR)
+        self.assertEqual(summary['effective_stop_loss_low'], 88)
+        self.assertEqual(summary['range_exit_stop_low'], 85.5)
+        self.assertAlmostEqual(summary['distance_stop_loss_pct'], 12/88*100)
+
+    def test_upper_hard_stop_is_reported_for_long_without_a_custom_upper_stop(self):
+        result = track_bars(state(), [dict(timestamp_ms=0, open=100, low=99,
+                                          high=120, close=100)])
+        summary = result['summary']
+        self.assertTrue(summary['stop_loss_hit'])
+        self.assertEqual(summary['price'], 115.5)
+        self.assertEqual(summary['distance_stop_loss_pct'], 0)
+        self.assertEqual(summary['distance_range_exit_stop_high_pct'], 0)

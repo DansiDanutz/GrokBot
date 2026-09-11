@@ -19,7 +19,8 @@ def fixture_config(bot):
                       grids=bot['grids_buy'] + bot['grids_sell'],
                       leverage=bot['leverage'], investment=bot['margin_usdt'] - bot['reserved_margin'],
                       reserved_margin=bot['reserved_margin'],
-                      entry_price=bot['entry_price'], multiplier=1e-9)
+                      entry_price=bot['entry_price'], multiplier=1e-9,
+                      range_exit_stop_pct=None)
 
 
 def _comparison(bot):

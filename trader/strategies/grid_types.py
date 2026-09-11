@@ -21,6 +21,7 @@ class GridConfig:
     stop_loss: float | None = None
     stop_loss_high: float | None = None
     tick_size: float | None = None
+    range_exit_stop_pct: float | None = .05
 
     @property
     def total_margin(self):

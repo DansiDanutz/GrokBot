@@ -143,3 +143,26 @@ Under the updated running-Margin interpretation, the four-bot baseline commits *
 Bot ages of roughly two and a half days and a screenshot capture window do not validate two disjoint months. Historical coverage must be measured on the authorized database copy before making any claim about that gate. Missing monthly coverage, failed calibration or unverified essential semantics require a written negative/insufficient-evidence result and **shelve**, even if a short replay is profitable. Neither a smoke test nor synthetic scenarios count as the required market-history evidence.
 
 Manual KuCoin form entry remains the authorized execution interface. Recommendations must expose used/reserved margin, trigger or wait status, both range edges, count, fees, estimated liquidation, required stop controls, current rates and every switch cost. A no-qualified-candidate result is valid; it does not justify unsafe sizing or suppress an already-triggered stop.
+
+## Latest rule: hard stop 5% outside either boundary
+
+The later [Dan correction](specs/grid-kucoin-addendum.md) takes precedence over
+the original flexible stop placement. Every new strategy bot, Long, Short or
+Neutral, has lower and upper hard barriers at `0.95 × low` and `1.05 × high`.
+Thresholds are inclusive. A closer custom stop can trigger first; no custom
+field can postpone the hard barrier. Gap execution uses the first modeled
+available price, so an exact maximum loss cannot be promised. Exchange-valid
+operator stop prices round inward by less than one tick. Both controls must
+be supported by the app before calling the form directly executable.
+
+Range evidence uses only closed candles: a five-bar swing pivot requires two
+closed bars on each side, so the newest two bars cannot confirm pivots.
+Seven-day extrema, grouped pivot touches and recent four-/24-hour evidence
+are reported alongside ATR clipping and the final range. Missing suitable
+pivots explicitly fall back to observed seven-day extrema. These are auditable
+technical levels, not a claim that support or resistance must hold.
+
+The liquidation buffer still must cover the losing-side stop. A range exit
+before the hard barrier can request a replacement; at the barrier the paper
+engine closes without waiting for one. The four unchanged historical forms
+explicitly disable the new rule because their original stop fields are unknown.

@@ -36,6 +36,13 @@ class CalibrationTests(unittest.TestCase):
             self.assertEqual(left['computed_profit_per_grid'], right['computed_profit_per_grid'])
             self.assertEqual(left['computed_liquidation_price'], right['computed_liquidation_price'])
 
+    def test_unchanged_historical_forms_do_not_invent_new_range_stops(self):
+        for bot in self.bots:
+            config = fixture_config(bot)
+            self.assertIsNone(config.range_exit_stop_pct)
+            self.assertIsNone(config.stop_loss)
+            self.assertIsNone(config.stop_loss_high)
+
     def test_sol_reserve_is_not_leveraged(self):
         sol = fixture_config(self.bots[-1])
         self.assertEqual(sol.investment, 7000)

@@ -13,7 +13,10 @@ reporting, but is not added again to equity. Supplied funding rates are applied
 at crossed UTC 8-hour boundaries using the latest supplied mark; callers must
 split paths at every funding boundary. At a boundary, price-path fills precede
 funding settlement; only inventory still held then is charged or credited.
-There is no take-profit. Reserve is collateral, never additional order notional.
+There is no take-profit. Both sides hard-stop at 5% beyond the configured range
+by default, independent of direction; a nearer custom stop wins. Historical
+unchanged baselines can explicitly disable this new rule with None.
+Reserve is collateral, never additional order notional.
 Default sizing is used margin times leverage divided by grids times entry,
 floored to contract lots; this is a paper allocation assumption, not a published
 KuCoin sizing equation. Neutral divides that sizing budget across two legs.
@@ -23,7 +26,7 @@ A stopped gap closes existing inventory at the observed quote with no assumed
 intervening grid fills (stop-priority scenario); exchange sequencing is unknown.
 """
 from dataclasses import replace
-from decimal import Decimal, ROUND_FLOOR
+from decimal import Decimal, ROUND_FLOOR, ROUND_CEILING
 import math
 
 from .grid_types import FillEvent, GridConfig, GridState, Order, Position
@@ -73,6 +76,10 @@ def _entry_reference(config):
 
 
 def _validate_form(config):
+    if config.range_exit_stop_pct is not None:
+        _finite(config.range_exit_stop_pct, 'range_exit_stop_pct')
+        if not 0 < config.range_exit_stop_pct < 1:
+            raise ValueError('range_exit_stop_pct must be between zero and one')
     if config.tick_size is not None:
         _finite(config.tick_size, 'tick_size', True)
         if config.tick_size > (config.high - config.low) / config.grids:
@@ -302,11 +309,29 @@ def _validate_funding_path(state, price, timestamp_ms, rate):
         raise ValueError('split moving price paths at each UTC 8-hour funding boundary')
 
 
-def _stop_crossing(state, price):
-    config = state.config
+def _stop_prices(config):
     low = config.stop_loss if config.direction != 'short' else None
     high = config.stop_loss_high if config.direction == 'neutral' else (
         config.stop_loss if config.direction == 'short' else None)
+    range_low, range_high = None, None
+    if config.range_exit_stop_pct is not None:
+        fraction = Decimal(str(config.range_exit_stop_pct))
+        range_low = float(Decimal(str(config.low)) * (1 - fraction))
+        range_high = float(Decimal(str(config.high)) * (1 + fraction))
+        effective_low, effective_high = range_low, range_high
+        if config.tick_size is not None:
+            tick = Decimal(str(config.tick_size))
+            effective_low = float((Decimal(str(range_low)) / tick).to_integral_value(rounding=ROUND_CEILING) * tick)
+            effective_high = float((Decimal(str(range_high)) / tick).to_integral_value(rounding=ROUND_FLOOR) * tick)
+        low = effective_low if low is None else max(low, effective_low)
+        high = effective_high if high is None else min(high, effective_high)
+    return {'range_exit_stop_low': range_low, 'range_exit_stop_high': range_high,
+            'effective_stop_loss_low': low, 'effective_stop_loss_high': high}
+
+
+def _stop_crossing(state, price):
+    stops = _stop_prices(state.config)
+    low, high = stops['effective_stop_loss_low'], stops['effective_stop_loss_high']
     if low is not None and price <= low:
         return low if state.price > low else state.price
     if high is not None and price >= high:
@@ -425,7 +450,7 @@ def preview(config):
     _validate(config)
     levels, quantity = _levels(config), _quantity(config)
     profits = [quantity * (b - a - FEE * (a + b)) for a, b in zip(levels, levels[1:])]
-    return {'profit_per_grid_min': min(profits), 'profit_per_grid': sum(profits) / len(profits), 'profit_per_grid_max': max(profits),
+    return {**_stop_prices(config), 'profit_per_grid_min': min(profits), 'profit_per_grid': sum(profits) / len(profits), 'profit_per_grid_max': max(profits),
             'order_count': config.grids * (2 if config.direction == 'neutral' else 1), 'quantity': quantity,
             'grid_step': levels[1] - levels[0], 'actual_grid_high': levels[-1],
             'kucoin_profit_pct_min': margin_profit_per_grid(config, config.high)['percent'],

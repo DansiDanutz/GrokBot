@@ -32,6 +32,34 @@ def _window(bars):
             'structure': (higher_high+higher_low)/2}
 
 
+def _swing_structure(bars):
+    """Five-bar extrema require two CLOSED candles on each side to confirm."""
+    evidence = {'method':'confirmed five-bar swing pivots; two closed bars on each side',
+                'confirmation_bars':2, 'lookback_minutes':len(bars)}
+    for label, key, comparison in (('support','low',min),('resistance','high',max)):
+        levels = {}
+        count = 0
+        for index in range(2,len(bars)-2):
+            price = bars[index][key]
+            left = [bars[i][key] for i in (index-2,index-1)]
+            right = [bars[i][key] for i in (index+1,index+2)]
+            if price != comparison(left+[price]+right):
+                continue
+            # A plateau alone is not evidence of a reversal.
+            if not any(value != price for value in left) or not any(value != price for value in right):
+                continue
+            count += 1
+            level = levels.setdefault(price,{'price':price,'count':0,'count_4h':0,'count_24h':0,
+                                             'last_confirmed_index':index+2})
+            level['count'] += 1
+            level['count_4h'] += int(index+2 >= len(bars)-240)
+            level['count_24h'] += int(index+2 >= len(bars)-1440)
+            level['last_confirmed_index'] = index+2
+        evidence[f'{label}s'] = [levels[price] for price in sorted(levels)]
+        evidence[f'{label}_pivot_count'] = count
+    return evidence
+
+
 def features(candles, funding_rate=0.):
     """Return reusable setup features, or ``valid=False`` with an exact reason."""
     if len(candles) < 7*24*60:
@@ -69,4 +97,5 @@ def features(candles, funding_rate=0.):
     result['typical_movement_1m'] = median(bar['high']-bar['low'] for bar in bars[-1440:])
     result['fresh_high'] = bars[-1]['close'] >= max(bar['high'] for bar in bars[-1440:-1])
     result['fresh_low'] = bars[-1]['close'] <= min(bar['low'] for bar in bars[-1440:-1])
+    result['support_resistance'] = _swing_structure(bars)
     return result

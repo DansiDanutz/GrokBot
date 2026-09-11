@@ -22,3 +22,14 @@ document any numerical conflict. The scanner must use the setup’s accepted
 interval and never use a finer grid to inflate its crossing score.
 
 All source-only, branch, TDD, verification and audit boundaries remain in force.
+
+## Later stop and range correction
+
+Dan subsequently requires a hard close when the bot is 5% outside its range.
+This applies beyond either boundary for all three modes: `low × 0.95` and
+`high × 1.05`. It is independent of the hourly replacement candidate test;
+no challenger is required to honor the stop. Inside-range movement remains
+part of normal grid behavior. App stop prices round inward to an admissible
+price tick, so they cannot wait beyond the threshold. Range selection must
+show its support/resistance analysis. The unchanged historical-form baseline
+retains its observed forms as a separately labeled comparison.

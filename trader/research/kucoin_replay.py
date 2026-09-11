@@ -51,7 +51,7 @@ def _config(form):
         entry_price=form['entry'], quantity=form.get('quantity'),
         multiplier=form.get('multiplier', 1), lot_size=form.get('lot_size', 1),
         trigger=form.get('trigger'), stop_loss=form.get('stop_loss'),
-        stop_loss_high=form.get('stop_loss_high'))
+        stop_loss_high=form.get('stop_loss_high'), tick_size=form.get('tick_size'))
 
 
 def _pairs(bots):

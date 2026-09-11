@@ -254,12 +254,12 @@ class GridTests(unittest.TestCase):
                 create_bot(self.config(**kwargs), 100, 0)
 
     def test_continuous_stop_loss_closes_at_threshold_before_future_price(self):
-        state = create_bot(self.config(direction='long', stop_loss=85), 100, 0)
+        state = create_bot(self.config(direction='long', stop_loss=86), 100, 0)
         stopped = advance(state, 70, 60_000)
         self.assertEqual(stopped.stop_reason, 'stop_loss')
-        self.assertEqual(stopped.price, 85)
+        self.assertEqual(stopped.price, 86)
         self.assertEqual(stopped.positions, ())
-        self.assertGreaterEqual(min(stopped.equity_marks), net_equity(stopped, 85))
+        self.assertGreaterEqual(min(stopped.equity_marks), net_equity(stopped, 86))
 
     def test_gap_stop_does_not_promise_threshold_price(self):
         state = create_bot(self.config(direction='long', stop_loss=85), 100, 0)
@@ -333,3 +333,41 @@ class GridTests(unittest.TestCase):
         self.assertGreater(state.completed_grids, 3)
         self.assertEqual(len(state.equity_marks), len(state.floating_pnl_marks))
         self.assertAlmostEqual(state.floating_pnl_marks[-1], floating_pnl(state, 101))
+
+    def test_five_percent_outside_range_stops_all_modes_both_edges(self):
+        for direction in ('long', 'short', 'neutral'):
+            for edge, before, beyond in ((85.5, 85.5001, 80), (115.5, 115.4999, 120)):
+                with self.subTest(direction=direction, edge=edge):
+                    state = create_bot(self.config(direction=direction), 100, 0)
+                    before_state = advance(state, before, 1_000)
+                    self.assertEqual(before_state.status, 'out_of_range')
+                    at_edge = advance(before_state, edge, 2_000)
+                    self.assertEqual(at_edge.status, 'stopped')
+                    self.assertEqual(at_edge.stop_reason, 'stop_loss')
+                    self.assertEqual(at_edge.price, edge)
+                    beyond_state = advance(state, beyond, 1_000)
+                    self.assertEqual(beyond_state.price, edge)
+
+    def test_historical_baseline_can_explicitly_disable_new_range_stop(self):
+        state = create_bot(self.config(direction='long', range_exit_stop_pct=None), 100, 0)
+        outside = advance(state, 80, 1_000)
+        self.assertEqual(outside.status, 'out_of_range')
+        self.assertIsNone(preview(state.config)['range_exit_stop_low'])
+        self.assertEqual(advance(outside, 100, 2_000).status, 'running')
+
+    def test_range_stop_gap_uses_observed_execution_price(self):
+        state = create_bot(self.config(direction='long'), 100, 0)
+        outside = advance(state, 80, 1_000, bid=79.9, ask=80.1, gap=True)
+        self.assertEqual(outside.price, 80)
+        self.assertEqual(outside.stop_reason, 'stop_loss')
+        self.assertTrue(all(event.price == 79.9 for event in outside.fill_events))
+
+    def test_stop_preview_shows_both_edges_and_nearer_custom_stop(self):
+        result = preview(self.config(direction='long', stop_loss=87))
+        self.assertEqual(result['range_exit_stop_low'], 85.5)
+        self.assertEqual(result['range_exit_stop_high'], 115.5)
+        self.assertEqual(result['effective_stop_loss_low'], 87)
+        self.assertEqual(result['effective_stop_loss_high'], 115.5)
+        for invalid in (-.1, 0, 1, float('nan')):
+            with self.assertRaises(ValueError):
+                preview(self.config(range_exit_stop_pct=invalid))

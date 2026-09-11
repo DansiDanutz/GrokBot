@@ -2,7 +2,11 @@
 
 Direction score is a weighted average in [-1,1]. Positive funding is a small
 contrarian short component. Range starts at long -15/+40%, short -40/+15%,
-neutral +/-20%, then intersects 7d structure and entry +/-20 minute ATRs.
+neutral +/-20%, then intersects confirmed 7d swing support/resistance, observed
+7d extremes and entry +/-20 minute ATRs. Five-bar swings require two closed
+right-hand candles. Choose the eligible pivot nearest each nominal edge.
+Universal stops are 5% of EDGE PRICE outside both sides, with app prices rounded
+inward by less than one tick; the losing stop must still precede liquidation.
 
 Search priority: at the unchanged range try 6x reserves 0..900 in steps of 100,
 then 5x, 4x, 3x with the same reserve schedule; only then repeat at losing-side
@@ -114,6 +118,34 @@ def _levels(low, high, entry, n, tick):
     return prices
 
 
+def _range_structure(data, entry, nominal_low, nominal_high):
+    evidence = data.get('support_resistance',{})
+    result = {'method':'Confirmed five-bar support/resistance nearest nominal range edges; 7d extreme fallback',
+              'confirmation_bars':evidence.get('confirmation_bars',2),
+              'lookback_minutes':evidence.get('lookback_minutes',data.get('history_minutes',10080)),
+              'support_pivot_count':evidence.get('support_pivot_count',0),
+              'resistance_pivot_count':evidence.get('resistance_pivot_count',0)}
+    for side, nominal, extreme in (('support',nominal_low,data['low_7d']),
+                                    ('resistance',nominal_high,data['high_7d'])):
+        candidates = []
+        for level in evidence.get(f'{side}s',[]):
+            price = level['price']
+            if not math.isfinite(price) or price <= 0 or level['count'] <= 0:
+                raise ValueError('Invalid confirmed support/resistance evidence')
+            if (data['low_7d'] <= price < entry if side == 'support'
+                    else entry < price <= data['high_7d']):
+                candidates.append(level)
+        result[f'{side}_candidate_count'] = len(candidates)
+        if candidates:
+            result[side] = dict(min(candidates,key=lambda level:(abs(level['price']-nominal),
+                                        -level['count'],-level.get('last_confirmed_index',0))))
+            result[f'{side}_source'] = 'confirmed swing pivot nearest nominal edge'
+        else:
+            result[side] = {'price':extreme,'count':0}
+            result[f'{side}_source'] = f'7d {"low" if side == "support" else "high"} fallback; no confirmed eligible pivot'
+    return result
+
+
 def build_setup(pair, data, market, parameters=None):
     """Build exact form from cached ``features`` and normalized market metadata."""
     params = dict(parameters or {})
@@ -164,15 +196,20 @@ def build_setup(pair, data, market, parameters=None):
         if trigger is not None:
             trigger = entry
         loss_pct, gain_pct = (.15,.40) if direction == 'long' else (.40,.15) if direction == 'short' else (.20,.20)
-        low = _round(max(entry*(1-loss_pct), data['low_7d'], entry-atr_multiple*atr),tick,up=True)
-        high = _round(min(entry*(1+gain_pct), data['high_7d'], entry+atr_multiple*atr),tick)
+        nominal_low, nominal_high = entry*(1-loss_pct), entry*(1+gain_pct)
+        range_evidence = _range_structure(data,entry,nominal_low,nominal_high)
+        range_evidence.update(atr_1m=atr,atr_multiple=atr_multiple,
+                              nominal_low=nominal_low,nominal_high=nominal_high)
+        low = _round(max(nominal_low, data['low_7d'],range_evidence['support']['price'], entry-atr_multiple*atr),tick,up=True)
+        high = _round(min(nominal_high, data['high_7d'],range_evidence['resistance']['price'], entry+atr_multiple*atr),tick)
         if direction == 'neutral':
             radius = _round(min(entry-low,high-entry),tick)
             low, high = _round(entry-radius,tick,up=True), _round(entry+radius,tick)
         if not 0 < low < entry < high:
             raise ValueError('Clipped structure/ATR range does not enclose a finite positive entry')
         result.update(entry=entry, trigger=trigger, tick_size=tick, lot_size=lot,multiplier=multiplier,
-                      initial_range={'low':low,'high':high}, range_rule='Nominal band intersected with 7d structure and entry +/-20 ATR (configurable)',
+                      initial_range={'low':low,'high':high},range_evidence=range_evidence,
+                      range_rule='Nominal band clipped to confirmed 7d support/resistance, 7d extremes and ATR bounds',
                       entry_reason='Wait for trigger' if trigger is not None else 'Current price qualifies')
         min_n, max_n = int(params.get('min_grids', 2)), int(params.get('max_grids', 300))
         if not 2 <= min_n <= max_n <= 300:
@@ -245,32 +282,40 @@ def build_setup(pair, data, market, parameters=None):
                         if not safe:
                             # Lower N can alter full inventory loading, so continue testing it.
                             continue
-                        stops = {}
-                        for side,edge,liq in (('long',prices[0],liq_long),('short',prices[-1],liq_short)):
-                            if direction in (side,'neutral'):
-                                stop = _round((edge+liq)/2,tick,up=side == 'short')
-                                if not (liq < stop < edge if side == 'long' else edge < stop < liq):
-                                    safe = False
-                                    break
-                                stops[side] = stop
-                        if not safe:
-                            attempt['reason'] = 'No tick-aligned stop strictly between range and liquidation'
+                        analytic_low = float(Decimal(str(prices[0]))*Decimal('.95'))
+                        analytic_high = float(Decimal(str(prices[-1]))*Decimal('1.05'))
+                        stops = {'long':_round(analytic_low,tick,up=True),
+                                 'short':_round(analytic_high,tick)}
+                        if not 0 < stops['long'] < prices[0] < prices[-1] < stops['short']:
+                            attempt['reason'] = 'No valid tick-aligned stops within the 5% edge limits'
+                            continue
+                        if ((direction in ('long','neutral') and not liq_long < stops['long']) or
+                                (direction in ('short','neutral') and not stops['short'] < liq_short)):
+                            attempt['reason'] = '5% range exit stop must precede losing-side liquidation'
                             continue
                         estimate.update({key:value for key,value in margin_preview.items() if key.startswith('kucoin_profit_')})
                         estimate.update(profit_per_grid_min=min_profit,
                                         profit_per_grid_max=quantity*(step-fee*(prices[0]+prices[1])),
                                         quantity=quantity, order_count=estimate.get('order_count',legs*n),
+                                        range_exit_stop_low=analytic_low,range_exit_stop_high=analytic_high,
+                                        app_stop_low=stops['long'],app_stop_high=stops['short'],
+                                        effective_stop_loss_low=stops['long'] if direction in ('long','neutral') else analytic_low,
+                                        effective_stop_loss_high=stops['short'] if direction in ('short','neutral') else analytic_high,
                                         liquidation_price_long=liq_long,liquidation_price_short=liq_short,
                                         buffer_range_percent={side:values['range_fraction']*100 for side,values in buffers.items()},
                                         buffer_edge_percent={side:values['edge_fraction']*100 for side,values in buffers.items()})
                         attempt['eligible'] = True
                         if step > movement + tick*1e-6:
                             result['warnings'].append('Step exceeds typical 1m movement; reducing grid count widens the step. Highest feasible count minimizes step; use actual crossings to rank.')
+                        range_evidence.update(final_low=prices[0],final_high=prices[-1])
                         result.update(eligible=True,reason=f'{result["direction_reason"]}; safe {leverage}x, {n} grids, net floor {min_profit:.4f} USDT',
                                       low=prices[0],high=prices[-1],levels=prices,step=step,interval=step,grids=n,leverage=leverage,
                                       used_margin=used,reserved_margin=reserve,quantity=quantity,contracts_per_grid=quantity/multiplier,
                                       per_grid_notional=quantity*entry,stop_loss=stops.get(direction,stops.get('long')),
                                       stop_loss_high=stops.get('short') if direction == 'neutral' else None,preview=estimate,
+                                      range_exit_stop_pct=.05,range_exit_stop_low=analytic_low,range_exit_stop_high=analytic_high,
+                                      hard_stop_low=stops['long'],hard_stop_high=stops['short'],
+                                      stop_tick_adjustment='App stops round inward by less than one tick, closing no later than 5% outside each edge',
                                       target_profit_per_grid=1.,target_semantics='both margin-per-grid estimate and actual per-order PnL >=1 after two 0.06% fees; exact equality limited by tick/lot sizes',
                                       opening_fee_budget=legs*quantity*n*entry*fee,typical_movement_1m=movement)
                         return result

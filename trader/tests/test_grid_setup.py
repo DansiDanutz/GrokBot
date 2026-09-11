@@ -178,3 +178,35 @@ class SetupTests(unittest.TestCase):
         self.assertAlmostEqual(result['kucoin_profit_pct_max'],5.21,delta=.02)
         self.assertAlmostEqual(result['kucoin_profit_usdt_min'],1000/70*result['kucoin_profit_pct_min']/100)
         self.assertLess(result['kucoin_profit_usdt_max'],1.)
+
+    def test_five_percent_both_edge_stops_are_price_based_for_all_modes(self):
+        for threshold,trend in ((0.,1),(.99,0),(0.,-1)):
+            data = feature_set(ema_slope_4h=.5*trend,ema_slope_24h=.5*trend,
+                               structure_4h=trend,structure_24h=trend,
+                               position_24h=.5-.3*trend,position_7d=.5-.3*trend,
+                               funding_sign=-trend)
+            result = build_setup('TESTUSDT',data,MARKET,dict(PARAMS,direction_threshold=threshold))
+            self.assertTrue(result['eligible'],result['reason'])
+            self.assertAlmostEqual(result['range_exit_stop_low'],.95*result['low'])
+            self.assertAlmostEqual(result['range_exit_stop_high'],1.05*result['high'])
+            self.assertGreaterEqual(result['hard_stop_low'],result['range_exit_stop_low'])
+            self.assertLessEqual(result['hard_stop_high'],result['range_exit_stop_high'])
+            self.assertLess(result['hard_stop_low']-result['range_exit_stop_low'],MARKET['tick_size']+1e-9)
+            self.assertLess(result['range_exit_stop_high']-result['hard_stop_high'],MARKET['tick_size']+1e-9)
+            self.assertIn('one tick',result['stop_tick_adjustment'])
+
+    def test_range_uses_confirmed_support_resistance_and_explains_fallback(self):
+        evidence = dict(method='confirmed five-bar swing pivots',confirmation_bars=2,lookback_minutes=10080,
+                        supports=[dict(price=92.,count=3,last_confirmed_index=10070)],
+                        resistances=[dict(price=130.,count=2,last_confirmed_index=10071)],
+                        support_pivot_count=3,resistance_pivot_count=2)
+        result = build_setup('TESTUSDT',feature_set(support_resistance=evidence),MARKET,PARAMS)
+        self.assertTrue(result['eligible'],result['reason'])
+        self.assertGreaterEqual(result['low'],92.)
+        self.assertLessEqual(result['high'],130.)
+        self.assertEqual(result['range_evidence']['support']['price'],92.)
+        self.assertEqual(result['range_evidence']['support']['count'],3)
+        self.assertEqual(result['range_evidence']['resistance']['price'],130.)
+        self.assertEqual(result['range_evidence']['confirmation_bars'],2)
+        fallback = build_setup('TESTUSDT',feature_set(),MARKET,PARAMS)
+        self.assertEqual(fallback['range_evidence']['support_source'],'7d low fallback; no confirmed eligible pivot')

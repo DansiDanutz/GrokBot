@@ -82,5 +82,9 @@
   ],
   "neutral_preview_tolerance_percentage_points": 0.3,
   "neutral_evidence": "RAY: 70 grids, 140 orders, long 544 lots and short 629 lots, 17 lots per order, used 1000 plus 200 reserve; preview and post-creation states remain separate.",
-  "minimum_grid_rule": "Minimum >=1 USDT over the whole range after both fill fees and contract rounding. Also report margin-per-grid leveraged return percentages. The approximate RAY 50-grid centre result does not prove a full-range floor."
+  "minimum_grid_rule": "Minimum >=1 USDT over the whole range after both fill fees and contract rounding. Also report margin-per-grid leveraged return percentages. The approximate RAY 50-grid centre result does not prove a full-range floor.",
+  "range_exit_stop_pct": 0.05,
+  "range_exit_policy": "All strategy directions close at or before 5% beyond either range edge. Prices rounded inward to valid app ticks. Unchanged historical-form baseline explicitly retains its original missing stop fields.",
+  "range_selection": "Causal seven-day structure, confirmed five-bar swing pivots (two closed bars on each side), ATR clipping; show supporting levels, touch counts and fallback evidence.",
+  "amendment": "Dan explicitly requested support/resistance ranges and a hard 5% outside-range stop after initial coverage-only negative sweep. No parameters were selected from unavailable monthly results; rerun under this amendment."
 }
