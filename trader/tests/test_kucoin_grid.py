@@ -368,7 +368,7 @@ class GridTests(unittest.TestCase):
         self.assertEqual(result['range_exit_stop_high'], 115.5)
         self.assertEqual(result['effective_stop_loss_low'], 87)
         self.assertEqual(result['effective_stop_loss_high'], 115.5)
-        for invalid in (-.1, 0, 1, float('nan')):
+        for invalid in (-.1, 1, float('nan')):
             with self.assertRaises(ValueError):
                 preview(self.config(range_exit_stop_pct=invalid))
 
@@ -474,3 +474,118 @@ class GridTests(unittest.TestCase):
         stopped = advance(state, 99, 1_000)
         self.assertTrue(stopped.liquidated)
         self.assertEqual(stopped.price, 100)
+
+    def test_boundary_policy_remains_active_strictly_inside_in_all_modes(self):
+        for direction in ('long', 'short', 'neutral'):
+            with self.subTest(direction=direction):
+                state = create_bot(self.config(direction=direction, range_exit_stop_pct=0), 100, 0)
+                for index, price in enumerate((90.0001, 109.9999, 99, 101), 1):
+                    state = advance(state, price, index*1000)
+                    self.assertEqual(state.status, 'running')
+                self.assertGreater(state.completed_grids, 0)
+                self.assertGreater(state.grid_net_profit, 0)
+                self.assertIsNone(state.stop_reason)
+
+    def test_boundary_policy_exact_touch_market_closes_both_edges_all_modes(self):
+        for direction in ('long', 'short', 'neutral'):
+            for edge in (90, 110):
+                with self.subTest(direction=direction, edge=edge):
+                    cfg = self.config(direction=direction, range_exit_stop_pct=0)
+                    initial = create_bot(cfg, 100, 0)
+                    stopped = advance(initial, edge, 1000, bid=edge-.01, ask=edge+.01)
+                    self.assertEqual(stopped.status, 'stopped')
+                    self.assertEqual(stopped.stop_reason, 'stop_loss')
+                    self.assertEqual(stopped.price, edge)
+                    self.assertEqual(stopped.positions, ())
+                    self.assertEqual(stopped.orders, ())
+                    closes = [event for event in stopped.fill_events if event.kind == 'stop_loss']
+                    self.assertTrue(closes)
+                    for event in closes:
+                        expected = edge-.01 if event.side == -1 else edge+.01
+                        self.assertAlmostEqual(event.price, expected)
+                        self.assertAlmostEqual(event.fee, event.quantity*expected*.0006)
+                    self.assertFalse(any(event.price == edge and event.kind.startswith('grid_')
+                                         for event in stopped.fill_events))
+                    self.assertAlmostEqual(stopped.fees-initial.fees,
+                                           sum(event.fee for event in stopped.fill_events))
+                    again = advance(stopped, 100, 2000)
+                    self.assertEqual(again.status, 'stopped')
+                    self.assertEqual(again.fill_events, ())
+                    self.assertEqual(again.fees, stopped.fees)
+
+    def test_boundary_form_stops_allow_equality_only_under_boundary_policy(self):
+        for direction, stops in [('long', {'stop_loss': 90}),
+                                 ('short', {'stop_loss': 110}),
+                                 ('neutral', {'stop_loss': 90, 'stop_loss_high': 110})]:
+            with self.subTest(direction=direction):
+                estimate = preview(self.config(direction=direction, range_exit_stop_pct=0, **stops))
+                self.assertEqual(estimate['effective_stop_loss_low'], 90)
+                self.assertEqual(estimate['effective_stop_loss_high'], 110)
+                self.assertEqual(estimate['range_exit_stop_low'], 90)
+                self.assertEqual(estimate['range_exit_stop_high'], 110)
+                with self.assertRaises(ValueError):
+                    preview(self.config(direction=direction, **stops))
+        for direction, stops in [('long', {'stop_loss': 91}),
+                                 ('short', {'stop_loss': 109}),
+                                 ('neutral', {'stop_loss': 91, 'stop_loss_high': 110})]:
+            with self.assertRaises(ValueError):
+                preview(self.config(direction=direction, range_exit_stop_pct=0, **stops))
+        with self.assertRaisesRegex(ValueError, 'adaptive'):
+            preview(self.config(range_exit_stop_pct=0, adaptive_range_stops=True))
+
+    def test_boundary_gap_closes_at_observed_price_not_the_past_edge(self):
+        for direction in ('long', 'short', 'neutral'):
+            for price in (80, 120):
+                with self.subTest(direction=direction, price=price):
+                    initial = create_bot(self.config(direction=direction, range_exit_stop_pct=0), 100, 0)
+                    stopped = advance(initial, price, 1000, gap=True)
+                    self.assertEqual(stopped.stop_reason, 'stop_loss')
+                    self.assertEqual(stopped.price, price)
+                    self.assertTrue(all(event.price == price for event in stopped.fill_events))
+                    self.assertEqual(stopped.orders, ())
+
+    def test_boundary_gap_liquidation_takes_precedence_at_observed_mark(self):
+        for direction, price, margin in [('long', 1, 200), ('short', 200, 200), ('neutral', 10000, 400)]:
+            with self.subTest(direction=direction):
+                config = self.config(direction=direction, investment=margin, leverage=10,
+                                     range_exit_stop_pct=0)
+                initial = create_bot(config, 100, 0)
+                continuous = advance(initial, price, 1000)
+                self.assertEqual(continuous.stop_reason, 'stop_loss')
+                self.assertEqual(continuous.price, 90 if direction == 'long' else 110)
+                gapped = advance(initial, price, 1000, gap=True)
+                self.assertTrue(gapped.liquidated)
+                self.assertEqual(gapped.stop_reason, 'liquidation')
+                self.assertEqual(gapped.price, price)
+                self.assertTrue(all(event.price == price for event in gapped.fill_events))
+
+    def test_primitive_default_still_uses_archived_five_percent_range_policy(self):
+        config = self.config(direction='long')
+        self.assertEqual(config.range_exit_stop_pct, .05)
+        self.assertEqual(advance(create_bot(config, 100, 0), 90, 1000).status, 'running')
+
+    def test_boundary_policy_rejects_start_or_trigger_at_either_exit_edge(self):
+        for direction in ('long', 'short', 'neutral'):
+            for edge in (90, 110):
+                with self.subTest(direction=direction, edge=edge):
+                    config = self.config(direction=direction, range_exit_stop_pct=0)
+                    with self.assertRaisesRegex(ValueError, 'strictly inside'):
+                        create_bot(config, edge, 0)
+                    with self.assertRaisesRegex(ValueError, 'strictly inside'):
+                        preview(self.config(direction=direction, range_exit_stop_pct=0,
+                                            entry_price=edge))
+                    with self.assertRaisesRegex(ValueError, 'strictly inside'):
+                        create_bot(self.config(direction=direction, range_exit_stop_pct=0,
+                                               trigger=edge), 100, 0)
+                    self.assertEqual(create_bot(self.config(direction=direction), edge, 0).status,
+                                     'running')
+
+    def test_boundary_policy_can_wait_at_an_edge_for_a_strictly_interior_trigger(self):
+        config = self.config(direction='long', range_exit_stop_pct=0, trigger=95)
+        waiting = create_bot(config, 90, 0)
+        self.assertEqual(waiting.status, 'waiting')
+        self.assertEqual(waiting.positions, ())
+        self.assertEqual(waiting.fill_events, ())
+        activated = advance(waiting, 95, 1000)
+        self.assertEqual(activated.status, 'running')
+        self.assertTrue(activated.positions)

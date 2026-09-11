@@ -14,7 +14,9 @@ at crossed UTC 8-hour boundaries using the latest supplied mark; callers must
 split paths at every funding boundary. At a boundary, price-path fills precede
 funding settlement; only inventory still held then is charged or credited.
 There is no take-profit. Both sides hard-stop at 5% beyond the configured range
-by default, independent of direction; a nearer custom stop wins. Historical
+by default, independent of direction; a nearer custom stop wins. Explicit
+range_exit_stop_pct=0 closes at either exact edge, with stop-market priority
+over a grid order at that edge and no adaptive fallback. Historical
 unchanged baselines can explicitly disable this new rule with None.
 Reserve is collateral, never additional order notional.
 Default sizing is used margin times leverage divided by grids times entry,
@@ -58,6 +60,8 @@ def _validate(config):
         _finite(config.trigger, 'trigger', True)
         if not config.low <= config.trigger <= config.high:
             raise ValueError('trigger must be inside range')
+        if config.range_exit_stop_pct == 0 and not config.low < config.trigger < config.high:
+            raise ValueError('boundary-policy trigger must be strictly inside the range')
     _validate_form(config)
     _validate_adaptive(config)
     if config.quantity is not None:
@@ -79,8 +83,8 @@ def _entry_reference(config):
 def _validate_form(config):
     if config.range_exit_stop_pct is not None:
         _finite(config.range_exit_stop_pct, 'range_exit_stop_pct')
-        if not 0 < config.range_exit_stop_pct < 1:
-            raise ValueError('range_exit_stop_pct must be between zero and one')
+        if not 0 <= config.range_exit_stop_pct < 1:
+            raise ValueError('range_exit_stop_pct must be at least zero and less than one')
     if config.tick_size is not None:
         _finite(config.tick_size, 'tick_size', True)
         if config.tick_size > (config.high - config.low) / config.grids:
@@ -92,21 +96,31 @@ def _validate_form(config):
         _finite(config.entry_price, 'entry_price', True)
         if not config.low <= config.entry_price <= config.high:
             raise ValueError('entry_price must be inside range')
+        if config.range_exit_stop_pct == 0 and not config.low < config.entry_price < config.high:
+            raise ValueError('boundary-policy entry_price must be strictly inside the range')
     for name in ('stop_loss', 'stop_loss_high'):
         value = getattr(config, name)
         if value is not None:
             _finite(value, name, True)
+    boundary_policy = config.range_exit_stop_pct == 0
     if config.direction == 'neutral':
         if (config.stop_loss is None) != (config.stop_loss_high is None):
             raise ValueError('neutral stop-loss requires lower and upper prices')
-        valid = (config.stop_loss is None or
-                 config.stop_loss < config.low < config.high < config.stop_loss_high)
+        valid = (_valid_stop_side(config.stop_loss, config.low, True, boundary_policy)
+                 and _valid_stop_side(config.stop_loss_high, config.high, False, boundary_policy))
     else:
-        valid = config.stop_loss_high is None and (config.stop_loss is None or
-                 (config.stop_loss < config.low if config.direction == 'long'
-                  else config.stop_loss > config.high))
+        long = config.direction == 'long'
+        valid = config.stop_loss_high is None and _valid_stop_side(
+            config.stop_loss, config.low if long else config.high, long, boundary_policy)
     if not valid:
-        raise ValueError('stop-loss must be outside range on losing side')
+        raise ValueError('stop-loss must be outside range, or at its losing edge under boundary policy')
+
+
+def _valid_stop_side(stop_price, edge, lower, boundary_policy):
+    if stop_price is None:
+        return True
+    distance = edge-stop_price if lower else stop_price-edge
+    return distance > 0 or boundary_policy and distance == 0
 
 
 def _validate_adaptive(config):
@@ -191,6 +205,8 @@ def create_bot(config, price, timestamp_ms):
                       last_funding_ms=timestamp_ms // FUNDING_MS * FUNDING_MS)
     if config.trigger is not None and price != config.trigger:
         return state
+    if config.range_exit_stop_pct == 0 and not config.low < price < config.high:
+        raise ValueError('boundary-policy entry must be strictly inside the range')
     if not config.low <= price <= config.high:
         return replace(state, status='out_of_range')
     return _start(state)

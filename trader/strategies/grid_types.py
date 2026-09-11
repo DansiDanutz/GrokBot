@@ -21,6 +21,7 @@ class GridConfig:
     stop_loss: float | None = None
     stop_loss_high: float | None = None
     tick_size: float | None = None
+    # None disables range stops; 0 stops at the edges; .05 preserves archived defaults.
     range_exit_stop_pct: float | None = .05
     adaptive_range_stops: bool = False
     adaptive_tight_stop_pct: float = .01
