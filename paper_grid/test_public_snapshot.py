@@ -107,6 +107,20 @@ class PublicSnapshotTests(unittest.TestCase):
         self.assertNotIn(SECRET, json.dumps(published))
         self.assertEqual(source.read_bytes(), before)
 
+    def test_recent_paper_events_are_published_without_private_fields(self):
+        from trader.autopilot import policy
+        from trader.autopilot.storage import EventLog
+        source = self.root / 'autopilot.json'
+        source.write_text(json.dumps(policy.snapshot(policy.new_state(1000), 2000, {})))
+        EventLog(self.root).append([dict(ts_ms=int(AT*1000), event_id=i, bot_id=1,
+            symbol='RAYUSDTM', type='GRID', profit=1.25, diagnostic=123) for i in range(1,61)])
+        self.export(autopilot_path=source)
+        published = json.loads((self.root / 'site/data/autopilot.json').read_text())
+        self.assertTrue(published['recent_events_available'])
+        self.assertEqual([e['event_id'] for e in published['recent_events']], list(range(11,61)))
+        self.assertNotIn('diagnostic', json.dumps(published['recent_events']))
+        self.assertEqual(published['account']['starting_equity'], 10000)
+
     def test_explicit_snapshot_missing_oversized_or_symlink_fails_closed(self):
         target = self.root / 'missing.json'
         with self.assertRaises(ValueError):

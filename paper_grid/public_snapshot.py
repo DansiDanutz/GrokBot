@@ -17,7 +17,8 @@ import tempfile
 import time
 
 from paper_grid import audits, engine, experiment, analytics, public_trade_metrics
-from paper_grid.public_autopilot import safe as _autopilot
+from paper_grid.public_autopilot import safe as _autopilot, events as _public_events
+from trader.autopilot.storage import read_events
 from paper_grid.telemetry_constants import READABLE_BUY_REJECTION_REASONS
 
 MAX_BYTES = 5 * 1024 * 1024
@@ -391,6 +392,14 @@ def export_snapshot(runtime, output_dir, now=None, *, health=None,
             snapshot = clean(source)
         else:
             snapshot = dict(schema_version=1, status='unavailable')
+        if name == 'autopilot' and 'equity' in snapshot:
+            try:
+                recent = read_events(path.parent, max(0, int(published_at*1000)-30*86400000), limit=50, latest=True)
+                snapshot['recent_events'] = _public_events(recent)
+                snapshot['recent_events_available'] = True
+            except (OSError, ValueError):
+                snapshot['recent_events'] = []
+                snapshot['recent_events_available'] = False
         snapshot['published_at_ms'] = int(published_at * 1000)
         payloads['data/' + name + '.json'] = _encoded(snapshot)
     rows = []
