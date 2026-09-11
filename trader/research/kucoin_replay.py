@@ -113,6 +113,10 @@ def _open(report, candidate, at, cash, price=None, config=None):
     bot = dict(bot_id='bot-' + str(len(report['bots'])+1), state=state, active=True,
         start_ms=at, expected=candidate.get('score', 0), form=candidate['setup'],
         history=[], seen=set(), exposure_hours=0., closest=None, outside_ms=0)
+    if report['parameters'].get('strategy') == 'income_chart_v3':
+        bot.update(expected=candidate.get('expected_gph', candidate['setup'].get('expected_gph')),
+            expected_start_income_per_hour=candidate.get('grid_income_per_hour',
+                candidate['setup'].get('grid_income_per_hour')), funding_modeled_complete=True)
     report['bots'].append(bot)
     _append_events(report, bot, [asdict(event) for event in state.fill_events])
     _mark(report, bot, at, net_equity(state, state.price))
@@ -128,13 +132,16 @@ def _scan(snapshot, report, at, options, allowed=None):
         statistics['cache_hits'] += 1
         return list(previous[1]['radar']), previous[2]
     statistics['scans'] += 1
+    radar_options = {'setup': options, 'radar_size': options.get('radar_size', 10)}
+    if options.get('strategy') == 'income_chart_v3':
+        radar_options['strategy'] = 'income_chart_v3'
     if hasattr(snapshot, 'iter_records'):
-        result = radar(snapshot.iter_records(at, pairs=allowed), at, running, {'setup': options, 'radar_size': options.get('radar_size', 10)})
+        result = radar(snapshot.iter_records(at, pairs=allowed), at, running, radar_options)
         records = snapshot.records(at, pairs=running)
     else:
         records = snapshot.records(at, pairs=allowed)
         records = [dict(row, bars=row.get('bars', row.get('bars7days', []))) for row in records]
-        result = radar(records, at, running, {'setup': options, 'radar_size': options.get('radar_size', 10)})
+        result = radar(records, at, running, radar_options)
     report['hourly_radar'].append(result)
     if not result.get('coverage', {}).get('observed', len(records)):
         _gap(report, 'no historical market membership observations at ' + str(at))
@@ -204,8 +211,22 @@ def _track(snapshot, report, bot, at, end):
         _require_quote(snapshot, state.config.pair, end)
     if not historical and len(bars) != (end-at)//60000:
         raise ValueError('missing completed minute candles for ' + state.config.pair)
+    tracker_options = dict(historical_candle_only=historical)
+    if report['parameters'].get('strategy') == 'income_chart_v3':
+        coverage = (snapshot.funding_coverage(state.config.pair, bot['start_ms'], end)
+                    if hasattr(snapshot, 'funding_coverage') else {})
+        tracker_options.update(funding_mode='recorded_events', funding_coverage=coverage)
+        if coverage.get('coverage_verified', coverage.get('verified')) is not True:
+            _gap(report, 'recorded funding cadence/coverage is inferred, not independently verified')
     result = track_bars(state, bars, snapshot.funding(state.config.pair, at, end),
-                       bot['start_ms'], end, bot['expected'], historical_candle_only=historical)
+                       bot['start_ms'], end, bot['expected'], **tracker_options)
+    if report['parameters'].get('strategy') == 'income_chart_v3':
+        stopped_at = result['state'].timestamp_ms if result['state'].status in TERMINAL else None
+        _record_execution_coverage(bot, bars, at, end, closed_at=stopped_at)
+        actual_coverage = (snapshot.funding_coverage(state.config.pair, bot['start_ms'],
+            min(end, stopped_at) if stopped_at is not None else end)
+            if hasattr(snapshot, 'funding_coverage') else {})
+        bot['funding_modeled_complete'] &= actual_coverage.get('modeled_complete') is True
     bot['state'] = result['state']
     _append_events(report, bot, result['ledger'])
     if any(row['kind'] in ('stop_loss', 'liquidation') for row in result['ledger']):
@@ -238,6 +259,60 @@ def _execution_coverage(report, bot, result):
     for assumption in summary.get('assumptions', []):
         if assumption not in report['execution_assumptions']:
             report['execution_assumptions'].append(assumption)
+
+
+def _income_summary(snapshot, report, bot, summary, end):
+    """Match full opening history, then select closes in the trailing six hours."""
+    if report.get('parameters', {}).get('strategy') != 'income_chart_v3':
+        return summary
+    from trader.research.funded_cycles import funded_cycles
+    start = bot['start_ms']
+    beginning = max(start, end-6*HOUR_MS)
+    holding_end = min(end, bot['state'].timestamp_ms) if bot['state'].status in TERMINAL else end
+    coverage = (snapshot.funding_coverage(bot['state'].config.pair, start, holding_end)
+                if hasattr(snapshot, 'funding_coverage') else {})
+    ledger = [row for row in report['ledger'] if row['bot_id'] == bot['bot_id']]
+    cycles = funded_cycles(ledger, beginning, end, coverage_known=False)
+    measured = cycles['summary']
+    execution = _income_execution_coverage(bot, beginning, end)
+    spanning = (type(coverage.get('start_ms')) is int and type(coverage.get('end_ms')) is int
+                and coverage['start_ms'] <= start and coverage['end_ms'] >= holding_end)
+    known = (end-start >= 6*HOUR_MS and spanning and coverage.get('modeled_complete') is True
+             and measured['modeled_unknown'] == 0 and execution['eligible'])
+    return dict(summary, expected_start_income_per_hour=bot['expected_start_income_per_hour'],
+        income_coverage_6h_known=known, income_6h_estimated=True,
+        income_execution_coverage_6h=execution,
+        income_coverage_basis='inferred recorded-settlement model; not independently verified',
+        realized_grid_income_per_hour_6h=measured['modeled_grid_income_per_hour'] if known else None,
+        realized_gph_6h=measured['completed_grids']/6 if known else None,
+        funded_cycle_summary_6h=measured)
+
+
+def _record_execution_coverage(bot, bars, start, end, closed=False, closed_at=None):
+    expected = (end-start)//60000
+    observed = {row.get('timestamp_ms', row.get('time_ms')) for row in bars
+        if not row.get('synthetic') and not row.get('indicator_only') and row.get('observed') is not False
+        and start <= row.get('timestamp_ms', row.get('time_ms', -1)) < end}
+    if closed_at is not None:
+        observed.update(range(max(start, (closed_at+59999)//60000*60000), end, 60000))
+    actual = expected if closed else len(observed)
+    previous = [row for row in bot.get('income_execution_windows', [])
+                if row['end_ms'] > end-6*HOUR_MS and row['start_ms'] != start]
+    previous.append(dict(start_ms=start, end_ms=end, observed_minutes=actual,
+                         expected_minutes=expected, closed_flat=closed))
+    bot['income_execution_windows'] = previous
+
+
+def _income_execution_coverage(bot, start, end):
+    windows = [row for row in bot.get('income_execution_windows', [])
+               if start <= row['start_ms'] and row['end_ms'] <= end]
+    expected = (end-start)//60000
+    actual = sum(row['observed_minutes'] for row in windows)
+    covered = sum(row['expected_minutes'] for row in windows)
+    return dict(observed_minutes=actual, expected_minutes=expected,
+        missing_minutes=expected-actual, fraction=actual/expected if expected else None,
+        minimum_fraction=.95, eligible=bool(expected and covered == expected and actual*100 >= expected*95),
+        basis='actual minute observations or already-closed flat time; gaps do not create cycles')
 
 
 def _require_quote(snapshot, pair, at):
@@ -344,6 +419,7 @@ def _decision_summaries(snapshot, report, end):
         quote = {} if state.status in TERMINAL else _require_quote(snapshot, state.config.pair, end)
         summary = dict(bot['latest'], bot_id=bot['bot_id'], asof_ms=end,
                        capital_released=bool(bot.get('released')))
+        summary = _income_summary(snapshot, report, bot, summary, end)
         if summary.get('completed_grids') == 0:
             summary.update(actual_net_usdt_per_grid=preview(state.config)['profit_per_grid_min'],
                            cash_estimate_basis='modeled setup cash after both fill fees')
@@ -441,8 +517,11 @@ def _track_hour(snapshot, report, at, end):
         if bot['active']:
             if bot['state'].status in TERMINAL:
                 bot['latest'] = track_summary(bot['state'], bot['start_ms'], end, bot['expected'])
+                if report['parameters'].get('strategy') == 'income_chart_v3':
+                    _record_execution_coverage(bot, [], at, end, closed=True)
             else:
                 bot['latest'] = _track(snapshot, report, bot, at, end)
+            bot['latest'] = _income_summary(snapshot, report, bot, bot['latest'], end)
             if bot['state'].liquidated:
                 report['failed_liquidation'] = True
     return report.get('failed_liquidation', False)
@@ -505,6 +584,11 @@ def _prepare_window(snapshot, start_ms, end_ms, mode, options):
     if options.get('historical_candle_only') and getattr(snapshot, 'historical_candle_only', False) is not True:
         from trader.research.kucoin_snapshot import HistoricalSnapshot
         snapshot = HistoricalSnapshot(snapshot, options)
+    if options.get('strategy') == 'income_chart_v3' and getattr(snapshot, 'income_chart_v3', False) is not True:
+        from trader.research.chart_snapshot import ChartSnapshot
+        snapshot = ChartSnapshot(snapshot, options)
+    elif options.get('strategy') == 'income_chart_v3' and hasattr(snapshot, 'for_parameters'):
+        snapshot = snapshot.for_parameters(options)
     report = _report(snapshot, start_ms, end_ms, mode, options)
     if options.get('historical_candle_only'):
         report['execution_assumptions'].extend([

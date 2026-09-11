@@ -77,7 +77,7 @@ def _metrics(report, bots):
     closest = [bot['closest'] for bot in bots if bot['closest'] is not None]
     switches = sum(row['bot_id'] in ids and row.get('replacement_executed', False) for row in report['switches'])
     drawdown = _drawdown(report, bots)
-    return dict(completed_grids=len(fills), completed_grids_per_hour=len(fills)/hours,
+    values = dict(completed_grids=len(fills), completed_grids_per_hour=len(fills)/hours,
         completed_grids_per_day=len(fills)/hours*24,
         **cycles,
         grid_profit=sum(s.grid_profit for s in states), grid_net_profit=sum(s.grid_net_profit for s in states),
@@ -97,11 +97,38 @@ def _metrics(report, bots):
         stop_loss_hits=sum(s.stop_reason == 'stop_loss' for s in states), switches_per_day=switches/hours*24,
         time_outside_range_hours=sum(bot['outside_ms'] for bot in bots)/HOUR_MS,
         liquidations=sum(s.liquidated for s in states))
+    if report.get('parameters', {}).get('strategy') == 'income_chart_v3':
+        values.update(_funded_metrics(report, bots, hours))
+    return values
+
+
+def _funded_diagnostics(report, bots):
+    from trader.research.funded_cycles import funded_cycles
+    ids = {bot['bot_id'] for bot in bots}
+    ledger = [row for row in report['ledger'] if row['bot_id'] in ids]
+    result = funded_cycles(ledger, report['start_ms'], report['end_ms'], coverage_known=False)
+    return dict(result['summary'],
+        modeled_coverage_complete=all(bot.get('funding_modeled_complete') is True for bot in bots),
+        basis='recorded-settlement allocation to actual modeled held slots; cash and fill prices remain estimates')
+
+
+def _funded_metrics(report, bots, hours):
+    data = _funded_diagnostics(report, bots)
+    known = data['modeled_coverage_complete'] and data['modeled_unknown'] == 0
+    positive = data['modeled_positive'] if known else None
+    nonpositive = data['modeled_nonpositive'] if known else None
+    rate = lambda value, factor=1: value*factor/hours if value is not None else None
+    income = data['modeled_grid_income'] if known else None
+    return dict(grid_income_per_hour=rate(income), grid_income_per_day=rate(income,24),
+        funded_grid_net_profit=income, grid_income_estimated=True,
+        completed_positive_net=positive, completed_nonpositive_net=nonpositive,
+        completed_positive_net_per_hour=rate(positive), completed_positive_net_per_day=rate(positive,24),
+        completed_nonpositive_net_per_hour=rate(nonpositive), completed_nonpositive_net_per_day=rate(nonpositive,24))
 
 
 def _bot_record(bot):
     state = bot['state']
-    return dict(bot_id=bot['bot_id'], pair=state.config.pair, direction=state.config.direction,
+    result = dict(bot_id=bot['bot_id'], pair=state.config.pair, direction=state.config.direction,
         start_ms=bot['start_ms'], end_ms=state.timestamp_ms, form=bot['form'],
         status=state.status, stop_reason=state.stop_reason, total_margin=state.config.total_margin,
         expected_start_gph=bot['expected'], completed_grids=state.completed_grids,
@@ -109,6 +136,10 @@ def _bot_record(bot):
         funding=state.funding, fees=state.fees, close_pnl=state.close_pnl,
         net=net_equity(state, state.price)-state.config.total_margin,
         exposure_hours=bot['exposure_hours'], liquidated=state.liquidated)
+    if 'expected_start_income_per_hour' in bot:
+        result.update(expected_start_income_per_hour=bot['expected_start_income_per_hour'],
+                      funding_modeled_complete=bot.get('funding_modeled_complete'))
+    return result
 
 
 def summarize(report):
@@ -116,6 +147,8 @@ def summarize(report):
     report.pop('_scan_cache', None)
     bots = report['bots']
     measured = _metrics(report, bots)
+    if report.get('parameters', {}).get('strategy') == 'income_chart_v3':
+        report['funded_cycle_diagnostics'] = _funded_diagnostics(report, bots)
     report['partial_metrics'] = measured if bots else None
     historical = report.get('filter_mode') == 'candle-only filters'
     modeled = historical and report.get('model_executed', False)
@@ -134,8 +167,8 @@ def summarize(report):
         values = _metrics(report, selected)
         report['direction_mix'][direction] = dict(bot_count=len(selected), exposure_hours=hours,
             grids_per_hour=values['completed_grids']/hours if hours else None,
-            positive_net_grids_per_hour=values['completed_positive_net']/hours if hours else None,
-            nonpositive_net_grids_per_hour=values['completed_nonpositive_net']/hours if hours else None,
+            positive_net_grids_per_hour=values['completed_positive_net']/hours if hours and values['completed_positive_net'] is not None else None,
+            nonpositive_net_grids_per_hour=values['completed_nonpositive_net']/hours if hours and values['completed_nonpositive_net'] is not None else None,
             net=values['net'] if modeled or report['coverage']['complete'] else None)
     report['bots'] = [_bot_record(bot) for bot in bots]
     return report
@@ -154,7 +187,7 @@ def _registered(registration):
     if current != committed:
         raise ValueError('preregistration differs from committed HEAD; sweep forbidden')
     document = json.loads(current)
-    if document.get('id') not in ('grid-kucoin', 'grid-kucoin-policy-v2', 'grid-kucoin-v3', 'grid-kucoin-v3-positive') or not (document.get('sweep') or document.get('fixed_parameters')):
+    if document.get('id') not in ('grid-kucoin', 'grid-kucoin-policy-v2', 'grid-kucoin-v3', 'grid-kucoin-v3-positive', 'grid-kucoin-v3-income-chart') or not (document.get('sweep') or document.get('fixed_parameters')):
         raise ValueError('invalid grid-kucoin preregistration')
     return document
 
@@ -204,7 +237,7 @@ def _month_valid(window, metrics, margin_threshold, minimum=1):
 def _minimum_grid_net(registration):
     document = registration or {}
     fixed = document.get('fixed_parameters', {})
-    default = 0 if document.get('id') == 'grid-kucoin-v3-positive' else 1
+    default = 0 if document.get('id') in ('grid-kucoin-v3-positive', 'grid-kucoin-v3-income-chart') else 1
     top = document.get('minimum_grid_net_usdt')
     nested = fixed.get('minimum_grid_net_usdt')
     if top is not None and nested is not None and top != nested:
@@ -227,7 +260,7 @@ def _registered_range_exit(document):
         raise ValueError('conflicting registered range_exit_stop_pct')
     if declared:
         return declared[0]
-    return 0 if document.get('id') == 'grid-kucoin-v3-positive' else .05
+    return 0 if document.get('id') in ('grid-kucoin-v3-positive', 'grid-kucoin-v3-income-chart') else .05
 
 
 def _cycle_gate(metrics, minimum):
@@ -320,6 +353,8 @@ def _holdout(snapshot, registration, span, parameters, runner, fixtures):
 def sweep(snapshot, registration, calibration, volatility, runner=None, fixtures=None):
     """Train on prior seven days, freeze choices, then evaluate untouched months."""
     document = _registered(registration)
+    if document['id'] == 'grid-kucoin-v3-income-chart':
+        return _chart_registered(snapshot, document, calibration, volatility, runner)
     if document['id'] in ('grid-kucoin-v3', 'grid-kucoin-v3-positive'):
         return _single_registered(snapshot, document, calibration, volatility, runner)
     if runner is None and document['id'] != 'grid-kucoin-v3':
@@ -360,3 +395,28 @@ def _single_registered(snapshot, document, calibration, volatility, runner):
     return dict(registration=document, mode='prespecified_candle_only_replay', training_trials=[],
                 parameter_search_performed=False, holdouts=windows, calibration=calibration,
                 volatility=volatility, decision=decision(windows, calibration, volatility, document))
+
+
+def _chart_registered(snapshot, document, calibration, volatility, runner):
+    """Report the four prespecified variants; do not select on holdout outcomes."""
+    if runner is None:
+        from trader.research.kucoin_replay import run_window
+        runner = run_window
+    variants = []
+    for variant in _combinations(document):
+        parameters = dict(document['fixed_parameters'], **variant)
+        windows = []
+        for span in document['holdouts']:
+            start, end = _time(span['start']), _time(span['end'])
+            window = runner(snapshot, start, end, parameters=parameters)
+            window.update(start_ms=start, end_ms=end, selected_parameters=parameters, baselines={})
+            for mode in document['baselines']:
+                window['baselines'][mode] = runner(snapshot, start, end, parameters=parameters,
+                    mode=mode, seed=document['random_seed'])
+            windows.append(window)
+        variants.append(dict(parameters=parameters, holdouts=windows,
+            decision=decision(windows, calibration, volatility, document)))
+    return dict(registration=document, mode='prespecified_chart_regime_variants',
+        primary_metric='grid_income_per_hour', primary_variant=document['primary_variant'],
+        holdout_selected_variant=False, variants=variants,
+        interpretation='All outcomes reported; previously inspected months are not pristine unseen holdouts')

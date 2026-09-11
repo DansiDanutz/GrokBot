@@ -119,7 +119,7 @@
     "sol": "Known members intersect SOLUSDTM read. Maintained config list with citations; unclassified usesmacro gate with explicitSOL-not-appliedwarning.",
     "application": "New entries only; record full readings and allowed directions. No forced close solely because regime changes."
   },
-  "replacement": "Cost-aware income/hour improvement over6h must cover executable floatingclose loss plus close/openfees; no mandatory higherGPH if income improves. Underperformance is known trailing6h income belowhalf immutable startincome OR GPH<2. Under6h/unknown is notzero. No eligible replacement does not resurrect closed bots.",
+  "replacement": "Cost-aware income/hour improvement over6h must cover executable floatingclose loss plus close/openfees; no mandatory higherGPH if income improves. Underperformance is known trailing6h income belowhalf immutable startincome OR GPH<2. Under6h/unknown is notzero. No eligible replacement does not resurrect closed bots. A six-hour income comparison additionally requires at least95% actual minute execution coverage (already-closed flat time is known), plus inferred funding coverage spanning the full holding history. Missing execution time is not measured zero income.",
   "hard_constraints": {
     "positive_net_completed_grids_after_fees_and_funding": true,
     "liquidations": 0,
