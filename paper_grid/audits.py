@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from paper_grid import cli, retention, coinglass, telemetry_metrics
+from paper_grid.telemetry_constants import DEFAULT_TICK_SECONDS, DEFAULT_REPORT_SECONDS
 
 KINDS = ('audit48h', 'daily', 'weekly')
 ARMS = ('baseline', 'liquidation_filter')
@@ -149,53 +150,73 @@ def _coverage(times, start, end, expected_seconds):
                 note='Distinct timestamps; expected count is approximate. Gaps include both window edges.')
 
 
-def _arm_metrics(doc, arm, start, end):
-    points = []
+def _equity_points(doc, arm, end):
+    points, ticks = {}, {}
     initial = doc['accounts'][arm].get('statistics', {}).get('initial_equity')
     if _number(initial):
-        points.append(dict(time=doc['start_at'], equity=initial))
+        points[doc['start_at']] = dict(time=doc['start_at'], equity=initial)
     for row in doc.get('history', []):
-        value = row.get(arm+'_equity')
-        if _number(row.get('time')) and _number(value) and doc['start_at'] <= row['time'] <= end:
-            points.append(dict(time=row['time'], equity=value))
-    tick_times = set()
-    estimated_ticks = 0
-    for observation in doc.get('observations', []):
-        at = observation.get('time')
-        mark = observation.get('equity', {}).get(arm, {})
-        if observation.get('telemetry_schema') == 1 and not observation.get('skipped') and _number(at) and doc['start_at'] <= at <= end and _number(mark.get('equity')):
-            points.append(dict(time=at, equity=mark['equity']))
-            if start <= at <= end:
-                tick_times.add(at)
-                estimated_ticks += mark.get('equity_is_estimate') is True
-    # A real publication wins over the synthetic initial mark at the same time.
-    points = sorted({p['time']: p for p in points}.values(), key=lambda p:p['time'])
+        at, value = row.get('time'), row.get(arm+'_equity')
+        if _number(at) and _number(value) and doc['start_at'] <= at <= end:
+            points[at] = dict(time=at, equity=value)
+    for row in doc.get('observations', []):
+        at = row.get('time')
+        equity = row.get('equity')
+        mark = equity.get(arm) if isinstance(equity, dict) else None
+        if (row.get('telemetry_schema') != 1 or row.get('skipped') or not _number(at)
+                or not doc['start_at'] <= at <= end or not isinstance(mark, dict)
+                or not _number(mark.get('equity'))):
+            continue
+        evidence = (mark['equity'], mark.get('equity_is_estimate') is True)
+        if at in ticks and ticks[at] != evidence:
+            raise ValueError('conflicting per-tick equity evidence')
+        ticks[at] = evidence
+        # Per-tick valuation takes precedence over a publication at the same instant.
+        points[at] = dict(time=at, equity=mark['equity'])
+    return sorted(points.values(), key=lambda point: point['time']), ticks
+
+
+def _mark_metrics(doc, arm, start, end):
+    points, ticks = _equity_points(doc, arm, end)
     first, last = _last(points, start), _last(points, end)
     marks = ([first] if first else []) + [p for p in points if start < p['time'] <= end]
+    tick_times = {at for at in ticks if start <= at <= end}
     peak, dd, dd_pct = None, 0.0, 0.0
-    for p in marks:
-        peak = p['equity'] if peak is None else max(peak, p['equity'])
-        dd = max(dd, peak-p['equity'])
+    for point in marks:
+        peak = point['equity'] if peak is None else max(peak, point['equity'])
+        dd = max(dd, peak-point['equity'])
         if peak > 0:
-            dd_pct = max(dd_pct, 100*(peak-p['equity'])/peak)
-    events = [e for e in _window(doc.get('events', []), start, end) if e.get('account') == arm]
-    closes = [e for e in events if e.get('type') == 'close' and _number(e.get('net_pnl'))]
-    pnl = [e['net_pnl'] for e in closes]
-    realized = sum(pnl)
-    fees = sum(e.get('fee', 0) for e in events if e.get('type') in ('open', 'add') and _number(e.get('fee', 0)))
-    fees += sum(e.get('exit_fee', 0) for e in closes if _number(e.get('exit_fee', 0)))
-    delta = last['equity']-first['equity'] if first and last else None
-    counts = Counter(e.get('type', 'unknown') for e in events)
+            dd_pct = max(dd_pct, 100*(peak-point['equity'])/peak)
     resolution = 'mixed' if tick_times and any(p['time'] not in tick_times for p in marks) else 'per_tick' if tick_times else 'published_only'
     sample_coverage = _coverage([p['time'] for p in points], start, end,
-                               doc.get('tick_seconds', 300) if tick_times else doc.get('report_seconds', 1800))
+        doc.get('tick_seconds', DEFAULT_TICK_SECONDS) if tick_times else doc.get('report_seconds', DEFAULT_REPORT_SECONDS))
     if resolution == 'mixed':
         sample_coverage.update(expected_approximately=None, observation_ratio=None,
                                note='Mixed historical publication and per-tick marks; no single sampling cadence.')
     return dict(start_mark=first, end_mark=last,
         start_mark_age_seconds=start-first['time'] if first else None,
         end_mark_age_seconds=end-last['time'] if last else None,
-        equity_change=delta, closed_trade_net_pnl=realized,
+        equity_change=last['equity']-first['equity'] if first and last else None,
+        observed_max_drawdown=dd if len(marks) > 1 else None,
+        observed_max_drawdown_pct=dd_pct if len(marks) > 1 else None,
+        equity_sample_coverage=sample_coverage,
+        equity_sampling=dict(tick_samples=len(tick_times),
+            estimated_tick_samples=sum(ticks[at][1] for at in tick_times), resolution=resolution))
+
+
+def _arm_metrics(doc, arm, start, end):
+    marked = _mark_metrics(doc, arm, start, end)
+    first, last = marked['start_mark'], marked['end_mark']
+    initial = doc['accounts'][arm].get('statistics', {}).get('initial_equity')
+    events = [e for e in _window(doc.get('events', []), start, end) if e.get('account') == arm]
+    closes = [e for e in events if e.get('type') == 'close' and _number(e.get('net_pnl'))]
+    pnl = [e['net_pnl'] for e in closes]
+    realized = sum(pnl)
+    fees = sum(e.get('fee', 0) for e in events if e.get('type') in ('open', 'add') and _number(e.get('fee', 0)))
+    fees += sum(e.get('exit_fee', 0) for e in closes if _number(e.get('exit_fee', 0)))
+    delta = marked['equity_change']
+    counts = Counter(e.get('type', 'unknown') for e in events)
+    return dict(**marked, closed_trade_net_pnl=realized,
         non_realized_equity_change_residual=delta-realized if delta is not None else None,
         fills=sum(counts[t] for t in ('open', 'add', 'close')), opens=counts['open'], adds=counts['add'],
         closed_trades=len(pnl), wins=sum(v>0 for v in pnl), losses=sum(v<0 for v in pnl),
@@ -204,14 +225,10 @@ def _arm_metrics(doc, arm, start, end):
         gross_winning_net=sum(v for v in pnl if v>0), gross_losing_net=sum(v for v in pnl if v<0),
         fees_paid_during_window=fees,
         lifetime_funding_on_window_closes=sum(e.get('funding_model_cost', 0) for e in closes if _number(e.get('funding_model_cost', 0))),
-        period_funding_accrual=None, observed_max_drawdown=dd if len(marks) > 1 else None,
-        observed_max_drawdown_pct=dd_pct if len(marks) > 1 else None,
-        equity_sample_coverage=sample_coverage,
+        period_funding_accrual=None,
         risk_halts=counts['daily_halt'], deferred_exits=counts['deferred_exit'], event_counts=dict(counts),
         close_reasons=dict(Counter(e.get('reason', 'unknown') for e in closes)),
         buy_rejections=telemetry_metrics.rejections(events, _window(doc.get('observations', []), start, end), arm),
-        equity_sampling=dict(tick_samples=len(tick_times), estimated_tick_samples=estimated_ticks,
-            resolution=resolution),
         cumulative=dict(initial_equity=initial, marked_equity=last['equity'] if last else None,
             marked_pnl_since_start=last['equity']-initial if last and _number(initial) else None,
             closed_trade_net_since_start=None, closed_trades_since_start=None))
