@@ -179,7 +179,7 @@ def _reason(wrapper, labels, missing, now_ms):
     return None
 
 
-def decide(state, radar, prices, now_ms, scan_id):
+def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
     result, events = deepcopy(state), []
     if watchlist.is_older(scan_id, result.get('watchlist', {}).get('last_scan_id')):
         radar = None
@@ -219,6 +219,8 @@ def decide(state, radar, prices, now_ms, scan_id):
     deferred = []
     def fill(slot, direction):
         for section, row in _candidates(sections, direction):
+            if require_live_prices and row['symbol'] not in prices:
+                continue
             marked = dict(row, price=prices.get(row['symbol'], row['price']))
             if not eligible(result, marked, direction, section, now_ms):
                 continue

@@ -495,3 +495,5 @@ rules above. It does not change the paper-only boundary: no exchange orders.
 The estimate does not reproduce KuCoin's proprietary sizing, liquidation,
 execution queue or settlement statement. No promise of zero liquidation or
 positive total return follows from the entry filter or range stop.
+
+New live-daemon entries require a quote from the current allTickers response, no older than120seconds; the hourly radar price cannot be used as the execution entry. Recheck that quote against both fixed boundaries before sizing/opening. Persist only open-bot/major quotes as before.
