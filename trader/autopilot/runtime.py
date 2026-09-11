@@ -5,6 +5,7 @@ from sqlite3 import Error as DatabaseError
 import time
 
 from trader.autopilot import policy
+from trader.autopilot.liquidation import enrich
 from trader.autopilot.constants import (MAJORS, DECISION_INTERVAL_S, SNAPSHOT_MAX_INTERVAL_S,
                                         TICK_STALE_ALERT_S, KUCOIN_DOWN_ALERT_S)
 from trader.autopilot.market import ingest_open_minutes, candles_after, rates_at
@@ -136,7 +137,7 @@ class Runner:
         self.log.prune(now)
         self.state['pending_events'] = []
         atomic_json(self.state_path, self.state)
-        view = policy.snapshot(self.state, now, self._health(now))
+        view = enrich(policy.snapshot(self.state, now, self._health(now)), self.database, now)
         atomic_json(self.snapshot_path, view)
         return view
 

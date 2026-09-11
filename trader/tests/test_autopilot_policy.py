@@ -119,7 +119,8 @@ class PolicyTests(unittest.TestCase):
         before = deepcopy(state)
         updated, events = policy.advance(state, {'A': {'ts_ms': 60_000, 'price': 80}})
         self.assertEqual(state, before)
-        self.assertIn('STOP_LOSS', updated['open_bots'][0]['signals'])
+        self.assertEqual(updated['open_bots'], [])
+        self.assertEqual(updated['closed_bots'][0]['engine']['reason'], 'RANGE_BREAK')
         self.assertTrue(events)
         closed, _ = policy.decide(updated, radar(), {}, 60_000, 'b')
         equity = policy.snapshot(closed, 60_000, {})['equity']
@@ -188,7 +189,7 @@ class PolicyTests(unittest.TestCase):
         state, _ = policy.decide(policy.new_state(0), radar(neutral=[row('N', 'NEUTRAL')]), {}, 0, 'a')
         view = policy.snapshot(state, 0, {})['open_bots'][0]
         self.assertEqual((view['equity'], view['peak_equity']), (1200, 1200))
-        updated, _ = policy.advance(state, {'N': {'ts_ms': 60_000, 'price': 91}})
+        updated, _ = policy.advance(state, {'N': {'ts_ms': 60_000, 'price': 93}})
         view = policy.snapshot(updated, 60_000, {})['open_bots'][0]
         self.assertEqual(view['peak_equity'], 1200)
         self.assertAlmostEqual(view['max_drawdown_pct'], (1200-view['equity'])/1200*100)
@@ -196,3 +197,51 @@ class PolicyTests(unittest.TestCase):
         older = policy.sample(sampled, 30_000)
         self.assertEqual(older['equity_curve'], sampled['equity_curve'])
         self.assertEqual(older['open_bots'][0]['pnl_curve'], sampled['open_bots'][0]['pnl_curve'])
+
+
+class FiveXBoundaryTests(unittest.TestCase):
+    def test_every_direction_gets_five_x_and_two_hundred_reserve(self):
+        for direction in ('LONG', 'SHORT', 'NEUTRAL'):
+            spec, reserve = policy.profile(row('A'), direction, 1)
+            self.assertEqual((spec['notional_usdt'], spec['leverage'], reserve), (1000, 5, 200))
+
+    def test_first_boundary_tick_closes_at_observed_gap_price_and_no_more_grids(self):
+        for price in (90, 110, 80, 120):
+            state, _ = policy.decide(policy.new_state(0), radar(long=[row('A')]), {}, 0, 'a')
+            count = state['open_bots'][0]['engine']['completed_grids']
+            ended, events = policy.advance(state, {'A': dict(ts_ms=1000, price=price)})
+            self.assertFalse(ended['open_bots'])
+            bot = ended['closed_bots'][0]['engine']
+            self.assertEqual((bot['reason'], bot['last_price'], bot['completed_grids']), ('RANGE_BREAK', price, count))
+            self.assertEqual([e['type'] for e in events].count('CLOSE'), 1)
+            self.assertGreater(ended['cooldowns']['A'], 1000)
+            repeated, again = policy.advance(ended, {'A': dict(ts_ms=1000, price=price)})
+            self.assertFalse(again)
+
+    def test_inside_and_stale_ticks_do_not_close_and_backfill_excursion_does(self):
+        state, _ = policy.decide(policy.new_state(0), radar(long=[row('A')]), {}, 0, 'a')
+        inside, _ = policy.advance(state, {'A': dict(ts_ms=1000, price=100)})
+        stale, _ = policy.advance(inside, {'A': dict(ts_ms=1000, price=80)})
+        self.assertEqual(len(stale['open_bots']), 1)
+        ended, _ = policy.advance(stale, {'A': dict(ts_ms=2000, open=100, high=111, low=99, close=100)})
+        self.assertEqual(ended['closed_bots'][0]['engine']['last_price'], 111)
+
+    def test_old_profile_closes_then_new_bot_opens_without_rewriting_history(self):
+        state, _ = policy.decide(policy.new_state(0), radar(long=[row('A')]), {}, 0, 'a')
+        state['open_bots'][0]['engine']['leverage'] = 3
+        state['open_bots'][0]['reserve_usdt'] = 0
+        old_id = state['open_bots'][0]['engine']['bot_id']
+        changed, events = policy.decide(state, radar(long=[row('A')]), {'A':100}, 1000, 'a')
+        self.assertEqual(changed['closed_bots'][0]['engine']['reason'], 'PROFILE_UPDATE')
+        self.assertEqual(changed['closed_bots'][0]['engine']['leverage'], 3)
+        self.assertEqual(changed['open_bots'][0]['engine']['leverage'], 5)
+        self.assertNotEqual(changed['open_bots'][0]['engine']['bot_id'], old_id)
+        self.assertEqual(changed['open_bots'][0]['reserve_usdt'], 200)
+
+    def test_loss_limit_closes_on_the_triggering_update_inside_range(self):
+        state, _ = policy.decide(policy.new_state(0), radar(long=[row('A')]), {}, 0, 'a')
+        state['open_bots'][0]['engine']['fees_paid'] = 130
+        ended, events = policy.advance(state, {'A': dict(ts_ms=1000, price=100)})
+        self.assertFalse(ended['open_bots'])
+        self.assertEqual(ended['closed_bots'][0]['engine']['reason'], 'STOP_LOSS')
+        self.assertTrue(any(e['type'] == 'CLOSE' for e in events))
