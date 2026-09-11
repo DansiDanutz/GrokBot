@@ -9,7 +9,8 @@ import math
 from trader.papergrid import open_bot, close_bot, step
 from trader.radar.rates import expected_grids_per_hour
 from trader.radar.scoring import score_row
-from trader.radar.spacing import economics, choose_count
+from trader.radar.spacing import economics
+from trader.radar.layout import layout_valid
 from trader.autopilot import watchlist
 from trader.autopilot.risk import sizing, ACCOUNTING_VERSION, protection_needed
 from trader.autopilot.constants import (
@@ -60,7 +61,6 @@ def profile(row, direction, bot_id):
         step_pct, leverage, reserve = STEP_NEUTRAL_PCT, LEVERAGE_NEUTRAL, NEUTRAL_RESERVE_USDT
         if low <= 0 or high <= low:
             raise ValueError('invalid neutral range')
-        grids = choose_count(low, high, tick_size=row.get("tick_size", 0), leverage=leverage, direction=direction)
     spacing = economics(low, high, grids, tick_size=row.get("tick_size", 0), leverage=leverage, direction=direction)
     if not spacing['viable']:
         raise ValueError('minimum grid return must exceed 1 percent after both fees')
@@ -99,7 +99,9 @@ def eligible(state, row, direction, source_section, now_ms):
     try:
         spec, _ = profile(row, direction, 0)
         rate = expected_grids_per_hour(row['atr_1h_pct'], spec['step_pct'], row['turnover_24h_usdt'])
-        return rate >= MIN_EXPECTED_GRIDS_PER_HOUR and spec['range_low'] < row['price'] < spec['range_high']
+        return (rate >= MIN_EXPECTED_GRIDS_PER_HOUR
+                and spec['range_low'] < row['price'] < spec['range_high']
+                and layout_valid(spec['range_low'], spec['grid_interval'], spec['grids'], row['price'], direction))
     except (KeyError, TypeError, ValueError, ZeroDivisionError):
         return False
 

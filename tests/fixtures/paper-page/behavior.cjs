@@ -19,6 +19,17 @@ assert(roots.get('positions-bots').textContent.includes('Exposure · USDT25.5'))
 assert(roots.get('positions-bots').textContent.includes('Stop-loss · range boundary'));
 assert(roots.get('positions-bots').textContent.includes('Not modeled'));
 assert(roots.get('positions-bots').textContent.includes('Avg gross / completed grid'));
+run(`render({...lastReport,open_bots:[{...lastReport.open_bots[0],order_ladder:[{line:1,price:1.4,side:1,book:0},{line:1,price:1.4,side:1,book:1},{line:3,price:1.6,side:-1,book:0}]}]},true)`);
+assert(roots.get('positions-bots').textContent.includes('Pending orders now · BUY / SELL2 / 1'));
+assert(roots.get('positions-bots').textContent.includes('New-entry target · BUY / SELL50% / 50%'));
+assert.equal(run("entryTarget('LONG')"),'40% / 60%');
+assert.equal(run("entryTarget('SHORT')"),'60% / 40%');
+assert.equal(run("entryTarget('NEUTRAL')"),'50% / 50%');
+assert(page.includes('At least 70 configured grids'));
+assert(page.includes('greater than 1%'));
+assert(page.includes('one-order rounding tolerance'));
+assert(page.includes('Existing bots keep their original ranges and orders'));
+
 assert.equal(run('stopEquivalent({direction:"LONG",range_low:90,range_high:110})'),90);
 assert.equal(run('stopEquivalent({direction:"SHORT",range_low:90,range_high:110})'),110);
 assert.equal(run('stopEquivalent({position_contracts:0})'),null);
