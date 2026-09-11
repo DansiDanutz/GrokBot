@@ -72,6 +72,21 @@ class RadarTests(unittest.TestCase):
         self.assertTrue(all(row['pair'].isdigit() for row in result['radar']))
         self.assertEqual(len(result['rejected']), 9)
 
+    def test_rejection_distinguishes_missing_data_from_known_filter_failure(self):
+        cases = [(dict(quote_turnover_24h=1), False),
+                 (dict(quote_turnover_24h=None), True),
+                 (dict(ask=102), False), (dict(ask=None), True),
+                 (dict(funding_rate=.002), False), (dict(funding_rate=None), True),
+                 (dict(listed_at_ms=NOW-HOUR), False), ({}, True)]
+        for changes, expected in cases:
+            with self.subTest(changes=changes):
+                result = radar([dict(pair='T', bars=[], market=market(**changes))], NOW)
+                self.assertEqual(result['rejected'][0]['coverage_issue'], expected)
+
+    def test_score_uses_accepted_tick_interval_not_a_finer_recomputed_grid(self):
+        form = dict(setup(), interval=2)
+        self.assertEqual(crossing_score(candles(), form, NOW)['step'], 2)
+
     def test_funding_normalizes_to_eight_hours(self):
         result = normalize_market(market(funding_rate=.0006, funding_interval_hours=4), NOW)
         self.assertAlmostEqual(result['funding_rate_8h'], .0012)

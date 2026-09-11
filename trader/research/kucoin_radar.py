@@ -116,7 +116,7 @@ def _crossings(bars, step, low, high):
 
 def crossing_score(bars, setup, asof_ms):
     """Close-only hysteresis ignores sub-step jitter; monotonic moves are not cycles."""
-    step = (setup['high'] - setup['low']) / setup['grids']
+    step = setup.get('interval', (setup['high'] - setup['low']) / setup['grids'])
     if not math.isfinite(step) or step <= 0:
         raise ValueError('positive finite grid step required')
     rates = {hours: _crossings(completed_bars(bars, asof_ms, hours), step,
@@ -150,6 +150,30 @@ def _evaluate(record, asof_ms, options):
                 direction=form['direction'], reason=form['reason'], coverage='complete'), None
 
 
+def _rejection_coverage(record, asof_ms, reason):
+    """Known filter failures do not mean data is missing for the strategy."""
+    market = normalize_market(record['market'], asof_ms)
+    if reason.startswith('quote turnover'):
+        return _number(market.get('quote_turnover_24h')) is None
+    if reason.startswith('spread'):
+        bid, ask = _number(market.get('bid')), _number(market.get('ask'))
+        return bid is None or ask is None or bid <= 0 or ask < bid
+    if reason.startswith('listing age'):
+        return _number(market.get('listed_at_ms')) is None
+    if reason.startswith('normalized eight-hour'):
+        return market.get('funding_rate_8h') is None
+    if reason.startswith('top-of-book depth'):
+        return any(market.get(side+'_depth_usdt') is None for side in ('bid', 'ask'))
+    if reason.startswith(('active', 'perpetual')):
+        return market.get(reason.split()[0]) is None
+    if reason.startswith('requires known crypto'):
+        return market.get('asset_class') is None
+    if reason.startswith('requires USDT'):
+        return market.get('quote_currency') is None
+    return reason.startswith(('unknown, stale', 'requires seven days',
+                              'seven-day candle', 'missing one-minute'))
+
+
 def radar(records, asof_ms, running_pairs=(), parameters=None):
     """Return the best five eligible non-running pairs and explicit rejections."""
     options, selected, rejected = parameters or {}, [], []
@@ -160,11 +184,12 @@ def radar(records, asof_ms, running_pairs=(), parameters=None):
             raise ValueError('duplicate market pair')
         seen.add(pair)
         if pair in running:
-            rejected.append(dict(pair=pair, reason='already running'))
+            rejected.append(dict(pair=pair, reason='already running', coverage_issue=False))
             continue
         candidate, reason = _evaluate(record, asof_ms, options)
         if reason:
-            rejected.append(dict(pair=pair, reason=reason))
+            rejected.append(dict(pair=pair, reason=reason,
+                                 coverage_issue=_rejection_coverage(record, asof_ms, reason)))
         else:
             selected.append(candidate)
     selected.sort(key=lambda row: (-row['score'], row['pair']))
