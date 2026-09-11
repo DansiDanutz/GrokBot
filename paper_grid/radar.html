@@ -3,17 +3,152 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
 <title>DansLabTrader · KuCoin grid radar</title>
 <style>
-:root{--ink:#182b2a;--muted:#60706d;--paper:#f3f5f1;--card:#fff;--line:#d9e1da;--accent:#1d7567}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1500px;margin:auto;padding:32px}header{display:flex;justify-content:space-between;gap:20px;align-items:end;margin-bottom:24px}h1{font-size:34px;letter-spacing:-1px;margin:4px 0}h2{font-size:18px;margin:0 0 12px}.eyebrow{color:var(--accent);font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase}.muted{color:var(--muted)}a{color:var(--accent)}section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin:16px 0}.table{overflow:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{border-bottom:1px solid var(--line);padding:10px 12px;text-align:right;white-space:nowrap}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}th{color:var(--muted);font-size:11px;text-transform:uppercase}tr:last-child td{border:0}.badge{border:1px solid var(--line);border-radius:5px;padding:2px 7px}.empty{color:var(--muted);text-align:left}footer{color:var(--muted);margin-top:22px}@media(max-width:600px){main{padding:18px}header{display:block}h1{font-size:28px}}
+:root{--ink:#172b2a;--muted:#5c6b68;--paper:#f3f5f1;--surface:#ffffff;--line:#dbe2db;--accent:#25766a;--bronze:#917345;--dark:#152d29;--on-dark:#f7faf5;--on-dark-muted:#becdc4;--soft:#e9f0e9;--warning:#74511d;--warning-bg:#fff1d6;--danger:#a23c3c;--danger-bg:#f7e3e0;--grid:#e8ece6;--bronze-bg:#f3ebdc;--accent-bg:#e2efea;
+--serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans)}
+a{color:var(--accent)}
+.skip{position:absolute;left:-999px}.skip:focus{left:16px;top:12px;background:var(--surface);padding:8px 12px;z-index:9}
+.num{font-variant-numeric:tabular-nums}
+header.band{background:var(--dark);color:var(--on-dark)}
+.wrap{max-width:1240px;margin:0 auto;padding:0 24px}
+.band .wrap{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;padding-top:40px;padding-bottom:36px}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:var(--on-dark-muted);margin:0 0 10px}
+h1{font:600 clamp(30px,4.5vw,46px)/1.05 var(--serif);letter-spacing:-.6px;margin:0 0 12px;text-wrap:balance}
+.lede{max-width:64ch;margin:0;color:var(--on-dark-muted);font-size:15px}
+.stamp{text-align:right;font-size:13px;color:var(--on-dark-muted)}
+.stamp .time{display:block;font:500 18px/1.2 var(--mono);color:var(--on-dark);margin-bottom:6px}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font:600 11px/1.6 var(--sans);letter-spacing:.8px;text-transform:uppercase;border:1px solid currentColor}
+.pill.fresh{color:#9fd6c4}.pill.stale{color:#f2c27a}.pill.off{color:#f0a3a3}
+nav.tabs{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+nav.tabs .wrap{display:flex;gap:4px;overflow-x:auto;padding-top:0;padding-bottom:0}
+nav.tabs a{display:block;padding:14px 12px;text-decoration:none;color:var(--muted);font-weight:600;font-size:13px;border-bottom:3px solid transparent;white-space:nowrap}
+nav.tabs a:hover,nav.tabs a:focus-visible{color:var(--ink);border-color:var(--line);outline:none}
+main .wrap{padding-top:28px;padding-bottom:64px}
+.majors{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:0 0 36px}
+.major{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:baseline}
+.major .sym{font:600 13px/1 var(--mono);color:var(--muted);letter-spacing:.6px}
+.major .dir{grid-column:1/-1;font:600 26px/1.1 var(--serif);letter-spacing:-.3px}
+.major .meta{grid-column:1/-1;font-size:13px;color:var(--muted)}
+.major .ch{font:600 14px/1 var(--mono)}
+.up{color:var(--accent)}.down{color:var(--danger)}.flat{color:var(--bronze)}
+.note{font-size:13px;color:var(--muted);margin:-22px 0 34px}
+section.block{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px 8px;margin:0 0 22px;scroll-margin-top:64px}
+.block header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;margin:0 0 14px}
+.block h2{font:600 24px/1.15 var(--serif);margin:0;letter-spacing:-.3px}
+.block .count{font:600 12px/1 var(--mono);color:var(--muted);background:var(--soft);padding:5px 9px;border-radius:999px}
+.block .play{flex-basis:100%;margin:2px 0 0;font-size:14px;color:var(--muted);max-width:80ch}
+.tbl{overflow-x:auto;margin:0 -8px}
+table{border-collapse:collapse;width:100%;min-width:900px;font-size:14px}
+th{text-align:right;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{text-align:right;padding:12px 10px;border-bottom:1px solid var(--grid);vertical-align:middle;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+th.l,td.l{text-align:left}
+td.sym{font:600 15px/1.2 var(--sans)}
+td.sym small{display:block;font:500 11px/1.4 var(--mono);color:var(--muted);letter-spacing:.4px}
+.chip{display:inline-block;padding:3px 9px;border-radius:6px;font:700 11px/1.5 var(--sans);letter-spacing:.7px;text-transform:uppercase;border:1px solid transparent}
+.chip.LONG,.chip.TURNING-UP{color:var(--accent);background:var(--accent-bg)}
+.chip.SHORT,.chip.TURNING-DOWN{color:var(--danger);background:var(--danger-bg)}
+.chip.NEUTRAL{color:var(--bronze);background:var(--bronze-bg)}
+.chip.TURNING-UP::before,.chip.TURNING-DOWN::before{content:"↻ "}
+.range{min-width:220px}
+.range .bar{position:relative;height:10px;background:var(--grid);border-radius:5px;margin:4px 0 6px}
+.range .span{position:absolute;top:0;bottom:0;background:var(--accent);opacity:.35;border-radius:5px;left:var(--lo,0%);width:var(--w,0%)}
+.range .span.short{background:var(--danger)}.range .span.neutral{background:var(--bronze)}
+.range .mark{position:absolute;top:-4px;width:2px;height:18px;background:var(--ink);left:var(--px,50%)}
+.range .lbl{display:flex;justify-content:space-between;font:500 11px/1 var(--mono);color:var(--muted)}
+.gph{min-width:150px}
+.gph .v{font:600 15px/1 var(--mono)}
+.gph .meter{height:6px;background:var(--grid);border-radius:3px;margin-top:6px;overflow:hidden}
+.gph .meter i{display:block;height:100%;background:var(--accent);width:var(--w,0%)}
+.pos{color:var(--accent)}.neg{color:var(--danger)}
+.empty{color:var(--muted);font-size:14px;padding:6px 2px 16px}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px 28px;margin:34px 0 0;padding:22px 24px;background:var(--surface);border:1px solid var(--line);border-radius:16px;font-size:13px;color:var(--muted)}
+.legend b{display:block;color:var(--ink);margin-bottom:3px;font-size:13px}
+footer{font-size:12px;color:var(--muted);margin-top:26px;line-height:1.6}
+.status{margin:0 0 22px;padding:12px 16px;border-radius:12px;background:var(--warning-bg);color:var(--warning);font-size:14px}
+.status[hidden]{display:none}
+@media (max-width:760px){.band .wrap{grid-template-columns:1fr}.stamp{text-align:left}section.block{padding:18px 16px 4px}}
+@media (prefers-reduced-motion:no-preference){nav.tabs a{transition:border-color .15s,color .15s}}
 </style>
 </head>
-<body><main><header><div><div class="eyebrow">Read-only operator recommender</div><h1>KuCoin grid radar</h1><div class="muted" id="stamp">Loading the latest hourly scan.</div></div><a href="/">Paper dashboard</a></header><div id="sections"></div><footer>No orders are placed. Dan enters every setup manually in KuCoin.</footer></main>
+<body>
+<a class="skip" href="#ride">Skip to radar</a>
+<header class="band">
+  <div class="wrap">
+    <div>
+      <p class="eyebrow">DansLabTrader · KuCoin USDT perpetuals</p>
+      <h1>Where a grid bot earns its keep this hour</h1>
+      <p class="lede">Every liquid contract read on the daily and 4-hour trend, sized for a KuCoin Futures Grid, ranked by how many grids it should complete per hour. Dan enters every bot by hand. Nothing here places orders.</p>
+    </div>
+    <div class="stamp"><span class="time num" id="stamp-time">—</span><span class="pill fresh" id="stamp-pill">loading</span><div id="stamp-note">Scan time, Europe/Bucharest</div></div>
+  </div>
+</header>
+<nav class="tabs" aria-label="Sections"><div class="wrap">
+  <a href="#majors">Majors</a><a href="#ride">Ride the trend</a><a href="#short">Short side</a><a href="#range">Range plays</a><a href="#movers">Movers</a><a href="#legend">How to read</a><a href="/">Paper control run</a>
+</div></nav>
+<main><div class="wrap">
+  <div class="status" id="status" hidden></div>
+  <div class="majors" id="majors" aria-label="Majors read"></div>
+  <p class="note">Majors set the mood, not the income: at a 0.5 % step BTC, ETH and SOL complete under one grid an hour. Use them for direction.</p>
+  <div id="sections"></div>
+  <div class="legend" id="legend">
+    <div><b>Direction</b>LONG or SHORT when the daily and 4-hour trends agree. TURNING-UP or TURNING-DOWN when the 4-hour has flipped against the daily: the freshest reversals. NEUTRAL when neither holds and price sits mid-range.</div>
+    <div><b>Range bar</b>The grey bar is the 7-day low to high. The shaded span is the proposed grid range. The dark tick is the current price.</div>
+    <div><b>Est. grids/h</b>k × ATR(1h) ÷ step, with k = 1.9 for small caps and 0.45 for majors, fitted on Dan's live bots (HEMI, BTR, MOVR, SOL). A rate, not a promise.</div>
+    <div><b>Step and grids</b>0.8 % per grid (0.52 % on majors) so every completed grid clears both fills' fees. Grids = range ÷ step, capped at 200.</div>
+    <div><b>Filters</b>24 h turnover ≥ 3 M USDT, spread ≤ 0.15 %, listed ≥ 7 days, snapshot younger than 2 h. Coins outside these are not shown.</div>
+    <div><b>When to leave</b>Close the bot when its label flips (a long that turns down, a mover that loses its 4-hour trend). Move on with the trend.</div>
+  </div>
+  <footer>Hourly scan from KuCoin public candles stored locally. Heuristic operator read; no backtest, no order path, no guaranteed fills. Funding shown as % per 8 h.</footer>
+</div></main>
 <script>
 'use strict';
-const labels={majors:'Majors read',turning_up:'Turning up',turning_down:'Turning down',long:'Long',short:'Short',neutral:'Neutral',movers:'Movers'};
-const el=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node};
-const number=(value,digits=2)=>Number.isFinite(value)?value.toLocaleString('en-US',{maximumFractionDigits:digits}):'—';
-function render(report){const root=document.getElementById('sections');root.replaceChildren();document.getElementById('stamp').textContent='Scan '+new Date(report.asof_ms).toLocaleString('en-GB',{timeZone:'Europe/Bucharest'})+' · Europe/Bucharest';for(const[key,title]of Object.entries(labels)){const section=el('section'),heading=el('h2',title),wrap=el('div',undefined,'table'),table=el('table'),head=el('thead'),body=el('tbody'),tr=el('tr');for(const name of ['Symbol','Direction','Price','Turnover $M','ATR 1h %','Range','Step %','Grids','Expected grids/h'])tr.append(el('th',name));head.append(tr);const rows=Array.isArray(report.sections?.[key])?report.sections[key]:[];for(const row of rows){const line=el('tr');const values=key==='majors'?[row.symbol,row.direction,'—','—','—','—','—','—','—']:[row.symbol,row.direction,number(row.price,6),number(row.turnover_24h_usdt/1e6,1),number(row.atr_1h_pct),number(row.range_low,6)+' – '+number(row.range_high,6),number(row.step_pct),number(row.grids,0),number(row.expected_grids_per_hour)];values.forEach((value,index)=>line.append(el('td',value,index===1?'badge':'')));body.append(line)}if(!rows.length){const line=el('tr'),cell=el('td','No qualifying coins.','empty');cell.colSpan=9;line.append(cell);body.append(line)}table.append(head,body);wrap.append(table);section.append(heading,wrap);root.append(section)}}
-async function load(){let response=await fetch('/api/radar',{cache:'no-store'});if(!response.ok)response=await fetch('/data/radar.json',{cache:'no-store'});if(!response.ok)throw new Error();render(await response.json())}load().catch(()=>{document.getElementById('stamp').textContent='Radar data is unavailable.'});
-</script></body></html>
+const GROUPS=[
+ {id:'ride',title:'Ride the trend',keys:['turning_up','long'],play:'Fresh 4-hour reversals first, then confirmed uptrends. Long grid from the shaded span; stop under the 4-hour EMA20.',cls:'long'},
+ {id:'short',title:'Short side',keys:['turning_down','short'],play:'4-hour trend rolling over while the daily still leans up, then confirmed downtrends. Short grid, thinner books, lean sizing.',cls:'short'},
+ {id:'range',title:'Range plays',keys:['neutral'],play:'No trend, price in the middle 25–75 % of its 7-day range, liquid. Neutral grid across the full span.',cls:'neutral'},
+ {id:'movers',title:'Movers',keys:['movers'],play:'Moved more than 15 % in 24 h. Hit-and-run: ride only with the 4-hour trend, small size, leave when it flips.',cls:'long'}];
+const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n};
+const fin=v=>typeof v==='number'&&Number.isFinite(v);
+const fmt=(v,d=2)=>fin(v)?v.toLocaleString('en-US',{maximumFractionDigits:d}):'—';
+const px=v=>fin(v)?(v>=100?fmt(v,2):v>=1?fmt(v,4):v.toPrecision(4)):'—';
+const short=s=>String(s||'').replace(/USDTM$/,'');
+const dirClass=d=>d==='LONG'||d==='TURNING-UP'?'up':d==='SHORT'||d==='TURNING-DOWN'?'down':'flat';
+const dirWord={LONG:'Long',SHORT:'Short','TURNING-UP':'Turning up','TURNING-DOWN':'Turning down',NEUTRAL:'Neutral'};
+function majors(rows){const root=document.getElementById('majors');root.replaceChildren();
+ for(const r of rows){const c=el('article','major');c.append(el('span','sym',short(r.symbol)+'  ·  '+px(r.price)));
+  const ch=el('span','ch num '+(r.change_24h_pct>=0?'pos':'neg'),(r.change_24h_pct>=0?'+':'')+fmt(r.change_24h_pct,1)+'% 24h');c.append(ch);
+  c.append(el('span','dir '+dirClass(r.direction),dirWord[r.direction]||r.direction));
+  c.append(el('span','meta','ATR 1h '+fmt(r.atr_1h_pct,2)+'% · 7-day position '+fmt(r.position_7d*100,0)+'% · funding '+fmt(r.funding_pct,3)+'%'));root.append(c)}}
+function rangeCell(r,cls){const td=el('td','range');const bar=el('div','bar');const lo7=r.low_7d,hi7=r.high_7d;const full=hi7>lo7?hi7-lo7:1;
+ const a=Math.min(r.range_low,lo7),b=Math.max(r.range_high,hi7),span=b-a||1;const span_el=el('span','span '+cls);
+ span_el.style.setProperty('--lo',((r.range_low-a)/span*100).toFixed(1)+'%');span_el.style.setProperty('--w',((r.range_high-r.range_low)/span*100).toFixed(1)+'%');
+ const mark=el('span','mark');mark.style.setProperty('--px',Math.max(0,Math.min(100,(r.price-a)/span*100)).toFixed(1)+'%');mark.title='current price';
+ bar.append(span_el,mark);const lbl=el('div','lbl');lbl.append(el('span',null,px(r.range_low)),el('span',null,px(r.range_high)));td.append(bar,lbl);void full;return td}
+function table(rows,cls){const wrap=el('div','tbl'),t=el('table'),th=el('thead'),tb=el('tbody'),hr=el('tr');
+ [['Coin','l'],['Direction','l'],['Price',''],['24h',''],['Grid range','l'],['Step',''],['Grids',''],['Est. grids/h','l'],['Funding',''],['Turnover',''],['ATR 1h','']].forEach(([n,c])=>hr.append(el('th',c,n)));
+ th.append(hr);const max=Math.max(...rows.map(r=>r.expected_grids_per_hour||0),0.01);
+ for(const r of rows){const tr=el('tr');const sym=el('td','sym l',short(r.symbol));sym.append(el('small',null,r.symbol));tr.append(sym);
+  const dc=el('td','l');dc.append(el('span','chip '+r.direction,dirWord[r.direction]||r.direction));tr.append(dc);
+  tr.append(el('td','num',px(r.price)));tr.append(el('td','num '+(r.change_24h_pct>=0?'pos':'neg'),(r.change_24h_pct>=0?'+':'')+fmt(r.change_24h_pct,1)+'%'));
+  tr.append(rangeCell(r,cls));tr.append(el('td','num',fmt(r.step_pct,2)+'%'));tr.append(el('td','num',fmt(r.grids,0)));
+  const g=el('td','gph l');g.append(el('span','v',fmt(r.expected_grids_per_hour,1)));const m=el('div','meter'),i=el('i');i.style.setProperty('--w',(r.expected_grids_per_hour/max*100).toFixed(0)+'%');m.append(i);g.append(m);tr.append(g);
+  tr.append(el('td','num '+(r.funding_pct<0?'pos':''),fmt(r.funding_pct,3)+'%'));tr.append(el('td','num',fmt(r.turnover_24h_usdt/1e6,1)+' M'));tr.append(el('td','num',fmt(r.atr_1h_pct,2)+'%'));tb.append(tr)}
+ t.append(th,tb);wrap.append(t);return wrap}
+function render(report){const s=report.sections||{};majors(Array.isArray(s.majors)?s.majors:[]);const root=document.getElementById('sections');root.replaceChildren();
+ for(const g of GROUPS){const rows=g.keys.flatMap(k=>Array.isArray(s[k])?s[k]:[]);const sec=el('section','block');sec.id=g.id;const h=el('header');h.append(el('h2',null,g.title),el('span','count',rows.length+(rows.length===1?' coin':' coins')),el('p','play',g.play));sec.append(h);
+  sec.append(rows.length?table(rows,g.cls):el('p','empty','No qualifying coin this hour.'));root.append(sec)}
+ const t=document.getElementById('stamp-time'),p=document.getElementById('stamp-pill');const asof=report.asof_ms;
+ if(fin(asof)){const d=new Date(asof);t.textContent=d.toLocaleString('en-GB',{timeZone:'Europe/Bucharest',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});const age=(Date.now()-asof)/6e4;
+  p.textContent=age<90?'fresh':'stale · '+Math.round(age/60)+' h old';p.className='pill '+(age<90?'fresh':'stale');
+  const st=document.getElementById('status');if(age>=90){st.textContent='This scan is '+Math.round(age/60)+' hours old. The hourly publisher may be paused; do not act on these levels without checking the chart.';st.hidden=false}}}
+async function load(){let r=await fetch('/api/radar',{cache:'no-store'});if(!r.ok)r=await fetch('/data/radar.json',{cache:'no-store'});if(!r.ok)throw new Error('unavailable');render(await r.json())}
+load().catch(()=>{const p=document.getElementById('stamp-pill');p.textContent='no data';p.className='pill off';const st=document.getElementById('status');st.textContent='Radar data is unavailable. The last successful publication is what you see, or nothing has been published yet.';st.hidden=false});
+</script>
+</body>
+</html>
