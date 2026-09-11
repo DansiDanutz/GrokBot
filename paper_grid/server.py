@@ -77,11 +77,13 @@ def _tailnet_host(value):
 
 
 def make_handler(monitor, port, *, autopilot_snapshot=None, events_dir=None,
-                 radar_snapshot=None, tailnet_host=None):
+                 radar_snapshot=None, tailnet_host=None, tailnet_port=443):
     allowed_hosts = {f'127.0.0.1:{port}', f'localhost:{port}'}
     if tailnet_host is not None:
         host = _tailnet_host(tailnet_host)
-        allowed_hosts.update((host, host + ':443'))
+        if type(tailnet_port) is not int or not 1 <= tailnet_port <= 65535:
+            raise ValueError('invalid tailnet port')
+        allowed_hosts.update((host, f'{host}:{tailnet_port}'))
     autopilot_snapshot = Path(autopilot_snapshot or monitor.runtime.parent / "autopilot" / "autopilot.json")
     events_dir = Path(events_dir or autopilot_snapshot.parent)
     radar_snapshot = Path(radar_snapshot or monitor.runtime.parent / "radar" / "radar.json")
@@ -190,6 +192,7 @@ def main(argv=None):
     parser.add_argument('--runtime', type=Path, default=cli.DEFAULT_RUNTIME)
     parser.add_argument('--port', type=int, default=8873)
     parser.add_argument('--tailnet-host', type=_tailnet_host, help='Exact tailnet hostname for the read-only proxy')
+    parser.add_argument('--tailnet-port', type=int, default=443, help='HTTPS port tailscale serve uses for this proxy')
     parser.add_argument('--read-only', action='store_true', help='Serve files without starting the control scheduler')
     root = Path.home() / 'Sandbox' / 'grokbot'
     parser.add_argument('--autopilot-snapshot', type=Path, default=root / 'autopilot' / 'autopilot.json')
@@ -201,7 +204,7 @@ def main(argv=None):
     monitor = Monitor(args.runtime)
     server = ThreadingHTTPServer(('127.0.0.1', args.port), make_handler(monitor, args.port,
         autopilot_snapshot=args.autopilot_snapshot, radar_snapshot=args.radar_snapshot,
-        events_dir=args.events_dir, tailnet_host=args.tailnet_host))
+        events_dir=args.events_dir, tailnet_host=args.tailnet_host, tailnet_port=args.tailnet_port))
     awake = None
     if not args.read_only and sys.platform == 'darwin':
         try:

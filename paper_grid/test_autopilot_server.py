@@ -58,6 +58,13 @@ class AutopilotServerTests(unittest.TestCase):
                         'x.ts.net/route', '-x.ts.net', 'x..ts.net'):
             with self.assertRaises(ValueError):
                 server.make_handler(self.monitor, self.port, tailnet_host=invalid)
+        self.http.RequestHandlerClass = server.make_handler(self.monitor, self.port,
+            autopilot_snapshot=self.source, tailnet_host=host, tailnet_port=8444)
+        self.assertEqual(self.get('/api/autopilot', host=host+':8444')[0], 200)
+        self.assertEqual(self.get('/api/autopilot', host=host+':443')[0], 403)
+        for bad_port in (0, 65536, '443'):
+            with self.assertRaises(ValueError):
+                server.make_handler(self.monitor, self.port, tailnet_host=host, tailnet_port=bad_port)
 
     def test_snapshot_readonly_allowlist_and_route_csp(self):
         with patch.object(server.experiment, 'tick', side_effect=AssertionError('no tick')):

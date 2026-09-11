@@ -185,7 +185,7 @@ Use a new terminal on port 8875 so the existing v1 server at 8873 stays untouche
 ```sh
 cd /Users/davidai/ZCodeProject/GrokBot
 paper_tailnet_host=$(tailscale status --json | /opt/homebrew/bin/python3 -c 'import json,sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')
-/opt/homebrew/bin/python3 -m paper_grid.server --read-only --port 8875 --tailnet-host "$paper_tailnet_host" \
+/opt/homebrew/bin/python3 -m paper_grid.server --read-only --port 8875 --tailnet-host "$paper_tailnet_host" --tailnet-port 8444 \
   --runtime /Users/davidai/Sandbox/grokbot/zmarty-paper-runtime \
   --radar-snapshot /Users/davidai/Sandbox/grokbot/radar/radar.json \
   --autopilot-snapshot /Users/davidai/Sandbox/grokbot/autopilot/autopilot.json \
@@ -200,7 +200,7 @@ it does not start a second control worker. Binding stays 127.0.0.1. In another
 terminal, expose that loopback service to your tailnet:
 
 ```sh
-tailscale serve --bg http://127.0.0.1:8875
+tailscale serve --bg --https=8444 http://127.0.0.1:8875
 tailscale serve status
 ```
 
