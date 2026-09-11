@@ -84,3 +84,125 @@ class ReplacementTests(unittest.TestCase):
             with self.subTest(options=options):
                 result = decide_replacement(current(), [], [], options)
                 self.assertEqual(result['minimum_gph'], expected)
+
+
+def policy_candidate(pair='NEW', score=6, **changes):
+    setup = dict(eligible=True, used_margin=1000, reserved_margin=200, total_margin=1200,
+                 leverage=5, preview={'profit_per_grid_min': 1}, opening_fee_budget=1)
+    setup.update(changes)
+    return dict(pair=pair, direction='long', score=score, setup=setup)
+
+
+def policy_current(pair, rate, **changes):
+    row = dict(current(pair=pair, realized_gph_6h=rate), bot_id=pair, grid_net_profit=100,
+               completed_grids=100, net_equity=1200, mark_floating_pnl=0,
+               floating_pnl=-.1, close_fee=.3, distance_liquidation_pct=20)
+    return dict(row, **changes)
+
+
+class PortfolioReplacementTests(unittest.TestCase):
+    def decide(self, rows, candidates, parameters=None):
+        from trader.research.kucoin_replacement import decide_portfolio_replacement
+        return decide_portfolio_replacement(rows, candidates, parameters=dict({'available_cash': 100}, **(parameters or {})))
+
+    def test_more_productive_challenger_replaces_only_worse_bot_without_held_trigger(self):
+        result = self.decide([policy_current('GOOD', 10), policy_current('WORST', 3)],
+                             [policy_candidate(score=6)])
+        self.assertEqual(result['action'], 'replace')
+        self.assertEqual(result['worst_bot_id'], 'WORST')
+        self.assertEqual(result['replacement']['pair'], 'NEW')
+        self.assertIn('better_cost_adjusted_grid_income', result['triggers'])
+        self.assertEqual(sum(row['action'] == 'replace' for row in result['verdicts']), 1)
+        self.assertGreater(result['comparison']['net_advantage_usdt'], 0)
+
+    def test_switch_loss_and_opening_fees_can_defeat_higher_grid_rate(self):
+        result = self.decide([policy_current('GOOD', 10), policy_current('WORST', 3, floating_pnl=-100)],
+                             [policy_candidate(score=6)])
+        self.assertEqual(result['action'], 'keep')
+        self.assertEqual(result['worst_bot_id'], 'WORST')
+        self.assertLess(result['rejected_candidates'][0]['comparison']['net_advantage_usdt'], 0)
+
+    def test_no_unsafe_subtarget_tied_or_running_challenger(self):
+        choices = [policy_candidate('GOOD', 30), policy_candidate('TIE', 3),
+                   policy_candidate('BAD', 30, eligible=False),
+                   policy_candidate('LOW', 30, preview={'profit_per_grid_min': .99})]
+        result = self.decide([policy_current('GOOD', 10), policy_current('WORST', 3)], choices)
+        self.assertEqual(result['action'], 'keep')
+        self.assertEqual(len(result['rejected_candidates']), 4)
+
+    def test_five_percent_liquidation_warning_is_separate_from_one_percent_range_barrier(self):
+        result = self.decide([policy_current('RISK', 10, distance_liquidation_pct=4.5),
+                             policy_current('WORST', 3)], [policy_candidate(score=50)])
+        self.assertEqual(result['action'], 'emergency')
+        self.assertEqual(result['emergency_actions'][0]['bot_id'], 'RISK')
+        self.assertIsNone(result['replacement'])
+        self.assertIn('no additional capital', result['emergency_actions'][0]['action'])
+
+    def test_insufficient_released_cash_never_forces_unfunded_ordinary_close(self):
+        result = self.decide([policy_current('GOOD', 10), policy_current('WORST', 3)],
+                             [policy_candidate(score=50)], {'available_cash': 0})
+        self.assertEqual(result['action'], 'keep')
+        self.assertIn('capital', result['rejected_candidates'][0]['reason'])
+
+    def test_preregistered_horizon_changes_cost_recovery_and_does_not_spend_profit(self):
+        rows = [policy_current('GOOD', 10), policy_current('WORST', 3, floating_pnl=-8)]
+        short = self.decide(rows, [policy_candidate(score=5)], {'replacement_horizon_hours': 4})
+        long = self.decide(rows, [policy_candidate(score=5)], {'replacement_horizon_hours': 6})
+        self.assertEqual(short['action'], 'keep')
+        self.assertEqual(long['action'], 'replace')
+        self.assertEqual(long['comparison']['horizon_hours'], 6)
+        profit = self.decide([policy_current('WORST', 3, floating_pnl=100)], [policy_candidate(score=5)])
+        self.assertEqual(profit['comparison']['close_loss_cost'], 0)
+
+    def test_random_baseline_preserves_randomized_qualifier_order(self):
+        rows = [policy_current('WORST', 1)]
+        choices = [policy_candidate('FIRST', 3), policy_candidate('BEST', 6)]
+        normal = self.decide(rows, choices)
+        random_order = self.decide(rows, choices, {'random_pick_order': True})
+        self.assertEqual(normal['replacement']['pair'], 'BEST')
+        self.assertEqual(random_order['replacement']['pair'], 'FIRST')
+
+
+    def test_missing_available_cash_never_authorizes_a_replacement(self):
+        from trader.research.kucoin_replacement import decide_portfolio_replacement
+        rows = [policy_current('WORST', 1, net_equity=1500)]
+        for options in ({}, {'available_cash': None}):
+            with self.subTest(options=options):
+                result = decide_portfolio_replacement(rows, [policy_candidate(score=50)], options)
+                self.assertEqual(result['action'], 'keep')
+                self.assertIsNone(result['replacement'])
+                self.assertIn('unknown', result['rejected_candidates'][0]['reason'])
+
+
+class FundedEntryTests(unittest.TestCase):
+    def select(self, rows, occupied=(), cash=None):
+        from trader.research.kucoin_replacement import select_funded_entries
+        return select_funded_entries(rows, occupied, cash)
+
+    def test_unknown_cash_keeps_research_ranking_but_withholds_forms(self):
+        result = self.select([policy_candidate('A'), policy_candidate('B')])
+        self.assertEqual(result['selected'], [])
+        self.assertEqual(len(result['research_ranking']), 2)
+        self.assertFalse(result['available_cash_known'])
+        self.assertIsNone(result['remaining_cash'])
+        self.assertTrue(all('unknown' in row['reason'] for row in result['rejected']))
+
+    def test_one_vacancy_uses_net_income_ranking_and_reserves_cash_once(self):
+        rows = [policy_candidate('RAW_RATE', 10, opening_fee_budget=40),
+                policy_candidate('NET_INCOME', 8, opening_fee_budget=1)]
+        result = self.select(rows, ['LIVE'], 1200)
+        self.assertEqual([row['pair'] for row in result['selected']], ['NET_INCOME'])
+        self.assertEqual(result['remaining_cash'], 0)
+        self.assertEqual(result['required_cash'], 1200)
+        self.assertEqual(result['research_ranking'][0]['pair'], 'NET_INCOME')
+
+    def test_no_duplicate_existing_unsafe_or_unfunded_entries(self):
+        rows = [policy_candidate('LIVE'), policy_candidate('A'), policy_candidate('A'),
+                policy_candidate('UNSAFE', eligible=False), policy_candidate('B')]
+        result = self.select(rows, ['LIVE'], 2400)
+        self.assertEqual([row['pair'] for row in result['selected']], ['A'])
+        self.assertEqual(result['remaining_cash'], 1200)
+        self.assertEqual(self.select(rows, [], 1199)['selected'], [])
+        full = self.select([policy_candidate('A'), policy_candidate('B'), policy_candidate('C')], [], 2400)
+        self.assertEqual(len(full['selected']), 2)
+        self.assertEqual(full['remaining_cash'], 0)

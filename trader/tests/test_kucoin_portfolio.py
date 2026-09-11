@@ -116,3 +116,22 @@ class ValidationTests(unittest.TestCase):
                    coverage={'complete': True}, metrics=dict(valid)) for i in range(2)]
         self.assertEqual(decision(windows, calibration, {'validated': True})['decision'],
                          'eligible_for_separate_hourly_recommender_review')
+
+    @patch('trader.research.kucoin_portfolio._registered')
+    def test_archived_registration_cannot_run_new_policy(self, registered):
+        registered.return_value = {'id': 'grid-kucoin'}
+        with self.assertRaisesRegex(ValueError, 'archived registration'):
+            sweep(object(), 'archived', {}, {})
+
+    @patch('trader.research.kucoin_portfolio._registered')
+    def test_new_policy_registration_has_twelve_trials_per_month_and_fixed_capital(self, registered):
+        path = Path(__file__).parents[2]/'research/preregistration/grid-kucoin-policy-v2.json'
+        document = json.loads(path.read_text())
+        registered.return_value = document
+        snapshot = unittest.mock.Mock()
+        snapshot.market_bounds.return_value = (1, 2)
+        result = sweep(snapshot, path, {}, {})
+        self.assertEqual(len(result['training_trials']), 24)
+        self.assertEqual(result['registration']['total_bankroll_usdt'], 2400)
+        self.assertTrue(all('leverage_cap' not in row['parameters'] for row in result['training_trials']))
+        self.assertEqual(result['decision']['decision'], 'shelve')

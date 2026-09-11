@@ -174,15 +174,31 @@ def _rejection_coverage(record, asof_ms, reason):
                               'seven-day candle', 'missing one-minute'))
 
 
+def _volatility_context(record, asof_ms):
+    bars = completed_bars(record['bars'], asof_ms, 24)
+    value = None
+    if len(bars) == 1440:
+        high, low = max(row['high'] for row in bars), min(row['low'] for row in bars)
+        value = volatility_proxy(high, low)
+    return dict(pair=record['pair'], volatility_proxy_pct=value,
+                volatility_definition_verified=False,
+                volatility_proxy_formula='100*(24h_high-24h_low)/24h_low')
+
+
 def radar(records, asof_ms, running_pairs=(), parameters=None):
-    """Return the best five eligible non-running pairs and explicit rejections."""
+    """Return 5..10 safe non-running candidates, ranked by grid-crossing rate."""
     options, selected, rejected = parameters or {}, [], []
+    count, universe = options.get('radar_size', 10), []
+    if type(count) is not int or not 5 <= count <= 10:
+        raise ValueError('radar_size must be an integer from 5 through 10')
     running, seen = set(running_pairs), set()
     for record in records:
         pair = record['pair']
         if pair in seen:
             raise ValueError('duplicate market pair')
         seen.add(pair)
+        context = _volatility_context(record, asof_ms)
+        universe.append(context)
         if pair in running:
             rejected.append(dict(pair=pair, reason='already running', coverage_issue=False))
             continue
@@ -191,9 +207,12 @@ def radar(records, asof_ms, running_pairs=(), parameters=None):
             rejected.append(dict(pair=pair, reason=reason,
                                  coverage_issue=_rejection_coverage(record, asof_ms, reason)))
         else:
-            selected.append(candidate)
+            selected.append(dict(candidate, **{key: value for key, value in context.items() if key != 'pair'}))
     selected.sort(key=lambda row: (-row['score'], row['pair']))
-    return dict(asof_ms=asof_ms, radar=selected[:5], rejected=rejected,
+    universe.sort(key=lambda row: (row['volatility_proxy_pct'] is None,
+                                  -(row['volatility_proxy_pct'] or 0), row['pair']))
+    return dict(asof_ms=asof_ms, radar=selected[:count], rejected=rejected, volatility_universe=universe,
+                volatility_basis='independent 24h amplitude context; KuCoin UI definition remains unverified',
                 coverage=dict(observed=len(seen), eligible=len(selected), rejected=len(rejected)))
 
 

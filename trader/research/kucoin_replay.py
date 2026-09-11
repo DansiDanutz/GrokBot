@@ -8,7 +8,7 @@ import random
 import math
 
 from trader.research.kucoin_radar import radar, normalize_market, crossing_score
-from trader.research.kucoin_replacement import decide_replacement
+from trader.research.kucoin_replacement import (decide_replacement, decide_portfolio_replacement, select_funded_entries)
 from trader.research.kucoin_tracker import track_bars, track_summary
 from trader.strategies.grid_features import features
 from trader.strategies.grid_setup import build_setup
@@ -33,9 +33,9 @@ def window_coverage(snapshot, start, end):
 
 def _report(snapshot, start, end, mode, parameters):
     return dict(mode=mode, start_ms=start, end_ms=end, parameters=parameters,
-                initial_capital=2000., coverage=window_coverage(snapshot, start, end),
+                initial_capital=2400., coverage=window_coverage(snapshot, start, end),
                 manifest=dict(snapshot.manifest), bots=[], ledger=[], hourly_radar=[],
-                hourly_tracker=[], switches=[], capital_events=[], equity_timeline=[],
+                hourly_tracker=[], switches=[], capital_events=[], equity_timeline=[], portfolio_decisions=[], entry_decisions=[],
                 metrics={}, per_coin={}, direction_mix={},
                 interpretation='counterfactual OHLC model; not observed KuCoin app history',
                 limitations=['Adverse-first minute OHLC ordering cannot recover actual trades.',
@@ -51,7 +51,10 @@ def _config(form):
         entry_price=form['entry'], quantity=form.get('quantity'),
         multiplier=form.get('multiplier', 1), lot_size=form.get('lot_size', 1),
         trigger=form.get('trigger'), stop_loss=form.get('stop_loss'),
-        stop_loss_high=form.get('stop_loss_high'), tick_size=form.get('tick_size'))
+        stop_loss_high=form.get('stop_loss_high'), tick_size=form.get('tick_size'),
+        adaptive_range_stops=form.get('adaptive_range_stops', False),
+        adaptive_tight_stop_pct=form.get('adaptive_tight_stop_pct', .01),
+        adaptive_liquidation_clearance_pct=form.get('adaptive_liquidation_clearance_pct', .01))
 
 
 def _pairs(bots):
@@ -74,8 +77,8 @@ def _mark(report, bot, timestamp, equity, floating=None):
 def _open(report, candidate, at, cash, price=None, config=None):
     observed_form = config is not None
     config = config or _config(candidate['setup'])
-    if not observed_form and abs(config.total_margin-1000) > 1e-9:
-        raise ValueError('generated bot total used plus reserve must equal 1000 USDT')
+    if not observed_form and (config.investment, config.reserved_margin, config.leverage) != (1000, 200, 5):
+        raise ValueError('generated bot must use 1000 USDT plus 200 reserve at exactly 5x')
     if cash + 1e-9 < config.total_margin:
         report['capital_events'].append(dict(asof_ms=at, pair=config.pair, action='cash_wait',
             available_cash=cash, required_margin=config.total_margin,
@@ -95,12 +98,12 @@ def _open(report, candidate, at, cash, price=None, config=None):
 def _scan(snapshot, report, at, options, allowed=None):
     running = _pairs(report['bots'])
     if hasattr(snapshot, 'iter_records'):
-        result = radar(snapshot.iter_records(at, pairs=allowed), at, running, {'setup': options})
+        result = radar(snapshot.iter_records(at, pairs=allowed), at, running, {'setup': options, 'radar_size': options.get('radar_size', 10)})
         records = snapshot.records(at, pairs=running)
     else:
         records = snapshot.records(at, pairs=allowed)
         records = [dict(row, bars=row.get('bars', row.get('bars7days', []))) for row in records]
-        result = radar(records, at, running, {'setup': options})
+        result = radar(records, at, running, {'setup': options, 'radar_size': options.get('radar_size', 10)})
     report['hourly_radar'].append(result)
     if not result.get('coverage', {}).get('observed', len(records)):
         _gap(report, 'no historical market membership observations at ' + str(at))
@@ -125,13 +128,15 @@ def _price(snapshot, pair, at, fallback):
 
 def _fill_slots(snapshot, report, candidates, at, cash, rng, maximum=2):
     rows = list(candidates)
-    if report['mode'] == 'random_radar_identical_rules':
+    random_order = report['mode'] == 'random_radar_identical_rules'
+    if random_order:
         rng.shuffle(rows)
-    for row in rows:
-        if sum(bot['active'] for bot in report['bots']) >= maximum:
-            break
-        if row['pair'] in _pairs(report['bots']):
-            continue
+    occupied = {bot['state'].config.pair for bot in report['bots'] if bot['active']}
+    options = report['parameters']
+    horizon = options.get('replacement_horizon_hours', options.get('horizon_hours', 6))
+    selection = select_funded_entries(rows, occupied, cash, maximum, horizon, random_order)
+    report['entry_decisions'].append(dict(selection, asof_ms=at))
+    for row in selection['selected']:
         cash = _open(report, row, at, cash, _price(snapshot, row['pair'], at, row['setup']['entry']))
     return cash
 
@@ -240,7 +245,7 @@ def _close(snapshot, report, bot, at, quote=None):
     return net_equity(state, state.price)
 
 
-def _hour_decisions(snapshot, report, end, options, cash, allowed, rng):
+def _legacy_hour_decisions(snapshot, report, end, options, cash, allowed, rng):
     candidates, records = _scan(snapshot, report, end, options, allowed)
     for bot in list(report['bots']):
         if not bot['active']:
@@ -270,6 +275,56 @@ def _hour_decisions(snapshot, report, end, options, cash, allowed, rng):
         elif bot['state'].status in TERMINAL:
             cash += _close(snapshot, report, bot, end)
             bot['active'] = True  # Closed slot waits for a qualifying replacement.
+    return cash
+
+
+
+def _decision_summaries(snapshot, report, end):
+    rows, quotes = [], {}
+    for bot in report['bots']:
+        if not bot['active']:
+            continue
+        state = bot['state']
+        quote = {} if state.status in TERMINAL else _require_quote(snapshot, state.config.pair, end)
+        summary = dict(bot['latest'], bot_id=bot['bot_id'], asof_ms=end,
+                       capital_released=bool(bot.get('released')))
+        rows.append(close_cost_summary(state, summary, quote))
+        quotes[bot['bot_id']] = quote
+    return rows, quotes
+
+
+def _execute_portfolio_switch(snapshot, report, end, cash, decision, quotes):
+    bot = next(bot for bot in report['bots'] if bot['bot_id'] == decision['worst_bot_id'])
+    cash += _close(snapshot, report, bot, end, quotes[bot['bot_id']])
+    actual_cost = _actual_switch_cost(report, bot, decision['switch_cost'])
+    selected, before = decision['replacement'], len(report['bots'])
+    cash = _open(report, selected, end, cash,
+                 _price(snapshot, selected['pair'], end, selected['setup']['entry']))
+    report['switches'].append(dict(asof_ms=end, bot_id=bot['bot_id'], pair=bot['state'].config.pair,
+        replacement_executed=len(report['bots']) > before, **decision, **actual_cost))
+    return cash
+
+
+def _hour_decisions(snapshot, report, end, options, cash, allowed, rng):
+    if options.get('replacement_policy') == 'legacy_held':
+        return _legacy_hour_decisions(snapshot, report, end, options, cash, allowed, rng)
+    candidates, _ = _scan(snapshot, report, end, options, allowed)
+    summaries, quotes = _decision_summaries(snapshot, report, end)
+    if report['mode'] == 'random_radar_identical_rules':
+        rng.shuffle(candidates)
+    decision = decide_portfolio_replacement(summaries, candidates, dict(options, available_cash=cash,
+        random_pick_order=report['mode'] == 'random_radar_identical_rules'))
+    report['portfolio_decisions'].append(dict(decision, asof_ms=end))
+    verdicts = {row['bot_id']: row for row in decision['verdicts']}
+    for summary in summaries:
+        report['hourly_tracker'].append(dict(summary, verdict=verdicts[summary['bot_id']]))
+    if decision['action'] == 'replace':
+        cash = _execute_portfolio_switch(snapshot, report, end, cash, decision, quotes)
+        _scan(snapshot, report, end, options, allowed)
+    for bot in report['bots']:
+        if bot['active'] and bot['state'].status in TERMINAL:
+            cash += _close(snapshot, report, bot, end)
+            bot['active'] = True
     return cash
 
 
@@ -317,7 +372,7 @@ def _execute(snapshot, report, options, fixtures, seed):
     rng, cash, allowed = random.Random(seed), report['initial_capital'], None
     actual = mode == 'four_observed_long_forms_unchanged'
     if mode == 'same_four_symbols_system_setup':
-        report['limitations'].append('Rules baseline: two 1000-USDT slots restricted to the four observed symbols.')
+        report['limitations'].append('Rules baseline: two 1200-USDT slots (1000 used plus 200 reserve) restricted to the four observed symbols.')
         allowed = [row['symbol']+'M' if row['symbol'].endswith('USDT') else row['symbol']
                    for row in _fixture_rows(fixtures)]
     if actual:
@@ -340,7 +395,7 @@ def _execute(snapshot, report, options, fixtures, seed):
 
 
 def run_window(snapshot, start_ms, end_ms, parameters=None, mode='system', fixtures=None, seed=20260911):
-    """Run a causal [start,end) model with 2000 USDT and no cash injections."""
+    """Run a causal [start,end) model with 2400 USDT and no cash injections."""
     if mode not in MODES:
         raise ValueError('unknown replay mode')
     if any(type(t) is not int or t < 0 or t % HOUR_MS for t in (start_ms, end_ms)) or start_ms >= end_ms:

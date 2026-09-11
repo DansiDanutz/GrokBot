@@ -8,9 +8,9 @@ START = 20 * 24 * HOUR
 
 def candidate(pair='A', direction='long'):
     form = dict(pair=pair, direction=direction, low=90, high=110, entry=100,
-                grids=10, leverage=3, used_margin=800, reserved_margin=200,
+                grids=10, leverage=5, used_margin=1000, reserved_margin=200,
                 quantity=1, multiplier=.001, lot_size=1, stop_loss=80 if direction == 'long' else 120,
-                trigger=None, eligible=True, reason='fixture')
+                trigger=None, eligible=True, reason='fixture', preview={'profit_per_grid_min': 1}, opening_fee_budget=1)
     return dict(pair=pair, direction=direction, score=5, setup=form)
 
 
@@ -49,9 +49,9 @@ class ReplayTests(unittest.TestCase):
     @patch('trader.research.kucoin_replay.radar', side_effect=scan)
     def test_two_slots_total_margin_and_fill_identity(self, unused):
         result = run_window(MemorySnapshot(), START, START+HOUR)
-        self.assertEqual(result['initial_capital'], 2000)
+        self.assertEqual(result['initial_capital'], 2400)
         self.assertEqual(len(result['bots']), 2)
-        self.assertTrue(all(b['form']['used_margin']+b['form']['reserved_margin'] == 1000 for b in result['bots']))
+        self.assertTrue(all(b['form']['used_margin']+b['form']['reserved_margin'] == 1200 for b in result['bots']))
         ids = [(row['bot_id'], row['event_id']) for row in result['ledger']]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertGreater(len(ids), 0)
@@ -86,7 +86,7 @@ class ReplayTests(unittest.TestCase):
         result = run_window(snapshot, START, START+2*HOUR, {'consecutive_hours': 100})
         self.assertFalse(result['coverage']['complete'])
         self.assertEqual(len(result['bots']), 2)
-        self.assertTrue(any(row['action'] == 'cash_wait' for row in result['capital_events']))
+        self.assertLess(result['ending_available_cash'], 1200)
         self.assertEqual(result['partial_metrics']['stop_loss_hits'], 1)
         stopped = [row for row in result['ledger'] if row['kind'] == 'stop_loss']
         self.assertGreater(len(stopped), 0)
@@ -127,7 +127,7 @@ class ReplayTests(unittest.TestCase):
         def flip(records, bot, at, options):
             return dict(candidate(bot['state'].config.pair, 'short'), score=10000)
         with patch('trader.research.kucoin_replay._flip', side_effect=flip):
-            result = run_window(snapshot, START, START+2*HOUR, {'consecutive_hours': 1})
+            result = run_window(snapshot, START, START+2*HOUR, {'consecutive_hours': 1, 'replacement_policy': 'legacy_held'})
         self.assertTrue(result['coverage']['complete'])
         self.assertEqual(len(result['switches']), 2)
         self.assertTrue(all('direction_flip' in row['triggers'] for row in result['switches']))
@@ -142,7 +142,7 @@ class ReplayTests(unittest.TestCase):
         def heavily_loaded(records, at, running_pairs=(), parameters=None):
             result = scan(records, at, running_pairs, parameters)
             for row in result['radar']:
-                row['setup'].update(quantity=2.4)
+                row['setup'].update(quantity=3)
             return result
         with patch('trader.research.kucoin_replay.radar', side_effect=heavily_loaded):
             result = run_window(snapshot, START, START+3*HOUR)
@@ -187,7 +187,7 @@ class ReplayTests(unittest.TestCase):
                     rows = [candidate(row['pair'], direction) for row in records if row['pair'] not in running_pairs]
                     return dict(radar=rows, rejected=[], coverage={'observed': len(records)})
                 with patch('trader.research.kucoin_replay.radar', side_effect=directional):
-                    result = run_window(snapshot, START, START+2*HOUR, {'consecutive_hours': 1})
+                    result = run_window(snapshot, START, START+2*HOUR, {'consecutive_hours': 1, 'replacement_policy': 'legacy_held'})
                 self.assertTrue(result['coverage']['complete'])
                 self.assertGreater(len(result['switches']), 0)
                 for switch in result['switches']:
@@ -242,3 +242,34 @@ class ReplayTests(unittest.TestCase):
                     result = run_window(MemorySnapshot(), START, START+HOUR)
                 self.assertEqual(result['coverage']['complete'], not missing)
                 self.assertEqual(result['metrics']['net'], None if missing else 0)
+
+
+    def test_default_policy_switches_one_worst_slot_per_hour_when_better_coin_appears(self):
+        snapshot = MemorySnapshot()
+        original = snapshot.candles
+        snapshot.candles = lambda pair, start, end: [dict(row, low=97, high=103)
+                                                    for row in original(pair, start, end)]
+        def opportunities(records, at, running_pairs=(), parameters=None):
+            result = scan(records, at, running_pairs, parameters)
+            if at > START:
+                result['radar'] = [dict(candidate('C'), score=1000), dict(candidate('D'), score=900)]
+            return result
+        with patch('trader.research.kucoin_replay.radar', side_effect=opportunities):
+            result = run_window(snapshot, START, START+2*HOUR, {'consecutive_hours': 100})
+        self.assertTrue(result['coverage']['complete'])
+        self.assertEqual(result['initial_capital'], 2400)
+        self.assertEqual(len(result['switches']), 1)
+        self.assertTrue(result['switches'][0]['replacement_executed'])
+        self.assertEqual(result['switches'][0]['replacement']['pair'], 'C')
+        self.assertIn('better_cost_adjusted_grid_income', result['switches'][0]['triggers'])
+        self.assertEqual(len(result['bots']), 3)
+        self.assertEqual(result['portfolio_decisions'][0]['action'], 'replace')
+
+    def test_startup_does_not_fill_slots_with_unsafe_or_subtarget_setups(self):
+        rows = [candidate('UNSAFE'), candidate('BELOW')]
+        rows[0]['setup']['eligible'] = False
+        rows[1]['setup']['preview']['profit_per_grid_min'] = .9
+        with patch('trader.research.kucoin_replay.radar', return_value=dict(radar=rows, rejected=[], coverage={'observed': 2})):
+            result = run_window(MemorySnapshot(), START, START+HOUR)
+        self.assertEqual(result['bots'], [])
+        self.assertEqual(result['initial_capital'], 2400)

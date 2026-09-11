@@ -67,7 +67,7 @@ class RadarTests(unittest.TestCase):
                    for name, changes in cases]
         records += [dict(pair=str(i), bars=candles(), market=market()) for i in range(8)]
         result = radar(records, NOW, running_pairs=['0'])
-        self.assertEqual(len(result['radar']), 5)
+        self.assertEqual(len(result['radar']), 7)
         self.assertNotIn('0', [row['pair'] for row in result['radar']])
         self.assertTrue(all(row['pair'].isdigit() for row in result['radar']))
         self.assertEqual(len(result['rejected']), 9)
@@ -127,6 +127,21 @@ class RadarTests(unittest.TestCase):
     def test_malformed_funding_granularity_is_unknown(self):
         data = market(funding_interval_hours=None, fundingRateGranularity='bad')
         self.assertIsNone(normalize_market(data, NOW)['funding_rate_8h'])
+
+
+    @patch('trader.research.kucoin_radar.build_setup', setup)
+    @patch('trader.research.kucoin_radar.features', return_value={})
+    def test_default_ten_and_configurable_five_preserve_proxy_context(self, unused):
+        records = [dict(pair=str(i), bars=candles(), market=market()) for i in range(12)]
+        result = radar(records, NOW)
+        self.assertEqual(len(result['radar']), 10)
+        self.assertEqual(len(result['volatility_universe']), 12)
+        self.assertFalse(result['radar'][0]['volatility_definition_verified'])
+        self.assertIn('independent', result['volatility_basis'])
+        self.assertEqual(len(radar(records, NOW, parameters={'radar_size': 5})['radar']), 5)
+        for count in (4, 11, True):
+            with self.assertRaises(ValueError):
+                radar(records, NOW, parameters={'radar_size': count})
 
 
 if __name__ == '__main__':

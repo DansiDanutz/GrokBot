@@ -145,7 +145,7 @@ def _registered(registration):
     if current != committed:
         raise ValueError('preregistration differs from committed HEAD; sweep forbidden')
     document = json.loads(current)
-    if document.get('id') != 'grid-kucoin' or not document.get('sweep'):
+    if document.get('id') not in ('grid-kucoin', 'grid-kucoin-policy-v2') or not document.get('sweep'):
         raise ValueError('invalid grid-kucoin preregistration')
     return document
 
@@ -274,6 +274,8 @@ def _holdout(snapshot, registration, span, parameters, runner, fixtures):
 def sweep(snapshot, registration, calibration, volatility, runner=None, fixtures=None):
     """Train on prior seven days, freeze choices, then evaluate untouched months."""
     document = _registered(registration)
+    if runner is None and document['id'] != 'grid-kucoin-policy-v2':
+        raise ValueError('archived registration cannot authorize a sweep of the revised portfolio policy')
     if runner is None:
         from trader.research.kucoin_replay import run_window
         runner = run_window
