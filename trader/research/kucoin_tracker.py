@@ -8,6 +8,7 @@ from dataclasses import asdict, replace
 import math
 from trader.strategies.kucoin_grid import advance, floating_pnl, net_equity, preview, effective_stop_prices, stop
 from trader.strategies.grid_types import Position
+from trader.research.grid_cycle_metrics import completed_cycle_metrics
 
 HOUR_MS = 3_600_000
 MINUTE_MS = 60_000
@@ -322,6 +323,9 @@ def track_bars(state, bars, funding_events=(), start_ms=None, asof_ms=None, expe
     summary = track_summary(state, start_ms, end_ms, expected_start_gph)
     if historical_candle_only:
         _historical_summary(summary, state, ledger, beginning, end_ms, len(validated))
+    summary['completed_cycle_window'] = dict(start_ms=beginning, end_ms=end_ms,
+        scope='supplied tracking call ledger',
+        **completed_cycle_metrics(ledger, beginning, end_ms))
     _hour_risk(summary, distances)
     return dict(state=state, ledger=ledger, summary=summary, equity_path=equity_path,
                 last_observed_ms=last_observed_ms,

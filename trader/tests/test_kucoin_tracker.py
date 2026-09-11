@@ -350,3 +350,29 @@ class TrackerTests(unittest.TestCase):
             self.assertGreater(result['state'].completed_grids, 0)
             if historical:
                 self.assertEqual(result['summary']['observed_minutes'], 1)
+
+
+class PositiveCycleEvidenceTests(unittest.TestCase):
+    def test_exact_break_even_is_not_success_and_small_positive_has_no_dollar_floor(self):
+        from trader.research.grid_cycle_metrics import completed_cycle_metrics
+        events = [dict(completed_grid=True, quantity=1, price=price, side=-1, gross_pnl=gross)
+                  for price, gross in [(5003, 6), (5003.0001, 6.0001), (101, 1), (100, 0)]]
+        result = completed_cycle_metrics(events, 0, HOUR)
+        self.assertEqual(result['completed_positive_net'], 2)
+        self.assertEqual(result['completed_nonpositive_net'], 2)
+        self.assertEqual(result['completed_at_target'], 0)
+        self.assertEqual(result['completed_positive_net_per_hour'], 2)
+
+    def test_hourly_positive_counts_have_explicit_call_scope_without_invented_lifetime(self):
+        first = track_bars(state(), [bar()], start_ms=0)
+        second = track_bars(first['state'], [bar(time=60000)], start_ms=0)
+        for result, start in [(first, 0), (second, 60000)]:
+            counts = result['summary']['completed_cycle_window']
+            self.assertEqual(counts['start_ms'], start)
+            self.assertEqual(counts['end_ms'], start+60000)
+            self.assertEqual(counts['scope'], 'supplied tracking call ledger')
+            self.assertEqual(counts['completed_positive_net']+counts['completed_nonpositive_net'],
+                sum(row['completed_grid'] for row in result['ledger']))
+            self.assertGreater(counts['completed_positive_net'], 0)
+        self.assertGreater(second['state'].completed_grids,
+                           second['summary']['completed_cycle_window']['completed_positive_net'])

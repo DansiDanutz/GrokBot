@@ -152,3 +152,100 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(all(call.kwargs['parameters']['historical_candle_only'] for call in runner.call_args_list))
         self.assertEqual(result['holdouts'][0]['modeled_metrics']['net'], 5)
         self.assertEqual(result['decision']['decision'], 'shelve')
+
+
+class PositiveCyclePolicyTests(unittest.TestCase):
+    def windows(self, **changes):
+        from trader.research.kucoin_portfolio import _time
+        boundaries = ['2026-07-01T00:00:00Z', '2026-08-01T00:00:00Z', '2026-09-01T00:00:00Z']
+        metrics = dict(net=20, completed_positive_net=100, completed_nonpositive_net=0,
+            completed_at_target=0, completed_below_target=100, liquidations=0,
+            closest_liquidation_range_pct=20, max_drawdown_fraction_of_margin=.01)
+        return [dict(start_ms=_time(boundaries[i]), end_ms=_time(boundaries[i+1]),
+            coverage={'complete': True}, metrics=dict(metrics, **changes)) for i in range(2)]
+
+    def outcome(self, windows, registration=None):
+        registration = registration or dict(id='grid-kucoin-v3-positive',
+                                             fixed_parameters={'minimum_grid_net_usdt': 0})
+        return decision(windows, {'calibrated': True, 'neutral_calibrated': True},
+                        {'validated': True}, registration)
+
+    def test_profitable_subdollar_cycles_pass_zero_floor_but_not_legacy_one(self):
+        self.assertEqual(self.outcome(self.windows())['decision'],
+                         'eligible_for_separate_hourly_recommender_review')
+        legacy = dict(id='grid-kucoin-v3', minimum_grid_net_usdt=1)
+        self.assertEqual(self.outcome(self.windows(), legacy)['decision'], 'shelve')
+
+    def test_positive_policy_keeps_nonpositive_unknown_net_and_risk_gates(self):
+        for changes in ({'completed_nonpositive_net': 1}, {'completed_nonpositive_net': None},
+                        {'completed_positive_net': 0}, {'completed_positive_net': None},
+                        {'net': -1}, {'liquidations': 1},
+                        {'max_drawdown_fraction_of_margin': .15},
+                        {'closest_liquidation_range_pct': 9}):
+            with self.subTest(changes=changes):
+                self.assertEqual(self.outcome(self.windows(**changes))['decision'], 'shelve')
+        windows = self.windows()
+        windows[0]['coverage'] = {'complete': False, 'reasons': ['unknown funding']}
+        self.assertEqual(self.outcome(windows)['decision'], 'shelve')
+        self.assertEqual(decision(self.windows(), {}, {'validated': True},
+            {'minimum_grid_net_usdt': 0})['decision'], 'shelve')
+
+    @patch('trader.research.kucoin_portfolio._registered')
+    def test_fixed_runner_propagates_zero_and_archived_one_without_search(self, registered):
+        for identifier, minimum in [('grid-kucoin-v3-positive', 0), ('grid-kucoin-v3', 1)]:
+            registered.return_value = dict(id=identifier, minimum_grid_net_usdt=minimum,
+                fixed_parameters={'historical_spread_bps': 10}, holdouts=[
+                    dict(start='2026-07-01T00:00:00Z', end='2026-08-01T00:00:00Z'),
+                    dict(start='2026-08-01T00:00:00Z', end='2026-09-01T00:00:00Z')])
+            runner = unittest.mock.Mock(side_effect=lambda *args, **kwargs: dict(
+                coverage={'complete': False}, metrics={}))
+            result = sweep(object(), 'ignored', {}, {}, runner=runner)
+            self.assertEqual(runner.call_count, 2)
+            self.assertFalse(result['parameter_search_performed'])
+            self.assertTrue(all(call.kwargs['parameters']['minimum_grid_net_usdt'] == minimum
+                                for call in runner.call_args_list))
+
+    @patch('trader.research.kucoin_portfolio._registered')
+    def test_conflicting_registered_minimum_fails_before_execution(self, registered):
+        registered.return_value = dict(id='grid-kucoin-v3-positive', minimum_grid_net_usdt=0,
+            fixed_parameters={'minimum_grid_net_usdt': 1}, holdouts=[])
+        runner = unittest.mock.Mock()
+        with self.assertRaisesRegex(ValueError, 'conflict'):
+            sweep(object(), 'ignored', {}, {}, runner=runner)
+        runner.assert_not_called()
+
+    def test_portfolio_metrics_preserve_income_and_expose_positive_partition(self):
+        from trader.research.kucoin_portfolio import _metrics
+        from trader.strategies.grid_types import GridConfig
+        from trader.strategies.kucoin_grid import create_bot
+        state = create_bot(GridConfig(pair='T', low=90, high=110, grids=20,
+                                      quantity=1, direction='long'), 100, 0)
+        fills = [dict(bot_id='a', completed_grid=True, price=price, gross_pnl=gross,
+                      quantity=1, side=-1, kind='grid_close')
+                 for price, gross in [(101, 1), (103, 3), (5003, 6), (100, 0)]]
+        report = dict(ledger=fills, start_ms=0, end_ms=7200000, equity_timeline=[],
+                      initial_capital=2400, switches=[])
+        values = _metrics(report, [dict(bot_id='a', state=state, closest=20, outside_ms=0)])
+        self.assertEqual(values['completed_positive_net'], 2)
+        self.assertEqual(values['completed_nonpositive_net'], 2)
+        self.assertEqual(values['completed_positive_net_per_hour'], 1)
+        self.assertEqual(values['completed_nonpositive_net_per_day'], 24)
+        self.assertEqual(values['completed_at_target'], 1)
+        self.assertEqual(values['legacy_completed_at_net_1_usdt'], 1)
+        self.assertEqual(values['grid_income_per_hour'], state.grid_net_profit/2)
+
+    def test_new_registration_identifier_keeps_committed_byte_requirement(self):
+        from trader.research.kucoin_portfolio import _registered
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            path = root/'positive.json'
+            raw = json.dumps(dict(id='grid-kucoin-v3-positive',
+                                  fixed_parameters={'minimum_grid_net_usdt': 0})).encode()
+            path.write_bytes(raw)
+            committed = unittest.mock.Mock(stdout=raw)
+            with patch('trader.research.kucoin_portfolio.ROOT', root), patch(
+                    'trader.research.kucoin_portfolio.subprocess.run', return_value=committed):
+                self.assertEqual(_registered(path)['id'], 'grid-kucoin-v3-positive')
+                path.write_bytes(raw+b' ')
+                with self.assertRaisesRegex(ValueError, 'differs from committed'):
+                    _registered(path)

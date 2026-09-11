@@ -5,23 +5,22 @@ import json
 from pathlib import Path
 import subprocess
 
-from trader.strategies.kucoin_grid import FEE, floating_pnl, net_equity
+from trader.strategies.kucoin_grid import floating_pnl, net_equity
+from trader.research.grid_cycle_metrics import CYCLE_METRICS, completed_cycle_metrics, net_completion
 
 ROOT = Path(__file__).resolve().parents[2]
 HOUR_MS = 3600000
 DAY_MS = 24 * HOUR_MS
 METRICS = ('completed_grids', 'completed_grids_per_hour', 'completed_grids_per_day',
-    'completed_grids_per_hour_at_net_1_usdt', 'completed_at_target', 'completed_below_target',
     'grid_profit', 'grid_net_profit', 'grid_income_per_hour', 'grid_income_per_day', 'seed_pnl', 'floating_pnl', 'realized_switch_pnl',
     'realized_close_pnl', 'funding', 'fees', 'net', 'max_drawdown', 'max_drawdown_fraction_of_margin',
     'max_unrealized_loss', 'max_unrealized_loss_conservative_bound',
     'max_drawdown_conservative_bound', 'max_drawdown_conservative_fraction_of_margin', 'closest_liquidation_range_pct', 'stop_loss_hits',
-    'switches_per_day', 'time_outside_range_hours', 'liquidations')
+    'switches_per_day', 'time_outside_range_hours', 'liquidations') + CYCLE_METRICS
 
 
 def _net_completion(event):
-    entry = event['price'] + event['gross_pnl'] / (event['side'] * event['quantity'])
-    return event['gross_pnl'] - event['quantity'] * (entry+event['price']) * FEE
+    return float(net_completion(event))
 
 
 def _drawdown(report, bots):
@@ -72,15 +71,14 @@ def _metrics(report, bots):
     states = [bot['state'] for bot in bots]
     ids = {bot['bot_id'] for bot in bots}
     fills = [row for row in report['ledger'] if row['bot_id'] in ids and row.get('completed_grid')]
-    target = sum(_net_completion(row) >= 1-1e-9 for row in fills)
+    cycles = completed_cycle_metrics(fills, report['start_ms'], report['end_ms'])
     hours = (report['end_ms']-report['start_ms'])/HOUR_MS
     closest = [bot['closest'] for bot in bots if bot['closest'] is not None]
     switches = sum(row['bot_id'] in ids and row.get('replacement_executed', False) for row in report['switches'])
     drawdown = _drawdown(report, bots)
     return dict(completed_grids=len(fills), completed_grids_per_hour=len(fills)/hours,
         completed_grids_per_day=len(fills)/hours*24,
-        completed_grids_per_hour_at_net_1_usdt=target/hours,
-        completed_at_target=target, completed_below_target=len(fills)-target,
+        **cycles,
         grid_profit=sum(s.grid_profit for s in states), grid_net_profit=sum(s.grid_net_profit for s in states),
         grid_income_per_hour=sum(s.grid_net_profit for s in states)/hours,
         grid_income_per_day=sum(s.grid_net_profit for s in states)/hours*24,
@@ -135,6 +133,8 @@ def summarize(report):
         values = _metrics(report, selected)
         report['direction_mix'][direction] = dict(bot_count=len(selected), exposure_hours=hours,
             grids_per_hour=values['completed_grids']/hours if hours else None,
+            positive_net_grids_per_hour=values['completed_positive_net']/hours if hours else None,
+            nonpositive_net_grids_per_hour=values['completed_nonpositive_net']/hours if hours else None,
             net=values['net'] if modeled or report['coverage']['complete'] else None)
     report['bots'] = [_bot_record(bot) for bot in bots]
     return report
@@ -153,7 +153,7 @@ def _registered(registration):
     if current != committed:
         raise ValueError('preregistration differs from committed HEAD; sweep forbidden')
     document = json.loads(current)
-    if document.get('id') not in ('grid-kucoin', 'grid-kucoin-policy-v2', 'grid-kucoin-v3') or not (document.get('sweep') or document.get('fixed_parameters')):
+    if document.get('id') not in ('grid-kucoin', 'grid-kucoin-policy-v2', 'grid-kucoin-v3', 'grid-kucoin-v3-positive') or not (document.get('sweep') or document.get('fixed_parameters')):
         raise ValueError('invalid grid-kucoin preregistration')
     return document
 
@@ -181,18 +181,13 @@ def _skip(start, end, reason):
                 coverage=dict(complete=False, reasons=[reason]), metrics=dict.fromkeys(METRICS))
 
 
-def _month_valid(window, metrics, margin_threshold):
+def _month_valid(window, metrics, margin_threshold, minimum=1):
     reasons = []
     if window.get('coverage', {}).get('complete') is not True:
         reasons.append('incomplete historical coverage')
     if metrics.get('net') is None or metrics['net'] <= 0:
         reasons.append('monthly net is unknown or not positive')
-    below_target = metrics.get('completed_below_target')
-    if type(below_target) is not int or below_target != 0:
-        reasons.append('completed grids below +1 USDT are unknown or nonzero')
-    qualified = metrics.get('completed_at_target')
-    if type(qualified) is not int or qualified <= 0:
-        reasons.append('completed grids at +1 USDT are unknown or not positive')
+    reasons.extend(_cycle_gate(metrics, minimum))
     if metrics.get('liquidations') != 0:
         reasons.append('liquidations are unknown or nonzero')
     closest = metrics.get('closest_liquidation_range_pct')
@@ -202,6 +197,32 @@ def _month_valid(window, metrics, margin_threshold):
                            metrics.get('max_drawdown_fraction_of_margin'))
     if drawdown is None or drawdown >= margin_threshold:
         reasons.append('drawdown is unknown or at least 15 percent of margin')
+    return reasons
+
+
+def _minimum_grid_net(registration):
+    document = registration or {}
+    fixed = document.get('fixed_parameters', {})
+    default = 0 if document.get('id') == 'grid-kucoin-v3-positive' else 1
+    top = document.get('minimum_grid_net_usdt')
+    nested = fixed.get('minimum_grid_net_usdt')
+    if top is not None and nested is not None and top != nested:
+        raise ValueError('conflicting registered minimum_grid_net_usdt')
+    minimum = nested if nested is not None else top if top is not None else default
+    if type(minimum) not in (int, float) or minimum not in (0, 1):
+        raise ValueError('registered minimum_grid_net_usdt must be zero or legacy one')
+    return minimum
+
+
+def _cycle_gate(metrics, minimum):
+    positive, nonpositive = ('completed_positive_net', 'completed_nonpositive_net') if minimum == 0 else (
+        'completed_at_target', 'completed_below_target')
+    label = 'strictly positive fee-net' if minimum == 0 else 'legacy +1 USDT fee-net'
+    reasons = []
+    if type(metrics.get(nonpositive)) is not int or metrics[nonpositive] != 0:
+        reasons.append(label + ' cycle failures are unknown or nonzero')
+    if type(metrics.get(positive)) is not int or metrics[positive] <= 0:
+        reasons.append(label + ' completed cycle count is unknown or not positive')
     return reasons
 
 
@@ -233,9 +254,10 @@ def decision(windows, calibration, volatility, registration=None):
         reasons.append('KuCoin volatility definition and fixture validation have not passed')
     if not _full_months(windows):
         reasons.append('two disjoint complete months are required')
+    minimum = _minimum_grid_net(registration)
     for index, window in enumerate(windows):
         reasons.extend('month '+str(index+1)+': '+reason for reason in
-                       _month_valid(window, window.get('metrics', {}), .15))
+                       _month_valid(window, window.get('metrics', {}), .15, minimum))
     return dict(decision='shelve' if reasons else 'eligible_for_separate_hourly_recommender_review',
                 reasons=reasons, live_orders_authorized=False)
 
@@ -282,7 +304,7 @@ def _holdout(snapshot, registration, span, parameters, runner, fixtures):
 def sweep(snapshot, registration, calibration, volatility, runner=None, fixtures=None):
     """Train on prior seven days, freeze choices, then evaluate untouched months."""
     document = _registered(registration)
-    if document['id'] == 'grid-kucoin-v3':
+    if document['id'] in ('grid-kucoin-v3', 'grid-kucoin-v3-positive'):
         return _single_registered(snapshot, document, calibration, volatility, runner)
     if runner is None and document['id'] != 'grid-kucoin-v3':
         raise ValueError('archived registration cannot authorize a sweep of the revised portfolio policy')
@@ -308,9 +330,10 @@ def _single_registered(snapshot, document, calibration, volatility, runner):
     if runner is None:
         from trader.research.kucoin_replay import run_window
         runner = run_window
-    parameters = dict(document.get('fixed_parameters', {}), historical_candle_only=True)
-    if not parameters:
+    if not document.get('fixed_parameters'):
         raise ValueError('fixed v3 parameters required')
+    parameters = dict(document['fixed_parameters'], historical_candle_only=True)
+    parameters['minimum_grid_net_usdt'] = _minimum_grid_net(document)
     windows = []
     for span in document['holdouts']:
         start, end = _time(span['start']), _time(span['end'])
