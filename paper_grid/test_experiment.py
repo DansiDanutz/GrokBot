@@ -310,6 +310,27 @@ class ExperimentTests(unittest.TestCase):
         published = self.tick(NOW+2100)
         self.assertEqual(published['experiment']['report_at'], NOW+2100)
 
+    def test_equity_is_recorded_each_successful_tick_without_backfill(self):
+        self.begin()
+        self.tick()
+        first = self.doc()['observations'][0]
+        self.assertEqual(first['telemetry_schema'], 1)
+        for arm in experiment.ARMS:
+            account = self.doc()['accounts'][arm]
+            expected = engine.status(account['state'], account['market'], NOW, account['config'])
+            self.assertEqual(first['equity'][arm], {key: expected[key] for key in ('equity', 'equity_is_estimate')})
+        # Historical observations are intentionally incomplete, never reconstructed.
+        doc = self.doc()
+        doc['observations'][0].pop('equity')
+        doc['observations'][0].pop('telemetry_schema')
+        cli.atomic_json(self.root/experiment.FILE, doc)
+        self.tick(NOW+300, collector=lambda *a, **k: ({}, {'top5': []}))
+        rows = self.doc()['observations']
+        self.assertNotIn('equity', rows[0])
+        self.assertTrue(rows[-1]['equity']['baseline']['equity_is_estimate'])
+        self.assertEqual(len(self.doc()['history']), 1)
+        self.assertEqual(self.doc()['telemetry_schema'], 1)
+
     def test_union_held_passed_to_single_market_fetch(self):
         self.begin()
         self.tick()

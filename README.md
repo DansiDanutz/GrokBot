@@ -12,6 +12,7 @@ continuous paper comparison every 30 minutes. The complete source is now in
 liquidation filtering, two virtual accounts, cost-aware execution, risk limits,
 48-hour audits, daily/weekly summaries, and a sanitized static Vercel publisher.
 It uses Python 3.10+ standard-library modules and makes no live exchange orders.
+The [offline replay harness](paper_grid/REPLAY.md) reproduces saved decisions from an explicit historical checkpoint.
 The [learning lab](paper_grid/ANALYTICS.md) adds period/account filters, activity
 charts, win/loss and exit-reason analysis, additional-buy cohorts and a trade journal.
 

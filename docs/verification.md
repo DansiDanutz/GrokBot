@@ -79,3 +79,18 @@ period boundaries, cost accounting, privacy, independent accounts and bounded
 output. The two dashboards passed JavaScript syntax and browser checks against
 real empty data and isolated synthetic win/loss fixtures. Deployment evidence is
 in `paper_grid/ANALYTICS.md`.
+
+## Audit instrumentation and replay — 11 September 2026
+
+`npm run verify` passed 20 Node and 210 Python tests. New tests cover private
+credential loading, sanitized failures, unchanged state/fill decisions across
+twelve pre-instrumentation sequences, all execution rejection reasons, trial
+rejection handling, per-tick equity, strict upgrade boundaries, historical
+coverage labels, shared filter evaluation and deterministic offline replay.
+
+The reviewed telemetry upgrade retained the existing accounts, configuration and
+history while recording old/new seals. Local worker health remained running,
+and public diagnostics accurately displayed older checks as uninstrumented.
+The preserved historical checkpoint replayed ten observations identically twice
+and matched both live account states. No token rotation or external bot message
+was performed by the credential migration.

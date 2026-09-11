@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 import time
 
-from paper_grid import audits, coinglass, retention
+from paper_grid import audits, coinglass, retention, telemetry_metrics
 
 ARMS = ('baseline', 'liquidation_filter')
 MAX_BYTES = 200 * 1024 * 1024
@@ -37,7 +37,8 @@ DEFINITIONS = [
 ]
 LIMITATIONS = [
     'Paper results are simulated and do not establish future profitability or live execution quality.',
-    'Drawdown and equity changes use recorded marks; moves between marks are not observed.',
+    'Drawdown combines per-tick equity after instrumentation with older published marks; moves between marks are not observed.',
+    'Rejected buys were not logged before instrumentation. Recorded zero is not a complete historical rejection total.',
     'Funding on closes covers the lifetime of those positions, not funding accrued only during the selected window.',
     'The latest 200 closed trades, 90 daily buckets and 100 most-observed coins are shown; totals use all available evidence.',
     'Unrecorded attempts cannot be reconstructed. Coverage is approximate and gaps may include intentional pauses.',
@@ -254,6 +255,8 @@ def _account(doc, arm, start, end, events, trades):
         observed_max_drawdown_pct=marked['observed_max_drawdown_pct'],
         expectancy=result['net_closed_pnl']/len(closes) if closes else None,
         close_reasons=reasons, add_cohorts=cohorts,
+        buy_rejections=telemetry_metrics.rejections(events, [o for o in doc['observations'] if start <= o['time'] <= end], arm),
+        equity_sampling=marked['equity_sampling'],
         journal=list(reversed(closes[-200:])), journal_total=len(closes))
     return result
 

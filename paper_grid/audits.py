@@ -21,7 +21,7 @@ import time
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from paper_grid import cli, retention
+from paper_grid import cli, retention, coinglass, telemetry_metrics
 
 KINDS = ('audit48h', 'daily', 'weekly')
 ARMS = ('baseline', 'liquidation_filter')
@@ -31,7 +31,7 @@ ID = re.compile(r'^(audit48h|daily|weekly)-[0-9]{8}T[0-9]{6}Z$')
 LIMITATIONS = [
     'Paper only. No real orders, account transfers, or strategy changes are performed by this report.',
     'Returns are experimental and do not establish profitability or statistical significance.',
-    'Equity and drawdown use observed publication samples, normally 30 minutes apart; intratick losses may be larger.',
+    'Equity and drawdown combine recorded per-tick samples after instrumentation with older publication marks; intratick losses may be larger.',
     'Event windows are (start, end]. Equity uses the last available mark at or before each boundary, with its timestamp disclosed.',
     'Closed-trade PnL includes lifetime entry/exit fees and modeled funding, including costs incurred before this window.',
     'Fees paid during the window and funding attached to closes are different accounting views; do not subtract them again from net PnL.',
@@ -158,6 +158,16 @@ def _arm_metrics(doc, arm, start, end):
         value = row.get(arm+'_equity')
         if _number(row.get('time')) and _number(value) and doc['start_at'] <= row['time'] <= end:
             points.append(dict(time=row['time'], equity=value))
+    tick_times = set()
+    estimated_ticks = 0
+    for observation in doc.get('observations', []):
+        at = observation.get('time')
+        mark = observation.get('equity', {}).get(arm, {})
+        if observation.get('telemetry_schema') == 1 and not observation.get('skipped') and _number(at) and doc['start_at'] <= at <= end and _number(mark.get('equity')):
+            points.append(dict(time=at, equity=mark['equity']))
+            if start <= at <= end:
+                tick_times.add(at)
+                estimated_ticks += mark.get('equity_is_estimate') is True
     # A real publication wins over the synthetic initial mark at the same time.
     points = sorted({p['time']: p for p in points}.values(), key=lambda p:p['time'])
     first, last = _last(points, start), _last(points, end)
@@ -176,6 +186,12 @@ def _arm_metrics(doc, arm, start, end):
     fees += sum(e.get('exit_fee', 0) for e in closes if _number(e.get('exit_fee', 0)))
     delta = last['equity']-first['equity'] if first and last else None
     counts = Counter(e.get('type', 'unknown') for e in events)
+    resolution = 'mixed' if tick_times and any(p['time'] not in tick_times for p in marks) else 'per_tick' if tick_times else 'published_only'
+    sample_coverage = _coverage([p['time'] for p in points], start, end,
+                               doc.get('tick_seconds', 300) if tick_times else doc.get('report_seconds', 1800))
+    if resolution == 'mixed':
+        sample_coverage.update(expected_approximately=None, observation_ratio=None,
+                               note='Mixed historical publication and per-tick marks; no single sampling cadence.')
     return dict(start_mark=first, end_mark=last,
         start_mark_age_seconds=start-first['time'] if first else None,
         end_mark_age_seconds=end-last['time'] if last else None,
@@ -190,9 +206,12 @@ def _arm_metrics(doc, arm, start, end):
         lifetime_funding_on_window_closes=sum(e.get('funding_model_cost', 0) for e in closes if _number(e.get('funding_model_cost', 0))),
         period_funding_accrual=None, observed_max_drawdown=dd if len(marks) > 1 else None,
         observed_max_drawdown_pct=dd_pct if len(marks) > 1 else None,
-        equity_sample_coverage=_coverage([p['time'] for p in points], start, end, doc.get('report_seconds', 1800)),
+        equity_sample_coverage=sample_coverage,
         risk_halts=counts['daily_halt'], deferred_exits=counts['deferred_exit'], event_counts=dict(counts),
         close_reasons=dict(Counter(e.get('reason', 'unknown') for e in closes)),
+        buy_rejections=telemetry_metrics.rejections(events, _window(doc.get('observations', []), start, end), arm),
+        equity_sampling=dict(tick_samples=len(tick_times), estimated_tick_samples=estimated_ticks,
+            resolution=resolution),
         cumulative=dict(initial_equity=initial, marked_equity=last['equity'] if last else None,
             marked_pnl_since_start=last['equity']-initial if last and _number(initial) else None,
             closed_trade_net_since_start=None, closed_trades_since_start=None))
@@ -206,10 +225,10 @@ def _data_metrics(doc, start, end):
     for obs in executed:
         at = obs['time']
         features = obs.get('coinglass', {})
-        fetched = features.get('fetched_at')
-        fresh = _number(fetched) and 0 <= at-fetched < 1800
         market = obs.get('market', {})
         symbols = set(market) | set(obs.get('scan', {}).get('top5', obs.get('scan', {}).get('top_five', [])))
+        filter_probes = {symbol:dict(symbol=symbol, eligible=True, add_eligible=True, reasons=[]) for symbol in symbols}
+        filtered = coinglass.apply_filter(filter_probes, features, at)
         for symbol in sorted(symbols):
             quote = market.get(symbol, {})
             if not isinstance(quote, dict):
@@ -227,16 +246,13 @@ def _data_metrics(doc, start, end):
             counts['baseline_eligible'] += eligible
             if not eligible:
                 rejected.update(quote.get('reasons') or ['unspecified_signal_gate'])
-            feature = features.get('symbols', {}).get(symbol, {})
-            latest = feature.get('latest_hour')
-            available = (fresh and _number(latest) and 0 <= at-(latest+3600) <= 7200
-                and all(_number(feature.get(k)) for k in ('burst_ratio', 'long_share', 'total_usd')))
-            counts['missing_or_stale_coinglass'] += not available
-            allowed = (available and feature.get('eligible') is True and feature['burst_ratio'] >= 3
-                       and .60 <= feature['long_share'] <= 1 and feature['total_usd'] > 0)
+            filter_result = filtered[symbol]
+            allowed = filter_result['eligible'] is True
+            missing = 'coinglass_missing_or_stale' in filter_result.get('reasons', [])
+            counts['missing_or_stale_coinglass'] += missing
             counts['filtered_signal_eligible'] += eligible and allowed
             if not allowed:
-                filtered_rejected['coinglass_filter_not_met' if available else 'coinglass_missing_or_stale'] += 1
+                filtered_rejected['coinglass_missing_or_stale' if missing else 'coinglass_filter_not_met'] += 1
     for row in coins.values():
         row['coinglass_missing_rate'] = row['missing_or_stale_coinglass']/row['observations']
     return dict(cycle_coverage=_coverage([o['time'] for o in executed], start, end, doc.get('tick_seconds', 300)),

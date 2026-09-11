@@ -27,7 +27,7 @@ REASONS = frozenset(('invalid_contract stale_quote low_turnover wide_spread atr_
     'funding_outside_bounds missing_top_depth coinglass_filter_not_met '
     'coinglass_missing_or_stale liquidation_filter_pass liquidation_burst_below_3x '
     'long_share_below_60pct unspecified_signal_gate').split())
-EVENTS = frozenset(('open', 'add', 'close', 'daily_halt', 'deferred_exit'))
+EVENTS = frozenset(('open', 'add', 'close', 'daily_halt', 'deferred_exit', 'buy_rejected'))
 ERRORS = frozenset(('coinglass_data', 'cycle_error', 'data_collection', 'unknown'))
 ACCOUNT_NUMBERS = ('cash equity realized_pnl unrealized_net_pnl daily_pnl unpaid_liabilities '
     'trade_count total_fees funding_cost max_drawdown max_drawdown_pct initial_equity '
@@ -175,6 +175,11 @@ def _report(source, published_at):
             continue
         event = dict(type=row['type'], account=row['account'], time=_stamp(row.get('time'), True),
                      **_numbers(row, ('net_pnl', 'fee', 'entry_fees', 'exit_fee', 'funding_model_cost')))
+        if row['type'] == 'buy_rejected':
+            event.update(reason=row.get('reason') if row.get('reason') in engine.BUY_REJECTION_REASONS else 'unknown',
+                action=row.get('action') if row.get('action') in ('open', 'add') else 'unknown',
+                stage=row.get('stage') if row.get('stage') in ('execution', 'selection', 'rotation_trial') else 'unknown',
+                context=_numbers(_object(row.get('context')), ('unit_cost budget required_contracts ask_size cost fee cash existing_cost position_cap immediate_net weighted_drop_pct max_position_loss max_price_drop_pct expected_net target_net_profit score min_score elapsed_seconds cooldown_seconds positions max_positions').split()))
         if row.get('symbol') is not None:
             event['symbol'] = _symbol(row['symbol'])
         result['events'].append(event)
@@ -227,6 +232,19 @@ def _audit(source, identifier, published_at):
             mark = _object(row.get(key))
             result['accounts'][arm][key] = dict(time=_stamp(mark.get('time')), equity=_number(mark.get('equity')))
         result['accounts'][arm]['equity_sample_coverage'] = _coverage(row.get('equity_sample_coverage'))
+        rejection = _object(row.get('buy_rejections'))
+        safe = _numbers(rejection, ('recorded', 'instrumented_checks', 'legacy_checks'))
+        safe['coverage'] = rejection.get('coverage') if rejection.get('coverage') in ('complete', 'partial', 'unavailable') else 'unavailable'
+        safe['reasons'] = []
+        for entry in _array(rejection.get('reasons'))[:40]:
+            entry = _object(entry)
+            safe['reasons'].append(dict(reason=entry.get('reason') if entry.get('reason') in engine.BUY_REJECTION_REASONS else 'unknown',
+                action=entry.get('action') if entry.get('action') in ('open', 'add') else 'unknown',
+                stage=entry.get('stage') if entry.get('stage') in ('execution', 'selection', 'rotation_trial') else 'unknown', count=_number(entry.get('count'))))
+        result['accounts'][arm]['buy_rejections'] = safe
+        sampling = _object(row.get('equity_sampling'))
+        result['accounts'][arm]['equity_sampling'] = dict(**_numbers(sampling, ('tick_samples', 'estimated_tick_samples')),
+            resolution=sampling.get('resolution') if sampling.get('resolution') in ('mixed', 'per_tick', 'published_only') else 'published_only')
     data = _object(source.get('data'))
     result['data'] = dict(cycle_coverage=_coverage(data.get('cycle_coverage')),
         **_numbers(data, ('observation_records', 'skipped_records', 'future_quote_observations')),

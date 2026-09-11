@@ -1,0 +1,9 @@
+{
+  "score": 94,
+  "verdict": "pass",
+  "category_match": true,
+  "differences": [],
+  "suggestions": [],
+  "reasoning": "The new diagnostics table is readable at narrow width and explicitly distinguishes historical missing logging from recorded zero. Existing chart layout remains intact.",
+  "next_actions": []
+}
