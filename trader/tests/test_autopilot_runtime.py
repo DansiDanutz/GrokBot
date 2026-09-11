@@ -149,12 +149,12 @@ class RuntimeTests(unittest.TestCase):
 
     def test_missing_radar_does_not_block_latched_safety_close(self):
         runner = self.runner(); runner.pass_once()
-        runner.state['open_bots'][0]['signals'] = ['STOP_LOSS']
+        runner.state['open_bots'][0]['signals'] = ['RANGE_BREAK']
         self.radar.unlink()
         self.clock[0] += 300000
         view = runner.pass_once()
         self.assertEqual(view['open_bots'], [])
-        self.assertEqual(view['closed_bots'][0]['reason'], 'STOP_LOSS')
+        self.assertEqual(view['closed_bots'][0]['reason'], 'RANGE_BREAK')
 
     def test_expired_watchlist_is_pruned_before_retry_without_new_scan(self):
         notifier = unittest.mock.Mock(side_effect=RuntimeError('offline'))

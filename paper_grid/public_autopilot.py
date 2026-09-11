@@ -15,7 +15,7 @@ WATCH_EVENTS = ('PROMOTE', 'DEMOTE', 'DROP', 'DIRECTION_CHANGE')
 BOT_NUMBERS = ('bot_id price range_low range_high step_pct grids completed_grids '
     'realized_pnl unrealized_pnl grid_profit fees_paid funding_paid opened_ms closed_ms '
     'notional_usdt leverage reserve_usdt equity peak_equity max_drawdown_pct '
-    'net grids_per_hour position_contracts avg_entry fills funding_pct contracts_per_line empty_line').split()
+    'net grids_per_hour position_contracts avg_entry fills funding_pct contracts_per_line empty_line range_verified').split()
 TOTAL_NUMBERS = 'bots grids grid_profit unrealized fees funding net pnl grids_per_hour'.split()
 EVENT_NUMBERS = ('ts_ms bot_id event_id price contracts fee profit equity net '
                  'completed_grids realized_pnl unrealized_pnl tick_age_s side line reason_code '

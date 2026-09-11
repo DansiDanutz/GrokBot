@@ -8,6 +8,7 @@ import time
 
 from trader.radar.rates import K_STANDARD, K_MAJOR, expected_grids_per_hour
 from trader.radar.scoring import score_row
+from trader.radar.support import levels
 
 
 HOUR_MS = 3_600_000
@@ -93,7 +94,7 @@ def _direction(hourly, price):
 
 
 def _sections(rows):
-    passed = [row for row in rows if row["passes_liquidity"]]
+    passed = [row for row in rows if row["passes_liquidity"] and row.get("range_verified", 1)]
     groups = {
         "majors": [row for row in rows if row["symbol"] in MAJORS],
         "turning_up": [row for row in passed if row["direction"] == "TURNING-UP"],
@@ -168,6 +169,20 @@ def analyse(database, asof_ms=None):
             low, high = min(low_7d, price - 2 * atr_4h), price + 1.5 * atr_4h
         else:
             low, high = low_7d, high_7d
+        structure = levels([r for r in hourly if r[0] + HOUR_MS <= now], price, atr_1h)
+        support, resistance = structure['support'], structure['resistance']
+        if direction in ('LONG', 'TURNING-UP'):
+            verified = support is not None
+            if verified:
+                low = support
+        elif direction in ('SHORT', 'TURNING-DOWN'):
+            verified = resistance is not None
+            if verified:
+                high = resistance
+        else:
+            verified = support is not None and resistance is not None
+            if verified:
+                low, high = support, resistance
         expected = round(expected_grids_per_hour(atr_1h_pct, step, turnover), 2)
         row = {
             "symbol": symbol, "direction": direction, "price": price,
@@ -179,6 +194,7 @@ def analyse(database, asof_ms=None):
             "change_24h_pct": (price / hourly[-25][4] - 1) * 100,
             "low_7d": low_7d, "high_7d": high_7d,
             "range_low": low, "range_high": high, "step_pct": step,
+            "range_verified": int(verified), **structure,
             "grids": int(min(200, max(2, (high - low) / price * 100 / step))),
             "expected_grids_per_hour": expected,
             "rank_score": expected * min(1.0, turnover / 8_000_000),

@@ -85,7 +85,9 @@ class RadarTests(unittest.TestCase):
         report = analyse(self.database, NOW)
         self.assertEqual(report["schema_version"], 1)
         self.assertEqual([row["symbol"] for row in report["sections"]["majors"]], ["XBTUSDTM"])
-        self.assertEqual([row["symbol"] for row in report["sections"]["turning_up"]], ["TURNUSDTM"])
+        self.assertEqual(report["sections"]["turning_up"], [])
+        turning = next(r for r in report["rows"] if r["symbol"] == "TURNUSDTM")
+        self.assertEqual(turning["range_verified"], 0)  # Trend alone is not support.
         for rows in report["sections"].values():
             self.assertLessEqual(len(rows), 8)
         for key in ("turning_up", "turning_down", "long", "short", "neutral"):

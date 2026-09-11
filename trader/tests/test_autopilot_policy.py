@@ -11,13 +11,15 @@ HOUR = 3_600_000
 
 
 def row(symbol, direction='LONG', **extra):
-    result = dict(symbol=symbol, direction=direction, price=100, range_low=90,
+    result = dict(symbol=symbol, direction=direction, range_verified=1, price=100, range_low=90,
                 range_high=110, low_7d=92, high_7d=108, atr_4h_pct=4,
                 atr_1h_pct=6.2, turnover_24h_usdt=8_000_000, step_pct=.8,
                 grids=25, rank_score=10, expected_grids_per_hour=14,
                 funding_pct=0, passes_liquidity=True, spread_pct=.05, listing_age_days=30,
                 snapshot_age_min=0, position_7d=.5, change_24h_pct=0)
     result.update(extra)
+    result.setdefault('support', result['range_low'])
+    result.setdefault('resistance', result['range_high'])
     return result
 
 
@@ -77,7 +79,7 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(len(same['open_bots']), 1)
         ended, _ = policy.decide(same, radar(), {}, 3, 'c')
         self.assertEqual(ended['closed_bots'][0]['engine']['reason'], 'DROPPED')
-        for reason in ('LABEL_FLIP', 'MAX_AGE', 'STOP_LOSS'):
+        for reason in ('LABEL_FLIP', 'MAX_AGE'):
             with self.subTest(reason=reason):
                 state, _ = policy.decide(policy.new_state(0), radar(long=[row('A')]), {}, 0, 'a')
                 report = radar(short=[row('A', 'SHORT')]) if reason == 'LABEL_FLIP' else radar(long=[row('A')])
@@ -104,7 +106,7 @@ class PolicyTests(unittest.TestCase):
     def test_profile_rates_and_reserve_no_double_count(self):
         spec, reserve = policy.profile(row('RAY'), 'NEUTRAL', 1)
         self.assertEqual((spec['leverage'], reserve, spec['step_pct']), (5, 200, .45))
-        self.assertEqual((spec['range_low'], spec['range_high']), (92, 108))
+        self.assertEqual((spec['range_low'], spec['range_high']), (90, 110))
         self.assertTrue(17 <= expected_grids_per_hour(6.2, .43, 8_000_000) <= 21)
         self.assertAlmostEqual(expected_grids_per_hour(6.2, .8, 8_000_000), 1.9*6.2/.8)
         self.assertAlmostEqual(expected_grids_per_hour(6.2, .52, 50_000_000), .45*6.2/.52)
@@ -238,10 +240,28 @@ class FiveXBoundaryTests(unittest.TestCase):
         self.assertNotEqual(changed['open_bots'][0]['engine']['bot_id'], old_id)
         self.assertEqual(changed['open_bots'][0]['reserve_usdt'], 200)
 
-    def test_loss_limit_closes_on_the_triggering_update_inside_range(self):
+    def test_loss_amount_does_not_override_the_configured_price_boundary(self):
         state, _ = policy.decide(policy.new_state(0), radar(long=[row('A')]), {}, 0, 'a')
         state['open_bots'][0]['engine']['fees_paid'] = 130
         ended, events = policy.advance(state, {'A': dict(ts_ms=1000, price=100)})
-        self.assertFalse(ended['open_bots'])
-        self.assertEqual(ended['closed_bots'][0]['engine']['reason'], 'STOP_LOSS')
-        self.assertTrue(any(e['type'] == 'CLOSE' for e in events))
+        self.assertEqual(len(ended['open_bots']), 1)
+        self.assertFalse(any(e['type'] in ('STOP_LOSS', 'CLOSE') for e in events))
+
+    def test_unverified_structure_is_not_admitted_and_verified_neutral_range_is_preserved(self):
+        bad = row('A', range_verified=0)
+        self.assertFalse(policy.eligible(policy.new_state(0), bad, 'LONG', 'long', 0))
+        good = row('A', range_verified=1, range_low=94, range_high=106)
+        spec, reserve = policy.profile(good, 'NEUTRAL', 1)
+        self.assertEqual((spec['range_low'], spec['range_high']), (94,106))
+
+    def test_neutral_borrowing_requires_both_structural_edges(self):
+        candidate = row("A", support=94, resistance=None)
+        self.assertFalse(policy.eligible(policy.new_state(0), candidate, "NEUTRAL", "movers", 0))
+        candidate["resistance"] = 106
+        spec, _ = policy.profile(candidate, "NEUTRAL", 1)
+        self.assertEqual((spec["range_low"], spec["range_high"]), (94, 106))
+
+    def test_verification_flag_alone_cannot_admit_missing_structure(self):
+        candidate = row("A")
+        del candidate["support"]
+        self.assertFalse(policy.eligible(policy.new_state(0), candidate, "LONG", "long", 0))

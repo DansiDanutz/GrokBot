@@ -46,9 +46,15 @@ def profile(row, direction, bot_id):
     price = row['price']
     low, high, step_pct = row['range_low'], row['range_high'], row['step_pct']
     grids, leverage, reserve = row['grids'], LEVERAGE_TREND, NEUTRAL_RESERVE_USDT
+    required = ('support', 'resistance') if direction == 'NEUTRAL' else (('support',) if direction == 'LONG' else ('resistance',))
+    for name in required:
+        value = row.get(name)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+            raise ValueError('missing structural boundary')
+    if direction == 'LONG' and low != row['support'] or direction == 'SHORT' and high != row['resistance']:
+        raise ValueError('range does not match structure')
     if direction == 'NEUTRAL':
-        atr = price * row['atr_4h_pct'] / 100
-        low, high = min(row['low_7d'], price - atr), max(row['high_7d'], price + atr)
+        low, high = row['support'], row['resistance']
         step_pct, leverage, reserve = STEP_NEUTRAL_PCT, LEVERAGE_NEUTRAL, NEUTRAL_RESERVE_USDT
         if low <= 0 or high <= low:
             raise ValueError('invalid neutral range')
@@ -61,6 +67,8 @@ def profile(row, direction, bot_id):
 
 def eligible(state, row, direction, source_section, now_ms):
     """Admission shared by slot selection, including explicit trend movers caps."""
+    if row.get('range_verified') != 1:
+        return False
     bots = [item['engine'] for item in state['open_bots']]
     allocated = sum(w['engine']['notional_usdt'] + w['reserve_usdt'] for w in state['open_bots'])
     if _equity(state) - allocated < NOTIONAL_PER_BOT_USDT + NEUTRAL_RESERVE_USDT:
@@ -143,7 +151,7 @@ def _mark_wrapper(wrapper):
 
 def _reason(wrapper, labels, missing, now_ms):
     bot = wrapper['engine']
-    for signal in ('STOP_LOSS', 'RANGE_BREAK'):
+    for signal in ('RANGE_BREAK',):
         if signal in wrapper['signals']:
             return signal
     opposing = {'LONG': ('SHORT', 'TURNING-DOWN'), 'SHORT': ('LONG', 'TURNING-UP'),
@@ -209,7 +217,7 @@ def decide(state, radar, prices, now_ms, scan_id):
             bot = open_bot(spec, marked['price'], now_ms)
             result['open_bots'].append(dict(engine=bot, reserve_usdt=reserve,
                                            source_section=section, slot_direction=slot, signals=[],
-                                           open_label=labels.get(bot['symbol'])))
+                                           open_label=labels.get(bot['symbol']), range_verified=row.get('range_verified', 0)))
             result['next_bot_id'] += 1
             result['radar_seen'][bot['symbol']] = [dict(scan_id=scan_id, present=True)]
             events.append(dict(ts_ms=now_ms, bot_id=bot['bot_id'], symbol=bot['symbol'], type='OPEN',
@@ -254,8 +262,8 @@ def advance(state, updates):
                                symbol=bot['symbol'], type=reason, price=price))
         else:
             wrapper['engine'], emitted = step(bot, update, funding_pct=update.get('funding_pct'))
-            events.extend(emitted)
-            reason = 'STOP_LOSS' if any(e['type'] == 'STOP_LOSS' for e in emitted) else None
+            events.extend(e for e in emitted if e['type'] != 'STOP_LOSS')
+            reason = None
             price = wrapper['engine']['last_price']
         if reason:
             wrapper['engine'], emitted = close_bot(wrapper['engine'], price, update['ts_ms'], reason)
@@ -309,6 +317,7 @@ def snapshot(state, now_ms, health):
         row = {key: value for key, value in bot.items() if not isinstance(value, (list, dict))}
         duration = max(0, (bot['closed_ms'] if bot['closed_ms'] is not None else now_ms) - bot['opened_ms'])
         row.update(price=bot['last_price'], reserve_usdt=wrapper['reserve_usdt'],
+                   range_verified=wrapper.get('range_verified', 0),
                    source_section=wrapper['source_section'], equity=bot['equity'] + wrapper['reserve_usdt'],
                    peak_equity=wrapper.get('peak_equity', bot['peak_equity'] + wrapper['reserve_usdt']),
                    max_drawdown_pct=wrapper.get('max_drawdown_pct', 0.0),
