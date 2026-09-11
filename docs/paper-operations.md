@@ -107,3 +107,22 @@ LaunchAgent templates under `config/launchd/` and
 Resolve `__PYTHON__`, `__CHECKOUT__`, `__RUNTIME__` and `__PUBLISHER_STATE__` only
 during a separate cutover. Never bootstrap those templates alongside the active
 services or replace the existing same-label jobs as part of reviewing this import.
+
+## Phase 0 development source
+
+GrokBot is now the development source. The lock file's original file hashes are
+historical import evidence from `6ee309c2134ad88e63c0cd3c021859a6c02df03b`,
+not a claim that today's development tree is byte-identical to that import.
+The v1 control is frozen against roadmap changes. Before this roadmap,
+`e0e10a77` added telemetry to the active source without changing trading decisions;
+calling the deployed source exactly `6ee309c2` would omit that recorded boundary.
+No runtime inspection or modification is required by Phase 0.
+
+Analytics, telemetry and replay were already committed in `bb2494d` and
+`3250c9f` (merged in `a3df61e` and `2889f38`). New development remains in this
+checkout until a separately reviewed v2 deployment. Do not copy these fixes into
+v1. The secret gate scans a frozen Git index tree when changes are staged and
+HEAD otherwise; unstaged tracked changes are rejected. Run both verification
+commands after staging each task and before committing.
+
+_Last verified: 2026-09-11_
