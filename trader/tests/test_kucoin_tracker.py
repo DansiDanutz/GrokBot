@@ -246,3 +246,88 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(warning['emergency_action'],
             'verify tightened 1% range protection or stop; no additional margin beyond fixed reserve')
         self.assertNotIn('add reserve', warning['emergency_action'])
+
+    def test_historical_gap_does_not_invent_crossings_or_missing_minute_fills(self):
+        candle = dict(timestamp_ms=120_000, open=99, high=99, low=99, close=99)
+        result = track_bars(state(), [candle], historical_candle_only=True)
+        self.assertEqual(result['state'].completed_grids, 0)
+        self.assertTrue(all(row['kind'] == 'seed' for row in result['ledger']))
+        self.assertEqual(result['summary']['missing_minutes'], 2)
+        self.assertEqual(result['summary']['observed_minutes'], 1)
+        self.assertAlmostEqual(result['summary']['execution_coverage_pct'], 100/3)
+        self.assertEqual(result['summary']['asof_ms'], 180_000)
+        self.assertTrue(all(row['timestamp_ms'] >= 120_000 for row in result['equity_timeline']))
+        with self.assertRaises(ValueError):
+            track_bars(state(), [candle])
+
+    def test_historical_unknown_funding_is_not_reported_as_measured_zero(self):
+        candle = dict(timestamp_ms=24*HOUR+60_000, open=100, high=100, low=100, close=100)
+        result = track_bars(state(), [candle], historical_candle_only=True)
+        unknown = [row for row in result['ledger'] if row['kind'] == 'funding_unknown']
+        self.assertEqual([row['timestamp_ms'] for row in unknown], [8*HOUR, 16*HOUR, 24*HOUR])
+        self.assertTrue(all(row['cash'] is None and row['modeled_cash'] == 0 for row in unknown))
+        self.assertIsNone(result['summary']['funding'])
+        self.assertEqual(result['summary']['funding_modeled_cash'], 0)
+        self.assertEqual(result['summary']['unknown_funding_settlements'], [8*HOUR, 16*HOUR, 24*HOUR])
+        self.assertEqual(result['summary']['net_before_unknown_funding'],
+                         result['summary']['net_modeled'])
+        self.assertFalse(result['summary']['spread_observed'])
+
+    def test_historical_known_gap_funding_uses_labeled_carried_mark_without_fills(self):
+        initial = replace(state(), timestamp_ms=8*HOUR-60_000)
+        candle = dict(timestamp_ms=8*HOUR+60_000, open=99, high=99, low=99, close=99)
+        result = track_bars(initial, [candle], historical_candle_only=True,
+                           funding_events=[dict(timestamp_ms=8*HOUR, rate=.001)])
+        estimated = [row for row in result['ledger'] if row['kind'] == 'funding_estimated']
+        self.assertEqual(len(estimated), 1)
+        self.assertTrue(estimated[0]['mark_carried_forward'])
+        self.assertEqual(estimated[0]['mark'], 100)
+        self.assertAlmostEqual(estimated[0]['modeled_cash'], -1)
+        self.assertFalse(any(row['kind'].startswith('grid_') for row in result['ledger']))
+        self.assertAlmostEqual(result['summary']['funding_modeled_cash'], -1)
+
+    def test_historical_asof_counts_unobserved_exposure_without_synthetic_bars(self):
+        result = track_bars(state(), [bar()], asof_ms=2*HOUR, historical_candle_only=True)
+        self.assertEqual(result['summary']['asof_ms'], 2*HOUR)
+        self.assertEqual(result['summary']['missing_minutes'], 119)
+        self.assertEqual(result['last_observed_ms'], 60_000)
+        self.assertAlmostEqual(result['summary']['realized_gph_6h'],
+                               result['state'].completed_grids / 2)
+        self.assertLessEqual(max(row['timestamp_ms'] for row in result['equity_timeline']), 60_000)
+
+    def test_historical_gap_stop_uses_actual_open_and_missing_extremes_remain_unknown(self):
+        candle = dict(timestamp_ms=120_000, open=80, high=80, low=80, close=80)
+        result = track_bars(state(), [candle], historical_candle_only=True)
+        self.assertEqual(result['state'].price, 80)
+        self.assertEqual(result['state'].stop_reason, 'stop_loss')
+        closes = [row for row in result['ledger'] if row['kind'] == 'stop_loss']
+        self.assertTrue(all(row['price'] == 80 and row['timestamp_ms'] == 120_000 for row in closes))
+        self.assertFalse(result['summary']['missing_extremes_observed'])
+
+    def test_historical_gap_liquidation_uses_observed_open_without_interpolated_threshold(self):
+        candle = dict(timestamp_ms=120_000, open=1, high=1, low=1, close=1)
+        result = track_bars(state(investment=200, leverage=10, range_exit_stop_pct=None),
+                           [candle], historical_candle_only=True)
+        self.assertTrue(result['state'].liquidated)
+        self.assertEqual(result['state'].price, 1)
+
+    def test_historical_mode_still_rejects_duplicate_invalid_or_incomplete_bars(self):
+        for candles, extra in [([bar(), bar()], {}),
+                                ([dict(timestamp_ms=60_000, open=100, high=90, low=99, close=100)], {}),
+                                ([bar(60_000)], {'asof_ms': 90_000})]:
+            with self.assertRaises(ValueError):
+                track_bars(state(), candles, historical_candle_only=True, **extra)
+
+    def test_historical_actual_open_retains_adaptive_future_inventory_check(self):
+        initial = state(investment=200, leverage=10, adaptive_range_stops=True)
+        result = track_bars(initial, [bar()], historical_candle_only=True)
+        self.assertEqual(result['state'].adaptive_stop_events[0][0], 0)
+        self.assertEqual(result['state'].effective_range_exit_stop_pct_low, .01)
+
+    def test_historical_empty_hour_has_no_claimed_observed_mark_or_new_fills(self):
+        result = track_bars(state(), [], asof_ms=HOUR, historical_candle_only=True)
+        self.assertIsNone(result['last_observed_ms'])
+        self.assertEqual(result['summary']['observed_minutes'], 0)
+        self.assertEqual(result['summary']['missing_minutes'], 60)
+        self.assertEqual(result['equity_timeline'], [])
+        self.assertTrue(all(row['kind'] == 'seed' for row in result['ledger']))

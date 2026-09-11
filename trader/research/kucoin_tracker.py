@@ -6,7 +6,7 @@ sequence, so this is a conservative execution convention, not a guaranteed bound
 """
 from dataclasses import asdict, replace
 import math
-from trader.strategies.kucoin_grid import advance, floating_pnl, net_equity, preview, effective_stop_prices
+from trader.strategies.kucoin_grid import advance, floating_pnl, net_equity, preview, effective_stop_prices, stop
 from trader.strategies.grid_types import Position
 
 HOUR_MS = 3_600_000
@@ -146,11 +146,11 @@ def track_summary(state, start_ms, asof_ms, expected_start_gph=0):
                 full_inventory_preview=preview(config))
 
 
-def _validated_bars(state, bars, asof_ms):
+def _validated_bars(state, bars, asof_ms, historical_candle_only=False):
     cursor, result = state.timestamp_ms, []
     for source in bars:
         timestamp = source.get('timestamp_ms', source.get('time_ms'))
-        if type(timestamp) is not int or timestamp % MINUTE_MS or timestamp != cursor:
+        if type(timestamp) is not int or timestamp % MINUTE_MS or (timestamp < cursor if historical_candle_only else timestamp != cursor):
             raise ValueError('completed minute bars must be contiguous with state; no gaps or duplicates')
         values = [source.get(key) for key in ('open', 'high', 'low', 'close')]
         if any(not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0 for value in values):
@@ -158,7 +158,7 @@ def _validated_bars(state, bars, asof_ms):
         opening, high, low, close = values
         if low > min(opening, close) or high < max(opening, close) or low > high:
             raise ValueError('invalid OHLC extremes')
-        cursor += MINUTE_MS
+        cursor = timestamp + MINUTE_MS
         if asof_ms is not None and cursor > asof_ms:
             raise ValueError('incomplete minute candle')
         result.append(dict(source, timestamp_ms=timestamp))
@@ -192,35 +192,105 @@ def _path(state, bar):
             (bar[extremes[1]], timestamp+40_000, False), (bar['close'], timestamp+60_000, False)]
 
 
-def _advance_tick(state, price, timestamp, gap, funding, ledger, seen):
+def _advance_tick(state, price, timestamp, gap, funding, ledger, seen, historical=False):
     boundary = timestamp // FUNDING_MS * FUNDING_MS
     rate = 0
     settled = boundary > state.last_funding_ms
     if settled:
-        if boundary not in funding:
+        if boundary not in funding and not historical:
             raise ValueError('missing actual funding event at ' + str(boundary))
-        rate = funding[boundary]
+        rate = funding.get(boundary, 0)
     prior_funding = state.funding
-    state = advance(state, price, timestamp, funding_rate=rate, gap=gap)
+    state = (_observed_gap(state, price, timestamp, rate) if historical and gap
+             else advance(state, price, timestamp, funding_rate=rate, gap=gap))
     for event in state.fill_events:
         if event.event_id not in seen:
             ledger.append(asdict(event))
             seen.add(event.event_id)
     if settled and state.last_funding_ms == boundary:
-        ledger.append(dict(event_id='funding:' + str(boundary), timestamp_ms=boundary,
-                           kind='funding', rate=rate, cash=state.funding-prior_funding,
-                           fee=0, completed_grid=False))
+        ledger.append(_funding_row(boundary, funding.get(boundary),
+                                   state.funding-prior_funding, price, False))
     return state
 
 
-def track_bars(state, bars, funding_events=(), start_ms=None, asof_ms=None, expected_start_gph=0):
+def _funding_row(timestamp, rate, cash, mark, carried):
+    unknown = rate is None
+    return dict(event_id='funding:' + str(timestamp), timestamp_ms=timestamp,
+                kind='funding_unknown' if unknown else ('funding_estimated' if carried else 'funding'),
+                rate=rate, cash=None if unknown or carried else cash, modeled_cash=cash,
+                mark=mark, mark_carried_forward=carried, observed_rate=not unknown,
+                fee=0, completed_grid=False)
+
+
+def _bridge_funding(state, end_ms, funding, ledger):
+    """Advance only the funding clock; no executions or risk-path observations.
+
+    Known rates use held inventory and its last observed mark, explicitly
+    estimated. Unknown rates contribute zero modeled cash, never measured zero.
+    """
+    if state.status in TERMINAL:
+        return state
+    boundary = (state.last_funding_ms // FUNDING_MS + 1) * FUNDING_MS
+    while boundary <= end_ms:
+        rate = funding.get(boundary)
+        cash = -sum(p.side*p.quantity*state.price for p in state.positions) * (rate or 0)
+        ledger.append(_funding_row(boundary, rate, cash, state.price, True))
+        state = replace(state, funding=state.funding+cash, last_funding_ms=boundary,
+                        timestamp_ms=max(state.timestamp_ms, boundary), fill_events=(),
+                        equity_marks=(), floating_pnl_marks=())
+        boundary += FUNDING_MS
+    return state
+
+
+def _observed_gap(state, price, timestamp, rate):
+    """No interpolation of resting grid fills between separate observed bars."""
+    gross = sum(p.quantity for p in state.positions) * price
+    if state.positions and net_equity(state, price) <= gross * state.config.maintenance_rate:
+        return stop(state, price, timestamp, reason='liquidation')
+    # Adopt the observed mark without traversing the unobserved price segment.
+    # Keep resting orders available to adaptive inventory stress, but no movement
+    # means no crossed grid orders can execute at this opening observation.
+    return advance(replace(state, price=price), price, timestamp, funding_rate=rate, gap=True)
+
+
+def _historical_tick(state, price, timestamp, gap, funding, ledger, seen):
+    if gap:
+        state = _bridge_funding(state, timestamp - 1, funding, ledger)
+    return _advance_tick(state, price, timestamp, gap, funding, ledger, seen, historical=True)
+
+
+def _historical_summary(summary, state, ledger, beginning, ending, observed_count):
+    unknown = [row['timestamp_ms'] for row in ledger if row['kind'] == 'funding_unknown']
+    total_minutes = max(0, (ending-beginning) / MINUTE_MS)
+    summary.update(historical_candle_only=True, observed_minutes=observed_count,
+        missing_minutes=max(0, math.floor(total_minutes)-observed_count),
+        execution_coverage_pct=100*observed_count/total_minutes if total_minutes else None,
+        unknown_funding_settlements=unknown, funding=None, funding_modeled_cash=state.funding,
+        net_before_unknown_funding=net_equity(state, state.price)-state.config.total_margin,
+        net_modeled=net_equity(state, state.price)-state.config.total_margin,
+        spread_observed=False, missing_extremes_observed=False,
+        assumptions=[
+            'Only supplied completed candles execute; missing minutes create no grid fills.',
+            'Opening marks skip unobserved crossings; only stop/liquidation can close at the observed open.',
+            'Known funding inside gaps uses held inventory and last observed mark; cash is estimated.',
+            'Unknown funding contributes zero modeled cash, not measured zero paid funding.',
+            'Funding observation counts describe this call; callers aggregate uncertainty across calls.',
+            'Spread and slippage are unavailable; execution uses modeled OHLC prices plus explicit fees.',
+            'Missing extremes may hide stops or liquidation; reported risk covers supplied OHLC paths only.',
+            'Elapsed missing time remains in completed-grid rate denominators.'])
+
+
+def track_bars(state, bars, funding_events=(), start_ms=None, asof_ms=None, expected_start_gph=0,
+               historical_candle_only=False):
     """Return a new state and every fill; parent persists ledger keyed by bot/event ID.
 
     Initial seed events are included. The caller should pass original start_ms
-    across hourly calls. Funding is required, including an explicitly observed 0.
+    across hourly calls. Strict mode requires contiguous candles and observed funding.
+    Historical mode skips missing execution time and labels funding/spread assumptions.
     """
     start_ms = state.timestamp_ms if start_ms is None else start_ms
-    validated = _validated_bars(state, bars, asof_ms)
+    beginning = state.timestamp_ms
+    validated = _validated_bars(state, bars, asof_ms, historical_candle_only)
     funding, ledger, seen = _funding_map(funding_events), [], set()
     distances = [_distances(state)]
     equity_path = list(state.equity_marks) if state.timestamp_ms == start_ms else []
@@ -235,14 +305,24 @@ def track_bars(state, bars, funding_events=(), start_ms=None, asof_ms=None, expe
         for price, timestamp, gap in _path(state, bar):
             if state.status in TERMINAL:
                 break
-            state = _advance_tick(state, price, timestamp, gap, funding, ledger, seen)
+            step = _historical_tick if historical_candle_only else _advance_tick
+            state = step(state, price, timestamp, gap, funding, ledger, seen)
             distances.append(_distances(state))
             equity_path.extend(state.equity_marks)
             equity_timeline.extend(dict(timestamp_ms=timestamp, equity=value, floating_pnl=floating)
                                    for value, floating in zip(state.equity_marks, state.floating_pnl_marks))
+    last_observed_ms = end_ms if validated else None
+    if historical_candle_only:
+        end_ms = max(end_ms, asof_ms if asof_ms is not None else end_ms)
+        state = _bridge_funding(state, end_ms, funding, ledger)
+        if state.status not in TERMINAL:
+            state = replace(state, timestamp_ms=end_ms)
     summary = track_summary(state, start_ms, end_ms, expected_start_gph)
+    if historical_candle_only:
+        _historical_summary(summary, state, ledger, beginning, end_ms, len(validated))
     _hour_risk(summary, distances)
     return dict(state=state, ledger=ledger, summary=summary, equity_path=equity_path,
+                last_observed_ms=last_observed_ms,
                 equity_timeline=equity_timeline,
                 equity_timeline_time_basis='modeled OHLC vertex time; preserve mark order within timestamp',
                 path_convention='adverse extreme first; deterministic OHLC approximation')
