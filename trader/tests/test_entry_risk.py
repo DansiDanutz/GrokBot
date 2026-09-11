@@ -78,3 +78,12 @@ class EntryRiskTests(unittest.TestCase):
         self.assertGreater(view['open_bots'][0]['long_contracts'],0)
         self.assertLess(view['open_bots'][0]['short_contracts'],0)
         self.assertEqual(len(view['open_bots'][0]['order_ladder']),2*bot['grids'])
+
+    def test_live_entry_requires_current_tick_and_rejects_outside_range(self):
+        from trader.autopilot import policy
+        r=row('A');radar={'rows':[r],'sections':{'long':[r]}}
+        for prices in ({},{'A':80}):
+            state,_=policy.decide(policy.new_state(0),radar,prices,1000,'0',require_live_prices=True)
+            self.assertEqual(state['open_bots'],[])
+        state,_=policy.decide(policy.new_state(0),radar,{'A':101},1000,'0',require_live_prices=True)
+        self.assertEqual(state['open_bots'][0]['engine']['opening_price'],101)

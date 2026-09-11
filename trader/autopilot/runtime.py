@@ -222,10 +222,10 @@ class Runner:
             # Apply funding through close time even if the last trade preceded a boundary.
             self._charge_funding({w['engine']['symbol']: dict(ts_ms=now)
                                   for w in self.state['open_bots']})
-            prices = {s: q['price'] for s, q in meta['quotes'].items()}
+            prices = {r['symbol']: r['price'] for r in rows if 0 <= now-r['ts_ms'] <= 120000}
             scan_id = str(self.radar['asof_ms']) if self.radar else None
             previous_watchlist = deepcopy(self.state.get('watchlist', {}))
-            self.state, emitted = policy.decide(self.state, radar, prices, now, scan_id)
+            self.state, emitted = policy.decide(self.state, radar, prices, now, scan_id, require_live_prices=True)
             current = self.state['watchlist']
             if (self.chat_id and current['last_scan_id'] != previous_watchlist.get('last_scan_id')
                     and any(current[tier] != previous_watchlist.get(tier, []) for tier in ('core', 'bench'))):
