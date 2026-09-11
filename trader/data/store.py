@@ -47,8 +47,10 @@ def _prepare_path(path):
         target, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, PRIVATE_FILE_MODE
     )
     try:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise ValueError("database must be a regular file")
+        info = os.fstat(descriptor)
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or info.st_uid != os.getuid()):
+            raise ValueError("database must be an owned single-link regular file")
         os.fchmod(descriptor, PRIVATE_FILE_MODE)
     finally:
         os.close(descriptor)
@@ -129,14 +131,21 @@ def _upsert_sql(table):
 
 @contextmanager
 def _batch(connection):
-    # Savepoint preserves caller-owned outer transactions as well as atomicity.
-    connection.execute("SAVEPOINT trader_upsert")
+    # Reserve the writer before reads to avoid WAL snapshot-upgrade failures.
+    owned = not connection.in_transaction
+    connection.execute('BEGIN IMMEDIATE' if owned else 'SAVEPOINT trader_upsert')
     try:
         yield
-        connection.execute("RELEASE SAVEPOINT trader_upsert")
+        if owned:
+            connection.commit()
+        else:
+            connection.execute('RELEASE SAVEPOINT trader_upsert')
     except BaseException:
-        connection.execute("ROLLBACK TO SAVEPOINT trader_upsert")
-        connection.execute("RELEASE SAVEPOINT trader_upsert")
+        if owned:
+            connection.rollback()
+        else:
+            connection.execute('ROLLBACK TO SAVEPOINT trader_upsert')
+            connection.execute('RELEASE SAVEPOINT trader_upsert')
         raise
 
 

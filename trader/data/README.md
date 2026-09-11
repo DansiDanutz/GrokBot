@@ -21,7 +21,9 @@ columns and returns the number of input records applied. Duplicate primary keys
 update the existing row. Values never appear in generated SQL. Validation and
 SQLite failures roll back the entire batch. `transaction()` groups several
 upserts in one atomic savepoint, including a candle page plus its checkpoint.
-Nested failures preserve outer work when caught. The exposed `connection` is
+Owned transactions reserve the SQLite writer with `BEGIN IMMEDIATE` before
+reading, preventing snapshot-upgrade races between backfill and collector
+processes. Nested failures preserve outer work when caught. The exposed `connection` is
 for explicit caller-controlled SQLite transactions; upserts never commit them.
 A Store connection belongs to its creating thread. Callers open separate
 connections for separate threads/processes; SQLite serializes writers.
@@ -72,7 +74,9 @@ opening boundary. Provider adapters must convert units before storage.
 ## File and migration guarantees
 
 The database path rejects symlinks in its ancestors, leaf or SQLite sidecars,
-non-regular files, and parent traversal. New directories are private (0700), the
+non-regular or multiply linked database files, foreign ownership, and parent
+traversal. Ownership/link count are checked before changing permissions.
+New directories are private (0700), the
 DB is 0600, and SQLite creates sidecars using the database permissions. Supply a
 canonical path if a system alias such as `/tmp` is a symlink. Keep the database
 inside a private directory: path checks cannot secure attacker-writable parent

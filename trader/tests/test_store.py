@@ -3,9 +3,11 @@
 from copy import deepcopy
 from contextlib import closing
 import json
+import os
 from pathlib import Path
 import sqlite3
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -36,6 +38,50 @@ class StoreTests(unittest.TestCase):
         store = Store(self.path)
         self.addCleanup(store.close)
         return store
+
+    def test_read_then_write_reserves_transaction_before_another_writer(self):
+        first = self.store()
+        ready, go, attempted, finished = [threading.Event() for _ in range(4)]
+        errors = []
+
+        def writer():
+            try:
+                with Store(self.path) as second:
+                    ready.set()
+                    if go.wait(5):
+                        attempted.set()
+                        second.upsert("klines", [dict(CANDLE, time_ms=120000)])
+            except Exception as error:
+                errors.append(error)
+            finally:
+                finished.set()
+
+        thread = threading.Thread(target=writer)
+        thread.start()
+        try:
+            self.assertTrue(ready.wait(5))
+            with first.transaction():
+                first.query("SELECT * FROM klines")
+                go.set()
+                self.assertTrue(attempted.wait(5))
+                self.assertFalse(finished.wait(0.2))
+                first.upsert("klines", [CANDLE])
+        finally:
+            go.set()
+            thread.join(5)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(errors, [])
+        self.assertEqual(len(first.query("SELECT * FROM klines")), 2)
+
+    def test_database_hardlink_is_rejected_before_permission_changes(self):
+        target = self.root / "original"
+        target.write_text("unchanged")
+        target.chmod(0o640)
+        os.link(target, self.path)
+        with self.assertRaises(ValueError):
+            Store(self.path)
+        self.assertEqual(target.read_text(), "unchanged")
+        self.assertEqual(target.stat().st_mode & 0o777, 0o640)
 
     def test_fresh_schema_wal_and_idempotent_reopen(self):
         store = self.store()
