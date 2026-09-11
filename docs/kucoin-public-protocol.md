@@ -84,3 +84,27 @@ at 200 slots, below the documented maximum. Checkpoint identity includes this
 page bound so the earlier oversized-page experiment cannot skip repair windows.
 The earlier rows remain intact and are compared on refetch. Provider omissions
 are still gaps; smaller pages do not justify manufacturing absent candles.
+
+## Bounded parallel backfill
+
+The CLI defaults to `--workers 4` (range 1–4); the Python `run` API defaults to
+one worker. Workers share the same public client and 15-weight/second limiter.
+Each contract uses a separate thread-owned SQLite connection. Network requests
+can overlap; short page/checkpoint writes are serialized within this process to
+avoid competing deferred SQLite write transactions. Requests, page size and
+checkpoint identity otherwise remain unchanged.
+
+`--max-pages` automatically uses one worker so the bound applies to the entire
+run. Reports state the effective worker count. Final contract/interval order is
+deterministic. Parallel worker failures appear immediately in progress and in
+`failures` plus failed series in the final report; successfully committed pages
+and their checkpoints remain available for resume. Progress counters are scoped
+to the named contract; final totals aggregate all workers. A failed run is never
+reported complete or gap-free.
+
+Before each page request and again before committing its rows, a filesystem
+capacity check requires at least 5 GiB free on the database volume. Failure is
+reported as `insufficient_storage`; the uncommitted page does not advance its
+checkpoint. Already committed data is retained. The collector never deletes
+files to create capacity. This is a reserve check, not a guarantee against
+concurrent unrelated disk consumption; callers should monitor available space.
