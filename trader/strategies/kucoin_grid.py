@@ -59,6 +59,7 @@ def _validate(config):
         if not config.low <= config.trigger <= config.high:
             raise ValueError('trigger must be inside range')
     _validate_form(config)
+    _validate_adaptive(config)
     if config.quantity is not None:
         _finite(config.quantity, 'quantity', True)
         units = config.quantity / (config.multiplier * config.lot_size)
@@ -106,6 +107,18 @@ def _validate_form(config):
                   else config.stop_loss > config.high))
     if not valid:
         raise ValueError('stop-loss must be outside range on losing side')
+
+
+def _validate_adaptive(config):
+    if type(config.adaptive_range_stops) is not bool:
+        raise ValueError('adaptive_range_stops must be boolean')
+    for name in ('adaptive_tight_stop_pct', 'adaptive_liquidation_clearance_pct'):
+        _finite(getattr(config, name), name, True)
+        if getattr(config, name) >= 1:
+            raise ValueError(name + ' must be less than one')
+    if config.adaptive_range_stops and (config.range_exit_stop_pct is None or
+            config.adaptive_tight_stop_pct > config.range_exit_stop_pct):
+        raise ValueError('adaptive stops require an enabled wider initial range stop')
 
 
 def _event(state, slot, side, quantity, price, timestamp_ms, kind,
@@ -274,15 +287,11 @@ def advance(state, price, timestamp_ms, funding_rate=0, bid=None, ask=None, gap=
     state = replace(state, equity_marks=(), floating_pnl_marks=(), fill_events=())
     state = _track_floating_loss(state, state.price)
     if state.status == 'waiting':
-        trigger = state.config.trigger
-        if trigger is not None and min(state.price, price) <= trigger <= max(state.price, price):
-            activated = _start(replace(state, price=trigger, timestamp_ms=timestamp_ms,
-                                     last_funding_ms=timestamp_ms // FUNDING_MS * FUNDING_MS))
-            advanced = advance(activated, price, timestamp_ms, funding_rate, bid, ask, gap)
-            return replace(advanced, equity_marks=state.equity_marks + advanced.equity_marks,
-                           fill_events=activated.fill_events + advanced.fill_events,
-                           floating_pnl_marks=state.floating_pnl_marks + advanced.floating_pnl_marks)
-        return replace(state, price=price, timestamp_ms=timestamp_ms)
+        return _advance_waiting(state, price, timestamp_ms, funding_rate, bid, ask, gap)
+    checked = _check_before_move(state, price, timestamp_ms, bid, ask, gap)
+    if checked.status in ('stopped', 'liquidated'):
+        return checked
+    state = checked
     stop_price = _stop_crossing(state, price)
     if gap and stop_price is not None:
         reason = 'liquidation' if _liquidation_due(state, price) else 'stop_loss'
@@ -291,7 +300,9 @@ def advance(state, price, timestamp_ms, funding_rate=0, bid=None, ask=None, gap=
     scaled_bid = None if bid is None else bid * endpoint / price
     scaled_ask = None if ask is None else ask * endpoint / price
     moved = _advance_orders(state, endpoint, timestamp_ms, scaled_bid, scaled_ask)
-    if stop_price is not None and not moved.liquidated:
+    if moved.status in ('stopped', 'liquidated'):
+        return moved
+    if stop_price is not None:
         return stop(moved, endpoint, timestamp_ms, scaled_bid, scaled_ask,
                     'stop_loss', _preserve_events=True)
     if moved.liquidated:
@@ -300,7 +311,19 @@ def advance(state, price, timestamp_ms, funding_rate=0, bid=None, ask=None, gap=
     funded = _track_floating_loss(funded, price)
     if _liquidation_due(funded, price):
         return _liquidate_at(funded, price, price, timestamp_ms, bid, ask)
-    return funded
+    return _apply_protection(funded, price, timestamp_ms, bid, ask)
+
+
+def _advance_waiting(state, price, timestamp_ms, funding_rate, bid, ask, gap):
+    trigger = state.config.trigger
+    if trigger is None or not min(state.price, price) <= trigger <= max(state.price, price):
+        return replace(state, price=price, timestamp_ms=timestamp_ms)
+    activated = _start(replace(state, price=trigger, timestamp_ms=timestamp_ms,
+                             last_funding_ms=timestamp_ms // FUNDING_MS * FUNDING_MS))
+    advanced = advance(activated, price, timestamp_ms, funding_rate, bid, ask, gap)
+    return replace(advanced, equity_marks=state.equity_marks + advanced.equity_marks,
+                   fill_events=activated.fill_events + advanced.fill_events,
+                   floating_pnl_marks=state.floating_pnl_marks + advanced.floating_pnl_marks)
 
 
 def _validate_funding_path(state, price, timestamp_ms, rate):
@@ -329,8 +352,84 @@ def _stop_prices(config):
             'effective_stop_loss_low': low, 'effective_stop_loss_high': high}
 
 
-def _stop_crossing(state, price):
+def effective_stop_prices(state):
+    """Runtime barriers, including per-side one-way adaptive tightening."""
     stops = _stop_prices(state.config)
+    for side in ('low', 'high'):
+        fraction = getattr(state, 'effective_range_exit_stop_pct_' + side)
+        if fraction is not None:
+            changed = _stop_prices(replace(state.config, range_exit_stop_pct=fraction))
+            for prefix in ('range_exit_stop_', 'effective_stop_loss_'):
+                stops[prefix + side] = changed[prefix + side]
+    return stops
+
+
+def _project_inventory(state, target):
+    projected = replace(state, fill_events=(), equity_marks=(), floating_pnl_marks=())
+    orders = sorted((o for o in state.orders if _crossed(o, state.price, target)),
+                    key=lambda o: o.price, reverse=target < state.price)
+    for order in orders:
+        projected = _fill(projected, order, state.timestamp_ms)
+    return projected
+
+
+def _clearance_safe(state, side, fraction):
+    """Require maintenance plus market-close fees one clearance beyond stop.
+
+    Check both current inventory and a hypothetical monotonic fill projection.
+    Projection uses only already-resting orders; none of its events are retained.
+    This stress criterion is a paper risk rule, not a liquidation guarantee.
+    """
+    stops = _stop_prices(replace(state.config, range_exit_stop_pct=fraction))
+    target = stops['effective_stop_loss_' + side]
+    edge = getattr(state.config, side)
+    test_price = target + (-1 if side == 'low' else 1) * edge * state.config.adaptive_liquidation_clearance_pct
+    if test_price <= 0:
+        return False
+    projected = _project_inventory(state, target)
+    return all(net_equity(scenario, test_price) > sum(p.quantity for p in scenario.positions)
+               * test_price * (state.config.maintenance_rate + FEE)
+               for scenario in (state, projected))
+
+
+def _latch_stop(state, side, timestamp_ms):
+    fraction = state.config.adaptive_tight_stop_pct
+    field = 'effective_range_exit_stop_pct_' + side
+    if getattr(state, field) is not None:
+        return state
+    event = (timestamp_ms, side, fraction, 'insufficient_liquidation_clearance')
+    return replace(state, **{field: fraction}, adaptive_stop_events=state.adaptive_stop_events + (event,))
+
+
+def _apply_protection(state, mark, timestamp_ms, bid=None, ask=None):
+    if not state.config.adaptive_range_stops or state.status in ('stopped', 'liquidated'):
+        return state
+    checked = replace(state, price=mark)
+    for side in ('low', 'high'):
+        fraction = getattr(checked, 'effective_range_exit_stop_pct_' + side) or checked.config.range_exit_stop_pct
+        if _clearance_safe(checked, side, fraction):
+            continue
+        checked = _latch_stop(checked, side, timestamp_ms)
+        stops = effective_stop_prices(checked)
+        crossed = mark <= stops['effective_stop_loss_low'] or mark >= stops['effective_stop_loss_high']
+        if crossed or not _clearance_safe(checked, side, checked.config.adaptive_tight_stop_pct):
+            checked = replace(checked, protective_reason='risk_protection')
+            return stop(checked, mark, timestamp_ms, bid, ask, 'stop_loss', _preserve_events=True)
+    return replace(checked, price=state.price)
+
+
+def _check_before_move(state, price, timestamp_ms, bid, ask, gap):
+    mark = price if gap and state.config.adaptive_range_stops else state.price
+    if state.config.adaptive_range_stops and _liquidation_due(state, mark):
+        return _liquidate_at(state, mark, price, timestamp_ms, bid, ask)
+    ratio = mark / price
+    return _apply_protection(state, mark, timestamp_ms,
+                             None if bid is None else bid * ratio,
+                             None if ask is None else ask * ratio)
+
+
+def _stop_crossing(state, price):
+    stops = effective_stop_prices(state)
     low, high = stops['effective_stop_loss_low'], stops['effective_stop_loss_high']
     if low is not None and price <= low:
         return low if state.price > low else state.price
@@ -374,21 +473,41 @@ def _advance_orders(state, price, timestamp_ms, bid, ask):
         key=lambda o: o.price, reverse=endpoint < old)
     cursor = old
     for order in orders:
-        liquidation = _liquidation_between(state, cursor, order.price)
-        if liquidation is not None:
-            return _liquidate_at(state, liquidation, price, timestamp_ms, bid, ask)
+        terminal = _critical_segment_stop(state, cursor, order.price, price, timestamp_ms, bid, ask)
+        if terminal is not None:
+            return terminal
         state = _track_floating_loss(state, order.price)
         state = _fill(state, order, timestamp_ms)
+        state = replace(state, price=order.price)
         state = _track_floating_loss(state, order.price)
+        state = _apply_protection(state, order.price, timestamp_ms,
+                                  None if bid is None else bid * order.price / price,
+                                  None if ask is None else ask * order.price / price)
+        if state.status in ('stopped', 'liquidated'):
+            return state
         cursor = order.price
-    liquidation = _liquidation_between(state, cursor, price)
-    if liquidation is not None:
-        return _liquidate_at(state, liquidation, price, timestamp_ms, bid, ask)
+    terminal = _critical_segment_stop(state, cursor, price, price, timestamp_ms, bid, ask)
+    if terminal is not None:
+        return terminal
     state = _track_floating_loss(state, price)
     exits = state.range_exits + int(not inside and state.status != 'out_of_range')
     return replace(state, price=price, timestamp_ms=timestamp_ms,
                    orders=state.orders, range_exits=exits,
                    status='running' if inside else 'out_of_range')
+
+
+def _critical_segment_stop(state, cursor, target, quoted, timestamp_ms, bid, ask):
+    stop_price = _stop_crossing(replace(state, price=cursor), target)
+    endpoint = target if stop_price is None else stop_price
+    liquidation = _liquidation_between(state, cursor, endpoint)
+    if liquidation is not None:
+        return _liquidate_at(state, liquidation, quoted, timestamp_ms, bid, ask)
+    if stop_price is None:
+        return None
+    return stop(state, stop_price, timestamp_ms,
+                None if bid is None else bid * stop_price / quoted,
+                None if ask is None else ask * stop_price / quoted,
+                'stop_loss', _preserve_events=True)
 
 
 def stop(state, price, timestamp_ms, bid=None, ask=None, reason='replacement',

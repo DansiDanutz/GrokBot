@@ -371,3 +371,106 @@ class GridTests(unittest.TestCase):
         for invalid in (-.1, 0, 1, float('nan')):
             with self.assertRaises(ValueError):
                 preview(self.config(range_exit_stop_pct=invalid))
+
+    def test_adaptive_future_inventory_tightens_losing_edge_only(self):
+        state = create_bot(self.config(direction='long', investment=200, leverage=10,
+                                       adaptive_range_stops=True), 100, 0)
+        checked = advance(state, 100, 1_000)
+        self.assertEqual(checked.status, 'running')
+        self.assertEqual(checked.effective_range_exit_stop_pct_low, .01)
+        self.assertIsNone(checked.effective_range_exit_stop_pct_high)
+        self.assertEqual(checked.completed_grids, 0)
+        self.assertEqual(checked.fill_events, ())
+        self.assertEqual(len(checked.positions), 10)
+        stopped = advance(checked, 88, 2_000)
+        self.assertEqual(stopped.stop_reason, 'stop_loss')
+        self.assertEqual(stopped.price, 89.1)
+        self.assertFalse(stopped.liquidated)
+
+    def test_adaptive_short_is_mirror_and_never_loosens_after_cash_recovery(self):
+        from dataclasses import replace
+        from trader.strategies.kucoin_grid import effective_stop_prices
+        state = create_bot(self.config(direction='short', investment=200, leverage=10,
+                                       adaptive_range_stops=True), 100, 0)
+        checked = advance(state, 100, 1_000)
+        self.assertEqual(checked.effective_range_exit_stop_pct_high, .01)
+        recovered = advance(replace(checked, funding=500), 100, 2_000)
+        self.assertEqual(recovered.effective_range_exit_stop_pct_high, .01)
+        self.assertEqual(effective_stop_prices(recovered)['effective_stop_loss_high'], 111.1)
+
+    def test_adaptive_unsafe_one_percent_stops_immediately_with_risk_reason(self):
+        from dataclasses import replace
+        state = create_bot(self.config(direction='long', investment=200, leverage=10,
+                                       adaptive_range_stops=True), 100, 0)
+        impaired = replace(state, fees=state.fees + 40)
+        stopped = advance(impaired, 99, 1_000)
+        self.assertEqual(stopped.price, 100)
+        self.assertEqual(stopped.stop_reason, 'stop_loss')
+        self.assertEqual(stopped.protective_reason, 'risk_protection')
+        self.assertFalse(stopped.liquidated)
+
+    def test_adaptive_tightening_past_new_barrier_closes_current_mark(self):
+        from dataclasses import replace
+        legacy = create_bot(self.config(direction='long', investment=200, leverage=10,
+                                        range_exit_stop_pct=None), 100, 0)
+        outside = advance(legacy, 89, 1_000)
+        enabled = replace(outside, config=replace(outside.config, range_exit_stop_pct=.05,
+                                                 adaptive_range_stops=True))
+        stopped = advance(enabled, 89.2, 2_000)
+        self.assertEqual(stopped.price, 89)
+        self.assertEqual(stopped.protective_reason, 'risk_protection')
+
+    def test_adaptive_rechecks_after_funding_without_hourly_poll(self):
+        state = create_bot(self.config(direction='long', investment=200, leverage=10,
+                                       adaptive_range_stops=True), 100, 0)
+        stopped = advance(state, 100, 8 * 3_600_000, funding_rate=.1)
+        self.assertAlmostEqual(stopped.funding, -100)
+        self.assertEqual(stopped.protective_reason, 'risk_protection')
+        self.assertEqual(stopped.price, 100)
+
+    def test_adaptive_gap_still_liquidates_at_observed_mark(self):
+        state = create_bot(self.config(direction='long', investment=200, leverage=10,
+                                       adaptive_range_stops=True), 100, 0)
+        stopped = advance(state, 1, 1_000, gap=True)
+        self.assertTrue(stopped.liquidated)
+        self.assertEqual(stopped.price, 1)
+
+    def test_adaptive_policy_disabled_preserves_historical_behavior(self):
+        state = create_bot(self.config(direction='long', investment=200, leverage=10), 100, 0)
+        stopped = advance(state, 1, 1_000)
+        self.assertTrue(stopped.liquidated)
+        self.assertIsNone(stopped.effective_range_exit_stop_pct_low)
+
+    def test_adaptive_neutral_can_latch_both_edges_without_projected_fill_leak(self):
+        from dataclasses import replace
+        state = create_bot(self.config(investment=400, leverage=10,
+                                       adaptive_range_stops=True), 100, 0)
+        state = replace(state, fees=state.fees + 200)
+        checked = advance(state, 100, 1_000)
+        self.assertEqual(checked.effective_range_exit_stop_pct_low, .01)
+        self.assertEqual(checked.effective_range_exit_stop_pct_high, .01)
+        self.assertEqual(checked.fees, state.fees)
+        self.assertEqual(checked.positions, state.positions)
+        self.assertEqual(checked.orders, state.orders)
+        self.assertEqual(checked.fill_sequence, state.fill_sequence)
+        self.assertEqual(len(checked.adaptive_stop_events), 2)
+        repeated = advance(checked, 100, 2_000)
+        self.assertEqual(repeated.adaptive_stop_events, checked.adaptive_stop_events)
+
+    def test_adaptive_gap_immediate_protection_uses_observed_not_old_mark(self):
+        from dataclasses import replace
+        state = create_bot(self.config(direction='long', investment=200, leverage=10,
+                                       adaptive_range_stops=True), 100, 0)
+        state = replace(state, fees=state.fees + 40)
+        stopped = advance(state, 99, 1_000, gap=True)
+        self.assertEqual(stopped.price, 99)
+        self.assertEqual(stopped.protective_reason, 'risk_protection')
+
+    def test_already_insolvent_adaptive_state_is_liquidation_not_protective_success(self):
+        from dataclasses import replace
+        state = create_bot(self.config(direction='long', investment=200, leverage=10,
+                                       adaptive_range_stops=True), 100, 0)
+        state = replace(state, fees=state.fees + 500)
+        stopped = advance(state, 99, 1_000)
+        self.assertTrue(stopped.liquidated)
+        self.assertEqual(stopped.price, 100)

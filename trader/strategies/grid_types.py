@@ -22,6 +22,9 @@ class GridConfig:
     stop_loss_high: float | None = None
     tick_size: float | None = None
     range_exit_stop_pct: float | None = .05
+    adaptive_range_stops: bool = False
+    adaptive_tight_stop_pct: float = .01
+    adaptive_liquidation_clearance_pct: float = .01
 
     @property
     def total_margin(self):
@@ -84,3 +87,7 @@ class GridState:
     stop_reason: str | None = None
     fill_events: tuple[FillEvent, ...] = ()
     fill_sequence: int = 0
+    effective_range_exit_stop_pct_low: float | None = None
+    effective_range_exit_stop_pct_high: float | None = None
+    protective_reason: str | None = None
+    adaptive_stop_events: tuple[tuple[int, str, float, str], ...] = ()
