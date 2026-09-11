@@ -168,4 +168,21 @@ removes the temporary extraction. Phase 0 reclaimed the checkout's 68,044,800-by
 pin archive after validation in a newly created temporary destination. The
 installed export was not overwritten, rebuilt or restarted.
 
+
+## Phase 1 credential and filter audit followup
+
+The development CoinGlass reader now rejects Desktop and iCloud container paths,
+including Mobile Documents/CloudDocs and iCloud CloudStorage paths, before opening
+credential contents. It walks the original path through directory descriptors
+without following symlinks. The final file must be regular, owned by the current
+user, exactly mode 0600, and at most 16 KiB; validation precedes reading its bytes.
+The same bound also applies if the file grows after inspection. Errors contain
+neither paths nor file contents. No real key was provisioned or inspected here.
+
+Audits already used `coinglass.apply_filter`; Phase 1 adds equivalence tests at
+freshness, liquidation ratio, share and invalid-input boundaries, including
+changed shared freshness constants. There is no duplicate audit filter threshold
+implementation to delete. All credential tests use synthetic private temporary
+files or mocked I/O, including negative tests against the prior implementation.
+
 _Last verified: 2026-09-11_
