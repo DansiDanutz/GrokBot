@@ -95,18 +95,29 @@ def _entry(chart, direction, price, low, high, tick, neutral_band):
             eligible = False
             trigger = None
             signal = dict(signal,eligible=False,reason='rounded trigger must be strictly inside one-hour range')
-    reference = trigger if trigger is not None else _round(price,tick)
-    if not low < reference < high:
+    waiting = bool(eligible and trigger is not None and
+                   (price < trigger if direction == 'long' else price > trigger))
+    reached = eligible and trigger is not None and not waiting
+    if reached:
+        # A satisfied chart condition is evidence, not a new pending order.
+        # Use the current entry for sizing and liquidation instead of waiting
+        # for price to revisit a trigger it already crossed.
+        trigger = None
+    reference = trigger if trigger is not None else _round(price,tick,up=reached and direction=='long')
+    hypothetical = not low < reference < high
+    if hypothetical:
+        if eligible:
+            eligible,waiting,trigger = False,False,None
+            signal = dict(signal,eligible=False,reason='tick-rounded market entry must remain strictly inside one-hour range')
         reference = _round((low+high)/2,tick)
     if not low < reference < high:
         raise ValueError('one-hour range cannot contain a valid tick-aligned entry reference')
-    waiting = bool(eligible and trigger is not None and
-                   (price < trigger if direction == 'long' else price > trigger))
     return dict(entry=reference,trigger=trigger,entry_eligible=eligible,waiting_for_trigger=waiting,
         market_entry_ready=eligible and not waiting,entry_signal=signal,
-        entry_reference_basis='valid chart trigger' if trigger is not None else
-            'current inside-range market price' if low < price < high else
-            'hypothetical range midpoint for an offer only; no valid entry signal')
+        entry_reference_basis='hypothetical range midpoint for an offer only; no valid entry signal' if hypothetical else
+            'valid pending chart trigger' if trigger is not None else
+            'current market entry rounded to ticks in the trade direction; chart trigger already satisfied' if reached else
+            'current inside-range market price')
 
 
 def _safe_estimate(config, callback, fee_ratio):

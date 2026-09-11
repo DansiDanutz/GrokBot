@@ -62,6 +62,57 @@ class RecommenderSetupTests(unittest.TestCase):
         self.assertEqual([r['selection_income_per_hour'] for r in result['candidates']],
                          sorted([r['selection_income_per_hour'] for r in result['candidates']],reverse=True))
 
+    def test_reached_directional_trigger_starts_at_current_entry_without_waiting(self):
+        from trader.research.kucoin_replay import _config
+        from trader.strategies.kucoin_grid import create_bot
+        for direction,price,trigger in (('long',101.5,101.),('short',98.5,99.)):
+            with self.subTest(direction=direction), \
+                    patch('trader.strategies.recommender_setup.read_chart',return_value=chart(direction)):
+                result=build_recommender_setup('TESTUSDT',bars(),dict(MARKET,price=price),{},ASOF,
+                    dict(min_grids=4,max_grids=8),funding=FUNDING)
+            self.assertTrue(result['can_arm'],result)
+            self.assertTrue(result['market_entry_ready'])
+            self.assertFalse(result['waiting_for_trigger'])
+            self.assertEqual(result['entry_signal']['trigger'],trigger)
+            for form in result['candidates']:
+                self.assertIsNone(form['trigger'])
+                self.assertIsNone(form['config']['trigger'])
+                self.assertEqual(form['entry'],price)
+                self.assertEqual(form['config']['entry_price'],price)
+                state=create_bot(_config(form),price,ASOF)
+                self.assertEqual(state.status,'running')
+                from trader.strategies.grid_setup import _round
+                expected=_round(5000/(form['grids']*price*(1+5*.0006)),.001)
+                self.assertEqual(form['quantity'],expected)
+
+    def test_immediate_entry_rounds_market_tick_without_crossing_range_edge(self):
+        for direction,price,expected in (('long',101.503,101.51),('short',98.507,98.50)):
+            with patch('trader.strategies.recommender_setup.read_chart',return_value=chart(direction)):
+                form=build_recommender_setup('TESTUSDT',bars(),dict(MARKET,price=price),{},ASOF,
+                    dict(min_grids=4,max_grids=8,preview_fn=safe_preview),funding=FUNDING)
+            self.assertTrue(form['can_arm'])
+            self.assertEqual(form['entry'],expected)
+            self.assertIsNone(form['trigger'])
+        with patch('trader.strategies.recommender_setup.read_chart',return_value=chart()):
+            form=build_recommender_setup('TESTUSDT',bars(),dict(MARKET,price=101.999),{},ASOF,
+                dict(min_grids=4,max_grids=8,preview_fn=safe_preview),funding=FUNDING)
+        self.assertFalse(form['can_arm'])
+        self.assertFalse(form['entry_eligible'])
+        self.assertIn('tick',form['entry_signal']['reason'])
+
+    def test_unreached_directional_trigger_stays_pending_in_engine(self):
+        from trader.research.kucoin_replay import _config
+        from trader.strategies.kucoin_grid import create_bot
+        for direction,trigger in (('long',101.),('short',99.)):
+            with self.subTest(direction=direction):
+                form=build(chart(direction))
+                self.assertTrue(form['can_arm'])
+                self.assertTrue(form['waiting_for_trigger'])
+                self.assertFalse(form['market_entry_ready'])
+                self.assertEqual(form['trigger'],trigger)
+                self.assertEqual(form['entry'],trigger)
+                self.assertEqual(create_bot(_config(form),MARKET['price'],ASOF).status,'waiting')
+
     def test_forbidden_long_only_falls_back_neutral_with_fresh_entry_check(self):
         result=build(regime=dict(pair='TESTUSDT',asof_ms=ASOF,allowed_directions=['short','neutral']))
         self.assertEqual(result['direction'],'neutral')
