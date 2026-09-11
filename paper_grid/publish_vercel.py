@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -12,16 +13,14 @@ import time
 import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from paper_grid import public_snapshot
+from paper_grid import public_snapshot, csp
 
 DEFAULT_RUNTIME = Path('/Users/davidai/Sandbox/grokbot/zmarty-paper-runtime')
 DEFAULT_STATE = Path('/Users/davidai/Sandbox/grokbot/vercel-publisher')
 HEALTH_URL = 'http://127.0.0.1:8873/api/health'
 DEPLOY_TIMEOUT = 240
 URL = re.compile(r'https://[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.vercel\.app\b')
-CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; "
-       "style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; "
-       "frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+PRIVATE_DIRECTORY_MODE = 0o700
 
 
 def _safe_path(path):
@@ -70,10 +69,26 @@ def _config(state):
         if not isinstance(source['public_url'], str) or not URL.fullmatch(source['public_url']):
             raise ValueError('invalid public dashboard URL')
         result['public_url'] = source['public_url']
-    _safe_path(state / 'auth')
-    if not (state / 'auth').is_dir():
-        raise ValueError('publisher authentication unavailable')
+    _secure_state(state)
     return result
+
+
+def _secure_state(state):
+    auth = _safe_path(state / 'auth')
+    if not auth.is_dir():
+        raise ValueError('publisher authentication unavailable')
+    initial = _safe_path(state / 'initial-site')
+    if initial.exists() and not initial.is_dir():
+        raise ValueError('invalid initial publication directory')
+    auth.chmod(PRIVATE_DIRECTORY_MODE)
+
+
+def _cleanup_initial_site(state):
+    initial = _safe_path(state / 'initial-site')
+    if initial.exists():
+        if not initial.is_dir():
+            raise ValueError('invalid initial publication directory')
+        shutil.rmtree(initial)
 
 
 def _atomic_json(path, value):
@@ -111,8 +126,7 @@ def _health():
 
 
 def _site_config(stage, config):
-    headers = [{'key': 'Content-Security-Policy', 'value': CSP},
-               {'key': 'X-Content-Type-Options', 'value': 'nosniff'},
+    headers = [{'key': 'X-Content-Type-Options', 'value': 'nosniff'},
                {'key': 'Referrer-Policy', 'value': 'no-referrer'},
                {'key': 'X-Frame-Options', 'value': 'DENY'},
                {'key': 'Permissions-Policy', 'value': 'camera=(), microphone=(), geolocation=()'},
@@ -120,10 +134,29 @@ def _site_config(stage, config):
                {'key': 'X-Robots-Tag', 'value': 'noindex, nofollow'}]
     _atomic_json(stage / 'vercel.json', {'version': 2, 'framework': None,
         'buildCommand': None, 'installCommand': None,
-        'headers': [{'source': '/(.*)', 'headers': headers}]})
+        'headers': [{'source': '/(.*)', 'headers': headers}, *_csp_routes(stage)]})
     (stage / '.vercel').mkdir()
     _atomic_json(stage / '.vercel' / 'project.json',
                  {'projectId': config['project_id'], 'orgId': config['org_id']})
+
+
+def _csp_routes(stage):
+    dashboard = csp.static_policy((stage / 'index.html').read_bytes())
+    reports = b''.join(_safe_path(path).read_bytes()
+                       for path in sorted((stage / 'reports').glob('*.html')))
+    policies = (('/', dashboard), ('/index.html', dashboard),
+                ('/reports/(.*)', csp.static_policy(reports, scripts=False)),
+                ('/data/(.*)', csp.policy()))
+    return [{'source': path, 'headers': [{'key': 'Content-Security-Policy', 'value': value}]}
+            for path, value in policies]
+
+
+def _cleanup_warning(state):
+    try:
+        _cleanup_initial_site(state)
+    except (OSError, ValueError):
+        return 'initial_site_cleanup_failed'
+    return None
 
 
 def _deploy(stage, state, config):
@@ -193,7 +226,8 @@ def publish(runtime=DEFAULT_RUNTIME, state=DEFAULT_STATE, *, now=None):
                 deployment = _deploy(stage, state, config)
             status.update(status='published', last_success_at=at, deployment_url=deployment,
                           public_url=config.get('public_url'), file_count=metadata['file_count'],
-                          report_count=metadata['report_count'], snapshot_at=metadata['published_at'])
+                          report_count=metadata['report_count'], snapshot_at=metadata['published_at'],
+                          cleanup_warning=_cleanup_warning(state))
         except subprocess.TimeoutExpired:
             status.update(status='failed', error='deployment_timeout')
         except (OSError, ValueError, RuntimeError, KeyError, TypeError):
