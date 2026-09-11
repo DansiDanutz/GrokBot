@@ -14,6 +14,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from paper_grid import cli, engine, market
+from paper_grid.diagnostics import error_record
 
 ARMS = ('baseline', 'liquidation_filter')
 TICK_SECONDS = 300
@@ -45,7 +46,8 @@ def _now(now):
 def _code_hashes():
     directory = Path(__file__).resolve().parent
     return {name: hashlib.sha256((directory / name).read_bytes()).hexdigest()
-            for name in ('engine.py', 'market.py', 'coinglass.py', 'experiment.py')}
+            for name in ('engine.py', 'market.py', 'coinglass.py', 'experiment.py',
+                         'telemetry_constants.py', 'diagnostics.py')}
 
 
 def _load(runtime):
@@ -270,7 +272,7 @@ def tick(runtime=cli.DEFAULT_RUNTIME, now=None, collector=None, feature_collecto
                 try:
                     features = (feature_collector or coinglass.collect)(symbols, at, cache=None)
                 except Exception as error:
-                    features = dict(fetched_at=at, symbols={}, errors=[dict(type=type(error).__name__, reason='CoinGlass collection failed')])
+                    features = dict(fetched_at=at, symbols={}, errors=[error_record(error, at, 'features')])
             # A long feature request must not start another API request beyond the deadline.
             market_at = _now(now)
             if _deadline(doc, market_at):
@@ -294,7 +296,7 @@ def tick(runtime=cli.DEFAULT_RUNTIME, now=None, collector=None, feature_collecto
                 try:
                     extra = (feature_collector or coinglass.collect)(uncovered, decision_at, cache=features)
                 except Exception as error:
-                    extra = dict(fetched_at=decision_at, symbols={}, errors=[dict(type=type(error).__name__, reason='CoinGlass new-symbol collection failed')])
+                    extra = dict(fetched_at=decision_at, symbols={}, errors=[error_record(error, at, 'new_features')])
                 old_has_symbols = bool(features.get('symbols'))
                 combined = deepcopy(features)
                 combined.setdefault('symbols', {}).update(extra.get('symbols', {}))
@@ -342,7 +344,7 @@ def tick(runtime=cli.DEFAULT_RUNTIME, now=None, collector=None, feature_collecto
             # Neither arm settles when either arm fails. Do not leak exception text/keys.
             doc = previous
             doc['last_attempt_at'] = at
-            doc['errors'].append(dict(time=at, type=type(error).__name__, reason='cycle aborted; both account states preserved'))
+            doc['errors'].append(error_record(error, at))
             doc['observations'].append(dict(time=at, skipped='cycle_error', market=quotes, scan=scan, coinglass=features))
             _publish(doc, at, force=True)
         if doc.get('continuous') is True:
