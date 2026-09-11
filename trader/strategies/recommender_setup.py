@@ -149,6 +149,19 @@ def _safe_estimate(config, callback, fee_ratio):
     return estimate,buffers
 
 
+def _depth_feasible(market, quantity, entry):
+    """Match radar's per-grid depth defense before pruning to the top counts."""
+    if market.get('filter_mode') == 'candle-only filters':
+        return True
+    quoted = market.get('filter_mode') == 'quote/book filters' or 'bid' in market or 'ask' in market
+    if not quoted:
+        return True  # A bare indicator/price fixture supplies no quote-backed admission claim.
+    notional = quantity*entry
+    return all(type(market.get(side+'_depth_usdt')) in (int,float) and
+               math.isfinite(market[side+'_depth_usdt']) and market[side+'_depth_usdt'] >= notional
+               for side in ('bid','ask'))
+
+
 def build_recommender_setup(pair,bars,market,frames,asof_ms,parameters=None,regime=None,funding=None):
     """Build top-three paper offers; explicit funding uses rate/interval_ms/asof.
 
@@ -213,6 +226,8 @@ def build_recommender_setup(pair,bars,market,frames,asof_ms,parameters=None,regi
                 if not neutral_band[0] <= position <= neutral_band[1]:
                     return dict(eligible=False,reason='Neutral entry leaves central band after tick trim')
             quantity = _round(1000*5/(legs*count*entry['entry']*(1+5*.0006)),quantity_unit)
+            if not _depth_feasible(market,quantity,entry['entry']):
+                return dict(eligible=False,reason='top-of-book depth unknown or below one grid notional on either side')
             config = dict(pair=pair,low=low,high=actual_high,grids=count,leverage=5,investment=1000.,
                 reserved_margin=200.,direction=direction,entry_price=entry['entry'],trigger=entry['trigger'],
                 quantity=quantity,multiplier=multiplier,lot_size=lot,tick_size=tick,
