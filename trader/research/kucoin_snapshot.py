@@ -224,8 +224,21 @@ def _observed_time(row):
     return row.get('timestamp_ms', row.get('time_ms'))
 
 
+def _consistent_rows(rows):
+    observed = {}
+    fields = ('open', 'high', 'low', 'close', 'volume', 'turnover')
+    for row in rows:
+        timestamp = _observed_time(row)
+        previous = observed.get(timestamp)
+        if previous is not None and any(previous.get(key) != row.get(key) for key in fields):
+            raise SnapshotError('Conflicting duplicate candle at '+str(timestamp))
+        observed[timestamp] = row
+    return list(observed.values())
+
+
 def _indicator_history(rows, start, end):
     """Carry only already observed closes; placeholders are never executions."""
+    rows = _consistent_rows(rows)
     observed = {int(_observed_time(row)): row for row in rows if start <= _observed_time(row) < end}
     earlier = [row for row in rows if _observed_time(row) < start]
     last = earlier[-1]['close'] if earlier else None
@@ -322,10 +335,19 @@ class HistoricalSnapshot:
         block = self._block(pair, at_ms)
         cutoff = bisect_left(block['times'], at_ms)
         beginning = bisect_left(block['times'], at_ms-WEEK_MS)
-        rows = block['rows'][max(0, beginning-1):cutoff]
+        seed_index = bisect_left(block['times'], block['times'][beginning-1]) if beginning else 0
+        rows = block['rows'][seed_index:cutoff]
         bars, coverage = _indicator_history(rows, at_ms-WEEK_MS, at_ms)
         self._history[pair] = at_ms, bars, coverage
         return bars, coverage
+
+    def prior_seed(self, pair, at_ms):
+        block = self._block(pair, at_ms)
+        end = bisect_left(block['times'], at_ms-WEEK_MS)
+        if not end:
+            return None
+        start = bisect_left(block['times'], block['times'][end-1])
+        return dict(_consistent_rows(block['rows'][start:end])[-1])
 
     def candles(self, pair, start_ms, end_ms):
         block = self._block(pair, end_ms)
@@ -380,7 +402,8 @@ class HistoricalSnapshot:
             if wanted is not None and pair not in wanted:
                 continue
             bars, coverage = self.history(pair, at_ms)
-            yield dict(pair=pair, bars=bars, market=self._scanner_market(pair, at_ms, bars, coverage))
+            yield dict(pair=pair, bars=bars, prior_seed=self.prior_seed(pair, at_ms),
+                       market=self._scanner_market(pair, at_ms, bars, coverage))
 
     def records(self, at_ms, pairs=None):
         return list(self.iter_records(at_ms, pairs))

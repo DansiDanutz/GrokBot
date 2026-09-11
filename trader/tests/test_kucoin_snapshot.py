@@ -253,5 +253,38 @@ class SnapshotTests(unittest.TestCase):
             self.assertEqual(coverage['ratio'], 1)
 
 
+    def test_historical_record_preserves_an_actual_seed_for_a_leading_indicator_gap(self):
+        from trader.research.kucoin_snapshot import HistoricalSnapshot
+        from trader.strategies.candle_coverage import prepare
+        day = 86400000
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
+                [('AAAUSDTM', '1m', t, 10, 10, 10, 10, 1, 10)
+                 for t in range(day-60000, 8*day, 60000) if t != day])
+        with Snapshot(self.path) as source:
+            record = HistoricalSnapshot(source).records(8*day)[0]
+            result = prepare(record['bars'], 8*day, prior_seed=record.get('prior_seed'))
+            self.assertTrue(result['valid'])
+            self.assertEqual(result['coverage']['actual'], 10079)
+            self.assertEqual(result['coverage']['seed_timestamp_ms'], day-60000)
+            self.assertTrue(result['bars'][0]['synthetic'])
+
+    def test_historical_snapshot_rejects_conflicting_observed_and_seed_duplicates(self):
+        from trader.research.kucoin_snapshot import HistoricalSnapshot
+        day = 86400000
+        for duplicate_time in (day, day-60000):
+            with self.subTest(duplicate_time=duplicate_time):
+                with closing(sqlite3.connect(self.path)) as db, db:
+                    db.execute('DELETE FROM klines')
+                    db.executemany('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
+                        [('AAAUSDTM', '1m', t, 10, 10, 10, 10, 1, 10)
+                         for t in range(day-60000, day+120000, 60000)])
+                    db.execute('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
+                        ('AAAUSDTM', '1m', duplicate_time, 11, 11, 11, 11, 1, 11))
+                with Snapshot(self.path) as source:
+                    with self.assertRaisesRegex(SnapshotError, 'Conflicting duplicate'):
+                        HistoricalSnapshot(source).history('AAAUSDTM', 8*day)
+
+
 if __name__ == '__main__':
     unittest.main()
