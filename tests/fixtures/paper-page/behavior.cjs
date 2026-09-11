@@ -25,7 +25,7 @@ assert(roots.get('positions-bots').textContent.includes('New-entry target · BUY
 assert.equal(run("entryTarget('LONG')"),'40% / 60%');
 assert.equal(run("entryTarget('SHORT')"),'60% / 40%');
 assert.equal(run("entryTarget('NEUTRAL')"),'50% / 50%');
-assert(page.includes('At least 70 configured grids'));
+assert(page.includes('At least 12 configured grids'));
 assert(page.includes('greater than 1%'));
 assert(page.includes('one-order rounding tolerance'));
 assert(page.includes('Existing bots keep their original ranges and orders'));

@@ -2,7 +2,12 @@
 import math
 from trader.radar.spacing import align_bounds, economics, choose_count
 
-MIN_GRIDS = 70
+# Fee safety is enforced by the return floor in spacing.economics, not by the
+# count. Confirmed support/resistance ranges observed on KuCoin are 5-38% wide,
+# where the largest fee-safe count is typically 14-83, so a 70 floor rejected
+# every contract (377 rows, 0 sections, 2026-09-11). Dan's live bots ran 11-140
+# grids.
+MIN_GRIDS = 12
 MAX_GRIDS = 200
 ORDER_TOLERANCE = 1
 
