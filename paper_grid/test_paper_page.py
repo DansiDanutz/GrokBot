@@ -20,6 +20,15 @@ class PaperPageTests(unittest.TestCase):
             self.assertIn('href="' + href + '"', page)
         self.assertNotRegex(page, r'<(?:script|link)[^>]+(?:src|href)="https?')
 
+    def test_position_sections_precede_watchlist(self):
+        page = PAGE.read_text()
+        self.assertLess(page.index('id="account"'), page.index('id="positions"'))
+        self.assertLess(page.index('id="positions"'), page.index('id="history"'))
+        self.assertLess(page.index('id="history"'), page.index('id="watchlist"'))
+        for section in ('positions', 'history', 'account-history', 'watchlist'):
+            self.assertIn('href="#' + section + '"', page)
+        self.assertIn('not a cash balance history', page)
+
     def test_browser_behavior(self):
         result = subprocess.run(['node', str(ROOT / 'tests/fixtures/paper-page/behavior.cjs'), str(PAGE)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

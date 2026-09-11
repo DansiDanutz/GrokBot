@@ -251,7 +251,7 @@ class EventLog:
             os.close(directory_fd)
 
 
-def read_events(directory, since_ms, limit=500, *, after_event_id=None):
+def read_events(directory, since_ms, limit=500, *, after_event_id=None, latest=False):
     """Return at most 500 events after a timestamp or composite timestamp/ID cursor.
 
     Omitted after_event_id preserves the original strictly-newer timestamp query.
@@ -261,6 +261,8 @@ def read_events(directory, since_ms, limit=500, *, after_event_id=None):
         raise ValueError("invalid event query bounds")
     if after_event_id is not None and (type(after_event_id) is not int or after_event_id < 0):
         raise ValueError("invalid event cursor")
+    if type(latest) is not bool:
+        raise ValueError("invalid latest selector")
     directory = _safe(directory)
     paths = sorted(directory.glob("events-????-??-??.jsonl"))
     active = directory / "events.jsonl"
@@ -276,5 +278,6 @@ def read_events(directory, since_ms, limit=500, *, after_event_id=None):
                         (after_event_id is not None and event["ts_ms"] == since_ms
                          and event.get("event_id", 0) > after_event_id)):
                     yield event
-    return heapq.nsmallest(limit, rows(),
-                          key=lambda event: (event["ts_ms"], event.get("event_id", 0)))
+    key = lambda event: (event["ts_ms"], event.get("event_id", 0))
+    selected = (heapq.nlargest if latest else heapq.nsmallest)(limit, rows(), key=key)
+    return sorted(selected, key=key)

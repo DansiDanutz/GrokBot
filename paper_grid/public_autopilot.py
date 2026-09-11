@@ -3,6 +3,7 @@ import math
 import re
 
 from trader.autopilot.storage import validate_event
+from trader.autopilot.constants import PAPER_EQUITY_USDT
 
 DIRECTIONS = ('LONG', 'SHORT', 'NEUTRAL')
 LABELS = DIRECTIONS + ('TURNING-UP', 'TURNING-DOWN')
@@ -158,6 +159,18 @@ def safe(source):
         result['watchlist'][tier] = [watch_entry(entry) for entry in entries]
     result['watchlist_history'] = [watch_event(row)
         for row in rows(source.get('watchlist_history', []))[-48:]]
+    def total(key):
+        values = [b[key] for b in result['open_bots']]
+        return sum(values) if all(v is not None for v in values) else None
+    floating, margin, reserve = total('unrealized_pnl'), total('notional_usdt'), total('reserve_usdt')
+    equity = result['equity']
+    balance = equity - floating if equity is not None and floating is not None else None
+    fees, funding = result['totals']['fees'], result['totals']['funding']
+    result['account'] = dict(starting_equity=PAPER_EQUITY_USDT, equity=equity,
+        balance=balance, allocated_margin=margin, reserved_margin=reserve,
+        free_balance=balance-margin-reserve if all(v is not None for v in (balance, margin, reserve)) else None,
+        realized_pnl=balance-PAPER_EQUITY_USDT if balance is not None else None,
+        unrealized_pnl=floating, fees=fees, funding=funding)
     return result
 
 
