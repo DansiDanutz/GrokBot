@@ -1,0 +1,47 @@
+{
+  "id": "grid-5x",
+  "version": 1,
+  "registered_at": "2026-09-11",
+  "author": "Dan; implemented by Codex",
+  "base_commit": "3db5613",
+  "primary_metric": "completed_grids_per_hour",
+  "hypothesis": "Cost-aware replacement improves completed paired grids per hour while retaining positive total net returns.",
+  "mode": "paper_only",
+  "investment_usdt": 1000,
+  "leverage": 5,
+  "direction": "neutral",
+  "grids": 20,
+  "target_net_per_grid_usdt": 1,
+  "fee_per_fill": 0.0006,
+  "funding_period_ms": 28800000,
+  "tick_ms": 300000,
+  "ranking": "min(crossings_4h/4, crossings_24h/24); historical crossing proxy, not a forecast guarantee",
+  "lookback_hours": [1, 4, 8],
+  "margin_gph": [0, 0.25, 0.5],
+  "switch_payback_hours": 4,
+  "null_seed": 20260911,
+  "training_days": 7,
+  "holdouts": [
+    {"start": "2026-07-01T00:00:00Z", "end": "2026-08-01T00:00:00Z"},
+    {"start": "2026-08-01T00:00:00Z", "end": "2026-09-01T00:00:00Z"}
+  ],
+  "selection": "For each holdout select N and margin on its preceding seven days only, maximizing completed grids/hour; ties use net then smaller N then margin. Freeze parameters throughout the holdout.",
+  "decision_rule": {
+    "required_disjoint_months": 2,
+    "net_usdt_strictly_greater_than": 0,
+    "max_drawdown_strictly_less_than": 0.1,
+    "complete_causal_market_and_funding_coverage": true,
+    "verified_exchange_replica_required_before_deployment": true,
+    "pass": "eligible_for_separate_paper_deployment_review",
+    "otherwise": "shelve"
+  },
+  "execution_assumptions": [
+    "No take-profit or profit-target shutdown.",
+    "Only candidate replacement or range exit is a discretionary stop; forced liquidation and data unavailability are explicit exceptions.",
+    "Neutral startup gross 50 percent split between long and short is an explicit unverified paper allocation rule.",
+    "Replay each candle using both OHLC paths and retain the lower ending-equity path; this is a sensitivity model, not observed fills.",
+    "Missing historical spread, depth, listing or eight-hour funding evidence invalidates eligibility; never use future snapshots or assume zero funding.",
+    "End-of-window positions are marked and a market-close cost reserve is reported without a strategy stop.",
+    "A seeded random eligible-coin null uses identical fill, sizing, replacement and cost rules."
+  ]
+}
