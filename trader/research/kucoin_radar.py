@@ -8,6 +8,7 @@ from trader.strategies.candle_coverage import prepare, is_prepared_history
 HOUR_MS = 3_600_000
 DAY_MS = 24 * HOUR_MS
 MINUTE_MS = 60_000
+FUNDING_LIMIT_8H = .001
 
 
 def _number(value):
@@ -147,8 +148,8 @@ def _market_reason(market, asof_ms, options, *, funding_check=True):
         return 'listing age unknown or below seven days'
     if not candle_only and funding_check:
         funding = market.get('funding_rate_8h')
-        if funding is None or abs(funding) > .001:
-            return 'normalized eight-hour funding unknown or outside 0.1 percent'
+        if funding is None or abs(funding) > FUNDING_LIMIT_8H:
+            return f'normalized eight-hour funding unknown or outside {100*FUNDING_LIMIT_8H:g} percent'
     return None
 
 
@@ -257,8 +258,8 @@ def _chart_funding(record, asof_ms, candle_only):
             (type(observed) not in (int,float) or not math.isfinite(observed) or not 0 <= observed <= asof_ms)):
         return None, 'chart funding terms have invalid rate, interval or causal observation time'
     normalized = abs(rate)*8*HOUR_MS/interval
-    if not candle_only and normalized > .0005:
-        return terms, 'normalized eight-hour funding outside 0.05 percent'
+    if not candle_only and normalized > FUNDING_LIMIT_8H:
+        return terms, f'normalized eight-hour funding outside {100*FUNDING_LIMIT_8H:g} percent'
     return terms, None
 
 
@@ -317,7 +318,7 @@ def _evaluate_chart(record, asof_ms, options, prepared, market):
         fee_net_income_per_hour=form.get('fee_net_income_per_hour'),ranking_basis=form.get('ranking_basis'),
         income_basis='minimum of 24h and 7d paired completed-cycle income estimates; funding/quantity assumptions remain explicit',
         funding_terms=funding,funding_diagnostics=record.get('funding_diagnostics'),regime=record.get('regime'),
-        funding_filter_status='skipped_candle_only' if candle_only else 'unknown_skipped_provisional' if funding is None else 'passed_known_0.05_percent_8h_limit',
+        funding_filter_status='skipped_candle_only' if candle_only else 'unknown_skipped_provisional' if funding is None else f'passed_known_{100*FUNDING_LIMIT_8H:g}_percent_8h_limit',
         filter_mode=market['filter_mode'],skipped_filters=skipped,candle_coverage=prepared['coverage'],
         quote_turnover_24h=_number(market.get('quote_turnover_24h')),turnover_basis=market.get('turnover_basis','observed quote turnover'),
         membership_basis=market.get('membership_basis','supplied market metadata'),

@@ -151,5 +151,13 @@
     "Public unauthenticated funding history retrieval only, shared token bucket and resumable sidecar checkpoints.",
     "Report modeled results and coverage limitations separately; missingdata is never verified zero.",
     "Exact range hit closes all positions; no profit-target stop."
-  ]
+  ],
+  "inherited_market_filters": {
+    "quote_turnover_24h_min_usdt": 500000,
+    "spread_fraction_max": 0.001,
+    "listing_age_days_min": 7,
+    "funding_absolute_fraction_per_8h_max": 0.001,
+    "top_of_book_depth": "at least one grid notional on both sides",
+    "source": "Dan consolidated spec, preserved by v3 keep-everything-else instruction. These replace the earlier5M/.05% draft thresholds. Historical candle-only skips unavailable spread/depth/funding-window checks."
+  }
 }

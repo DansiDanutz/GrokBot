@@ -72,14 +72,19 @@ class ChartRadarTests(unittest.TestCase):
         self.assertFalse(row['can_arm'])
         self.assertIsNone(row['funding_adjusted_income_per_hour'])
 
-    def test_known_funding_005_percent_limit_and_candle_only_exception(self):
+    def test_known_funding_01_percent_limit_and_candle_only_exception(self):
         with patch('trader.research.kucoin_radar.build_recommender_setup',return_value=offer()) as builder:
-            for rate,interval,accepted in ((.00025,4*3600000,True),(.000251,4*3600000,False),
-                                          (-.000501,8*3600000,False)):
+            for rate,interval,accepted in ((.001,8*3600000,True),(-.001,8*3600000,True),
+                                          (.001001,8*3600000,False),(-.001001,8*3600000,False),
+                                          (.0005,4*3600000,True),(-.0005,4*3600000,True),
+                                          (.000501,4*3600000,False),
+                                          (.000501,8*3600000,True),(-.000501,8*3600000,True)):
                 with self.subTest(rate=rate):
                     row=record(funding_terms=dict(FUNDING,rate=rate,interval_ms=interval))
                     result=radar([row],ASOF,parameters={'strategy':STRATEGY})
                     self.assertEqual(bool(result['radar']),accepted)
+                    if accepted:
+                        self.assertEqual(result['radar'][0]['funding_filter_status'],'passed_known_0.1_percent_8h_limit')
             row=record(funding_terms=dict(FUNDING,rate=.02))
             row['market'].update(filter_mode='candle-only filters',turnover_basis='observed quote turnover')
             result=radar([row],ASOF,parameters={'strategy':STRATEGY})
