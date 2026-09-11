@@ -11,7 +11,7 @@ HOUR = 3_600_000
 
 
 def row(symbol, direction='LONG', **extra):
-    result = dict(symbol=symbol, direction=direction, range_verified=1, price=100, range_low=90,
+    result = dict(maintain_margin=.005, risk_limit=1000000, multiplier=.001, lot_size=1, symbol=symbol, direction=direction, range_verified=1, price=100, range_low=90,
                 range_high=110, low_7d=92, high_7d=108, atr_4h_pct=4,
                 atr_1h_pct=6.2, turnover_24h_usdt=8_000_000, step_pct=.8,
                 grids=25, rank_score=10, expected_grids_per_hour=14,
@@ -113,8 +113,8 @@ class PolicyTests(unittest.TestCase):
         self.assertAlmostEqual(expected_grids_per_hour(6.2, .52, 50_000_000), .45*6.2/.52)
         state, _ = policy.decide(policy.new_state(0), radar(neutral=[row('N', 'NEUTRAL')]), {}, 0, 'a')
         view = policy.snapshot(state, HOUR, {})
-        self.assertEqual(view['equity'], 10_000)
-        self.assertEqual(view['open_bots'][0]['equity'], 1200)
+        self.assertAlmostEqual(view['equity'], 10_000-view['open_bots'][0]['fees_paid'])
+        self.assertAlmostEqual(view['open_bots'][0]['equity'], 1200-view['open_bots'][0]['fees_paid'])
         self.assertEqual(view['groups']['NEUTRAL']['totals']['bots'], 1)
 
     def test_tick_latches_risk_and_retention_preserves_net(self):
@@ -191,7 +191,8 @@ class PolicyTests(unittest.TestCase):
     def test_neutral_reserve_peak_drawdown_and_monotonic_samples(self):
         state, _ = policy.decide(policy.new_state(0), radar(neutral=[row('N', 'NEUTRAL')]), {}, 0, 'a')
         view = policy.snapshot(state, 0, {})['open_bots'][0]
-        self.assertEqual((view['equity'], view['peak_equity']), (1200, 1200))
+        self.assertAlmostEqual(view['equity'],1200-view['fees_paid'])
+        self.assertEqual(view['peak_equity'],1200)
         updated, _ = policy.advance(state, {'N': {'ts_ms': 60_000, 'price': 93}})
         view = policy.snapshot(updated, 60_000, {})['open_bots'][0]
         self.assertEqual(view['peak_equity'], 1200)

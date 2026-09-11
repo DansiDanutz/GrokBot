@@ -1,7 +1,7 @@
 # GrokBot — status (single source of truth)
 
-Updated 2026-09-11. Phase C source is awaiting Claude's final gate; no operator
-cutover has been performed by Codex.
+Updated 2026-09-11. Phase C is deployed from the dedicated production worktree.
+The original audit issue #16 is closed; current accounting corrections are below.
 
 ## What GrokBot is now
 
@@ -23,16 +23,33 @@ snapshot; the local API provides ten-second updates.
 | Public market data and hourly radar | Merged default | `trader/data/`, `trader/radar/` |
 | Phase A paper accounting | PR #22 merged after PASS | `trader/papergrid/` |
 | Phase B daemon, shared scores, core/bench and Telegram | PR #23 merged at `8df06c2` after PASS on `fe1c5e6` | `trader/autopilot/` |
-| Phase C public DTO/API, paper page, publication routes | Implemented; final gate pending | `paper_grid/` |
-| Four LaunchAgent examples | Source only; not installed by Codex | `config/launchd/` |
-| Market-data collector (`com.danslab.trader-market-data`) | 24-hour sessions supervised by KeepAlive; Dan installs first | `config/launchd/com.danslab.market-data.plist.example` |
+| Phase C public DTO/API, paper page, publication routes | Merged and deployed | `paper_grid/` |
+| Four LaunchAgent examples | Examples retained; installed services run from production worktree | `config/launchd/` |
+| Market-data collector (`com.danslab.trader-market-data`) | Installed; 24-hour sessions supervised by KeepAlive | `config/launchd/com.danslab.market-data.plist.example` |
 | Historical research | Superseded by lean radar; no new runs | Retained reference branches |
-| Operator cutover | Dan-only, pending final gate | RUNBOOK below |
+| Operator cutover | Original cutover completed; historical runbook retained | RUNBOOK below |
 
 Source gates prove offline behavior. They do not establish deployment health or
-live trading performance. The existing v1 worker, collector and installed agents
-were not modified or restarted. Issue #16 stays open until the final gate and
-handoff; Phase C remains unmerged during its audit.
+live trading performance. The v1 control runtime and collector remain separate.
+The paper daemon and public publisher use the production worktree, not a development branch.
+
+## Current accounting correction — version 2
+
+The correction in `codex/paper-risk-accounting` introduces uniform 5×,
+1,000-USDT margin plus 200 committed reserve; whole-contract-lot adverse-fill
+sizing; independent Neutral Long/Short books; contract-specific funding evidence;
+and liquidation admission/current-risk guards. Legacy bots close with
+`PROFILE_UPDATE` before qualified replacements receive new IDs. Their history,
+fees and losses remain; this is not a balance reset. Reserve is transferred once
+only when the current risk buffer needs it, followed by `RISK_LIMIT` closure if
+still unsafe. Risk metadata older than 120 minutes also closes the bot.
+
+The detailed current rules and limitations are in
+[paper-liquidation.md](paper-liquidation.md) and the final authoritative version-2
+section of [autopilot-spec.md](autopilot-spec.md). Earlier Phase A and cutover
+entries on this page are historical. This section records source behavior, not a
+claim that this branch has already been deployed or reconciled to KuCoin.
+Unknown historical funding is not fabricated. No exchange orders are placed.
 
 ## RUNBOOK — Dan runs these after the final gate
 

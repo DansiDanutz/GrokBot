@@ -96,7 +96,7 @@ def _direction(hourly, price):
 
 
 def _sections(rows):
-    passed = [row for row in rows if row["passes_liquidity"] and row.get("range_verified", 1) and row.get("spacing_viable", 1)]
+    passed = [row for row in rows if row["passes_liquidity"] and row.get("range_verified", 1) and row.get("spacing_viable", 1) and row.get("risk_verified", 1)]
     groups = {
         "majors": [row for row in rows if row["symbol"] in MAJORS],
         "turning_up": [row for row in passed if row["direction"] == "TURNING-UP"],
@@ -118,6 +118,7 @@ def _sections(rows):
 
 def analyse(database, asof_ms=None):
     """Read one SQLite snapshot and return the prototype's deterministic radar."""
+    from trader.autopilot.risk import sizing
     path = Path(database).expanduser().absolute()
     if not path.is_file() or path.is_symlink():
         raise ValueError("database must be a regular non-symlink file")
@@ -178,6 +179,7 @@ def analyse(database, asof_ms=None):
         verified = support is not None and resistance is not None
         if verified:
             low, high = support, resistance
+        contract = {}
         try:
             raw = raw_contracts[symbol][0]
             contract = json.loads(raw) if len(raw) <= 65536 else {}
@@ -209,6 +211,10 @@ def analyse(database, asof_ms=None):
             "range_low": low, "range_high": high, "step_pct": step,
             "range_verified": int(verified), **structure,
             "grids": grids, "spacing_viable": int(viable), "tick_size": tick_size,
+            "maintain_margin": contract.get('maintainMargin',0) if isinstance(contract,dict) else 0,
+            "risk_limit": contract.get('minRiskLimit',0) if isinstance(contract,dict) else 0,
+            "multiplier": contract.get('multiplier',0) if isinstance(contract,dict) else 0,
+            "lot_size": contract.get('lotSize',0) if isinstance(contract,dict) else 0,
             "grid_interval": spacing["interval"] if viable else 0,
             "profit_pct_min": spacing["profit_pct_min"] if viable else 0,
             "profit_pct_max": spacing["profit_pct_max"] if viable else 0,
@@ -219,6 +225,15 @@ def analyse(database, asof_ms=None):
                                 and spread <= MAX_SPREAD_PCT and age_days >= MIN_LISTING_AGE_DAYS
                                 and snapshot_age_min <= MAX_SNAPSHOT_AGE_MIN,
         }
+        try:
+            if not verified or not viable:
+                raise ValueError('unverified setup')
+            row.update(sizing(row, side, 1000, 5, grids))
+            row['risk_verified'] = 1
+        except ValueError:
+            row['risk_verified'] = 0
+            if not row['setup_rejection']:
+                row['setup_rejection'] = 'LIQUIDATION_OR_LOT_LIMIT'
         try:
             row.update(score_row(row))
         except ValueError:

@@ -30,12 +30,27 @@ def _result(status, *, at=None, mmr=None, price=None, reserve=None):
 
 def estimate(bot, metadata, metadata_at_ms, now_ms):
     """Estimate from current inventory; never alter position or reserve economics."""
+    if bot.get('long_contracts') is not None and bot.get('short_contracts') is not None:
+        sides=[]
+        for side in ('long','short'):
+            leg={k:v for k,v in bot.items() if k not in ('long_contracts','short_contracts')}
+            leg.update(position_contracts=bot[side+'_contracts'],avg_entry=bot[side+'_avg_entry'])
+            for key in ('notional_usdt','reserve_usdt','reserve_added_usdt','realized_pnl','fees_paid','funding_paid'):
+                leg[key]=bot.get(key,0)/2
+            sides.append(estimate(leg,metadata,metadata_at_ms,now_ms))
+        allowed=('ESTIMATED','FLAT','NO_POSITIVE_PRICE')
+        if any(x['status'] not in allowed for x in sides):
+            return next(x for x in sides if x['status'] not in allowed)
+        result=_result('HEDGE_ESTIMATED',at=metadata_at_ms,mmr=metadata.get('maintainMargin'))
+        result.update(lower_price=sides[0]['price'],upper_price=sides[1]['price'],
+                      lower_with_reserve=sides[0]['with_reserve_price'],upper_with_reserve=sides[1]['with_reserve_price'])
+        return result
     try:
         q = _number(bot['position_contracts'])
         entry = _number(bot['avg_entry'])
         margin = _number(bot['notional_usdt'])
         reserve = _number(bot.get('reserve_usdt', 0))
-        collateral = (margin + _number(bot['realized_pnl'])
+        collateral = (margin + _number(bot.get('reserve_added_usdt', 0)) + _number(bot['realized_pnl'])
                       - _number(bot['fees_paid']) - _number(bot['funding_paid']))
         if margin <= 0 or reserve < 0 or entry < 0 or (q and entry <= 0):
             raise ValueError('invalid position')

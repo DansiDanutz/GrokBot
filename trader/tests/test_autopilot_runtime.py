@@ -233,6 +233,7 @@ class RuntimeTests(unittest.TestCase):
             store.upsert('funding', [dict(symbol='A', time_ms=at, rate=rate, period_ms=28800000)
                          for at, rate in ((boundary, .001), (boundary+28800000, -.002))])
         update = {'A': dict(ts_ms=boundary+28800000, price=100.)}
+        bot['risk_metadata_at_ms'] = update['A']['ts_ms']  # Isolate settlement-rate test from stale-risk exit.
         runner._apply(update)
         result = runner.state['open_bots'][0]['engine']
         self.assertAlmostEqual(result['funding_paid'], quantity * 100 * (.001-.002))

@@ -442,3 +442,56 @@ New paper orders and dashboard ladders use the same arithmetic interval.
 Existing bots retain their original orders and are labeled legacy; they are not
 silently resized or represented as passing this new entry requirement.
 Reference definition: https://www.kucoin.com/support/21959472633113
+
+
+## Authoritative paper accounting version 2 — 11 September 2026
+
+This section supersedes the historical Phase A single-net Neutral description,
+fixed eight-hour funding rule, hypothetical-only reserve and legacy-grid retention
+rules above. It does not change the paper-only boundary: no exchange orders.
+
+- All directions use 1,000 USDT margin at 5× and a committed 200 USDT reserve,
+  initially undeployed. Leverage affects quantity once, never the resulting USDT
+  profit a second time. The account remains 10,000 USDT, maximum five bots.
+- Keep support/resistance and arithmetic count with minimum full-pair return
+  strictly above 1% after both execution fees. Size whole contract lots using the
+  stored multiplier, lot increment and maximum planned adverse-fill cost. Then
+  reduce size as needed to pass the liquidation gate. Missing required metadata
+  rejects the setup. The 39-lot RAY Long and 17-lot RAY Neutral observations apply
+  only to the matching 1,000/5×/70-grid forms, ranges and entry prices documented
+  in [paper-liquidation.md](paper-liquidation.md); they are not a general KuCoin
+  formula. All other quantities remain conservative model estimates.
+- Neutral has independent Long and Short books. Seed inventory from the actual
+  count of seeded closing orders, retain each leg's entry, and count a grid only
+  on a matched closing fill. Pair profit uses its actual matched entry; seeded
+  first closes may cover less than a full interval. Closing a bot flattens both
+  legs with fees and does not count additional completed grids. Paired grid
+  profit is gross diagnostic profit; account net remains realized + unrealized
+  minus fees and funding, with no double counting.
+- Funding uses recorded settlements or a fresh pre-settlement snapshot for its
+  explicitly announced next boundary. No eight-hour default or extrapolation of
+  current rates into unknown history. Charge signed pre-update exposure at its
+  last price once per evidenced settlement, with a persisted cursor. Expose
+  RECORDED, ESTIMATED or UNAVAILABLE status. Unknown historical funding remains
+  unknown; do not fabricate missing charges or reset the ledger.
+- Admission models adverse fills with the reserve excluded and requires a 1%
+  price buffer beyond each adverse range boundary: Long liquidation below
+  low × 0.99, Short above high × 1.01. Both Neutral legs must pass using a
+  conservative collateral split; recorded lowest-tier limits must cover risk.
+  This is a modeled bound, not an exchange-certified liquidation price.
+- On updates, threatened current liquidation buffers transfer the committed
+  reserve into collateral once, reducing undeployed reserve by the same amount.
+  No extra equity is created. If still unsafe, close RISK_LIMIT. Risk metadata
+  older than 120 minutes closes RISK_LIMIT without using reserve to bypass
+  freshness. Range touch still closes immediately at observed price, including
+  unfavorable gaps; there is no separate 120-USDT loss trigger.
+- At the next decision with an observed symbol price, legacy accounting or
+  incompatible leverage closes PROFILE_UPDATE (unless another close reason
+  already applies). Preserve its history, costs and net; normal admission opens
+  replacement IDs only when qualified. Never resize historical/open orders or
+  erase losses. Standalone legacy engine tests are historical fixtures, not the
+  authoritative autopilot funding or risk behavior.
+
+The estimate does not reproduce KuCoin's proprietary sizing, liquidation,
+execution queue or settlement statement. No promise of zero liquidation or
+positive total return follows from the entry filter or range stop.

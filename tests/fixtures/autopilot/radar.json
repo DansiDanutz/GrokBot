@@ -25,7 +25,11 @@
         "change_24h_pct": 0,
         "range_verified": 1,
         "support": 90,
-        "resistance": 110
+        "resistance": 110,
+        "maintain_margin": 0.005,
+        "risk_limit": 1000000,
+        "multiplier": 0.001,
+        "lot_size": 1
       },
       {
         "price": 100,
@@ -51,7 +55,11 @@
         "change_24h_pct": 0,
         "range_verified": 1,
         "support": 90,
-        "resistance": 110
+        "resistance": 110,
+        "maintain_margin": 0.005,
+        "risk_limit": 1000000,
+        "multiplier": 0.001,
+        "lot_size": 1
       }
     ],
     "turning_up": [
@@ -79,7 +87,11 @@
         "change_24h_pct": 0,
         "range_verified": 1,
         "support": 90,
-        "resistance": 110
+        "resistance": 110,
+        "maintain_margin": 0.005,
+        "risk_limit": 1000000,
+        "multiplier": 0.001,
+        "lot_size": 1
       }
     ],
     "long": [
@@ -107,7 +119,11 @@
         "change_24h_pct": 0,
         "range_verified": 1,
         "support": 90,
-        "resistance": 110
+        "resistance": 110,
+        "maintain_margin": 0.005,
+        "risk_limit": 1000000,
+        "multiplier": 0.001,
+        "lot_size": 1
       }
     ],
     "turning_down": [
@@ -135,7 +151,11 @@
         "change_24h_pct": 0,
         "range_verified": 1,
         "support": 90,
-        "resistance": 110
+        "resistance": 110,
+        "maintain_margin": 0.005,
+        "risk_limit": 1000000,
+        "multiplier": 0.001,
+        "lot_size": 1
       }
     ],
     "short": [
@@ -163,7 +183,11 @@
         "change_24h_pct": 0,
         "range_verified": 1,
         "support": 90,
-        "resistance": 110
+        "resistance": 110,
+        "maintain_margin": 0.005,
+        "risk_limit": 1000000,
+        "multiplier": 0.001,
+        "lot_size": 1
       }
     ]
   },
@@ -192,7 +216,11 @@
       "change_24h_pct": 0,
       "range_verified": 1,
       "support": 90,
-      "resistance": 110
+      "resistance": 110,
+      "maintain_margin": 0.005,
+      "risk_limit": 1000000,
+      "multiplier": 0.001,
+      "lot_size": 1
     },
     {
       "price": 100,
@@ -218,7 +246,11 @@
       "change_24h_pct": 0,
       "range_verified": 1,
       "support": 90,
-      "resistance": 110
+      "resistance": 110,
+      "maintain_margin": 0.005,
+      "risk_limit": 1000000,
+      "multiplier": 0.001,
+      "lot_size": 1
     },
     {
       "price": 100,
@@ -244,7 +276,11 @@
       "change_24h_pct": 0,
       "range_verified": 1,
       "support": 90,
-      "resistance": 110
+      "resistance": 110,
+      "maintain_margin": 0.005,
+      "risk_limit": 1000000,
+      "multiplier": 0.001,
+      "lot_size": 1
     },
     {
       "price": 100,
@@ -270,7 +306,11 @@
       "change_24h_pct": 0,
       "range_verified": 1,
       "support": 90,
-      "resistance": 110
+      "resistance": 110,
+      "maintain_margin": 0.005,
+      "risk_limit": 1000000,
+      "multiplier": 0.001,
+      "lot_size": 1
     },
     {
       "price": 100,
@@ -296,7 +336,11 @@
       "change_24h_pct": 0,
       "range_verified": 1,
       "support": 90,
-      "resistance": 110
+      "resistance": 110,
+      "maintain_margin": 0.005,
+      "risk_limit": 1000000,
+      "multiplier": 0.001,
+      "lot_size": 1
     },
     {
       "price": 100,
@@ -322,7 +366,11 @@
       "change_24h_pct": 0,
       "range_verified": 1,
       "support": 90,
-      "resistance": 110
+      "resistance": 110,
+      "maintain_margin": 0.005,
+      "risk_limit": 1000000,
+      "multiplier": 0.001,
+      "lot_size": 1
     }
   ]
 }

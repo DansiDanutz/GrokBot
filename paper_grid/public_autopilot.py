@@ -7,19 +7,19 @@ from trader.autopilot.constants import PAPER_EQUITY_USDT
 
 DIRECTIONS = ('LONG', 'SHORT', 'NEUTRAL')
 LABELS = DIRECTIONS + ('TURNING-UP', 'TURNING-DOWN')
-REASONS = ('LABEL_FLIP', 'RANGE_BREAK', 'STOP_LOSS', 'DROPPED', 'MAX_AGE', 'MANUAL', 'PROFILE_UPDATE')
+REASONS = ('LABEL_FLIP', 'RANGE_BREAK', 'STOP_LOSS', 'DROPPED', 'MAX_AGE', 'MANUAL', 'PROFILE_UPDATE', 'RISK_LIMIT')
 CODES = ('OSCILLATION', 'TREND_CLARITY', 'LIQUIDITY_TURNOVER', 'LIQUIDITY_SPREAD',
          'ROOM', 'FUNDING', 'STABILITY', 'MOVER_RISK', 'YOUNG_LISTING',
          'STALE_DATA', 'MAJOR_LOW_YIELD')
 WATCH_EVENTS = ('PROMOTE', 'DEMOTE', 'DROP', 'DIRECTION_CHANGE')
-BOT_NUMBERS = ('grid_interval profit_pct_min profit_pct_max bot_id price range_low range_high step_pct grids completed_grids '
+BOT_NUMBERS = ('opening_price accounting_version contract_lots contract_multiplier quantity_is_observed reserve_added_usdt funding_interval_ms next_funding_ms long_contracts short_contracts long_avg_entry short_avg_entry grid_interval profit_pct_min profit_pct_max bot_id price range_low range_high step_pct grids completed_grids '
     'realized_pnl unrealized_pnl grid_profit fees_paid funding_paid opened_ms closed_ms '
     'notional_usdt leverage reserve_usdt equity peak_equity max_drawdown_pct '
     'net grids_per_hour position_contracts avg_entry fills funding_pct contracts_per_line empty_line range_verified').split()
 TOTAL_NUMBERS = 'bots grids grid_profit unrealized fees funding net pnl grids_per_hour'.split()
-EVENT_NUMBERS = ('ts_ms bot_id event_id price contracts fee profit equity net '
+EVENT_NUMBERS = ('amount ts_ms bot_id event_id price contracts fee profit equity net '
                  'completed_grids realized_pnl unrealized_pnl tick_age_s side line reason_code '
-                 'kucoin_down_since_ms code score replaced_score margin').split()
+                 'book kucoin_down_since_ms code score replaced_score margin').split()
 
 
 def number(value):
@@ -126,10 +126,14 @@ def bot(source):
     result.update(symbol=symbol(source.get('symbol')),
                   direction=enum(source.get('direction'), DIRECTIONS),
                   pnl_curve=curve(source.get('pnl_curve', []), 120))
+    if 'order_ladder' in source:
+        result['order_ladder'] = [numbers(obj(x), ('line','price','side','book')) for x in rows(source['order_ladder'])[:400]]
+    if 'funding_schedule_status' in source:
+        result['funding_schedule_status'] = enum(source['funding_schedule_status'], ('ESTIMATED','RECORDED','UNAVAILABLE'))
     if 'liquidation' in source:
         risk = obj(source['liquidation'])
-        result['liquidation'] = numbers(risk, ('price', 'with_reserve_price', 'mmr', 'fee_rate', 'metadata_at_ms'))
-        result['liquidation']['status'] = enum(risk.get('status'), ('ESTIMATED', 'FLAT', 'NO_POSITIVE_PRICE', 'STALE_METADATA', 'INVALID_METADATA', 'INVALID_POSITION', 'TIER_UNAVAILABLE', 'METADATA_UNAVAILABLE'))
+        result['liquidation'] = numbers(risk, ('price', 'with_reserve_price', 'mmr', 'fee_rate', 'metadata_at_ms','lower_price','upper_price','lower_with_reserve','upper_with_reserve'))
+        result['liquidation']['status'] = enum(risk.get('status'), ('HEDGE_ESTIMATED', 'ESTIMATED', 'FLAT', 'NO_POSITIVE_PRICE', 'STALE_METADATA', 'INVALID_METADATA', 'INVALID_POSITION', 'TIER_UNAVAILABLE', 'METADATA_UNAVAILABLE'))
     if source.get('reason') is not None:
         result['reason'] = enum(source['reason'], REASONS)
     return result
@@ -167,6 +171,8 @@ def safe(source):
         values = [b[key] for b in result['open_bots']]
         return sum(values) if all(v is not None for v in values) else None
     floating, margin, reserve = total('unrealized_pnl'), total('notional_usdt'), total('reserve_usdt')
+    if margin is not None:
+        margin += sum(b.get('reserve_added_usdt') or 0 for b in result['open_bots'])
     equity = result['equity']
     balance = equity - floating if equity is not None and floating is not None else None
     fees, funding = result['totals']['fees'], result['totals']['funding']

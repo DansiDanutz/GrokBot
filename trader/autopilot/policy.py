@@ -11,6 +11,7 @@ from trader.radar.rates import expected_grids_per_hour
 from trader.radar.scoring import score_row
 from trader.radar.spacing import economics, choose_count
 from trader.autopilot import watchlist
+from trader.autopilot.risk import sizing, ACCOUNTING_VERSION, protection_needed
 from trader.autopilot.constants import (
     PAPER_EQUITY_USDT, MAX_BOTS, NOTIONAL_PER_BOT_USDT, SLOTS, DIRECTION_CAP,
     LEVERAGE_TREND, LEVERAGE_NEUTRAL, STEP_NEUTRAL_PCT, NEUTRAL_RESERVE_USDT,
@@ -34,7 +35,7 @@ def net(bot):
 
 
 def profile(row, direction, bot_id):
-    """Return Phase A spec and undeployed reserve; never rewrite engine economics."""
+    """Return the validated paper specification and committed reserve."""
     for key in ('price', 'range_low', 'range_high', 'step_pct', 'funding_pct', 'atr_1h_pct',
                 'turnover_24h_usdt', 'atr_4h_pct', 'low_7d', 'high_7d'):
         value = row[key]
@@ -64,7 +65,8 @@ def profile(row, direction, bot_id):
     if not spacing['viable']:
         raise ValueError('minimum grid return must exceed 1 percent after both fees')
     step_pct = spacing['interval'] / price * 100
-    return dict(bot_id=bot_id, symbol=row['symbol'], direction=direction,
+    size = sizing(row, direction, NOTIONAL_PER_BOT_USDT, leverage, grids)
+    return dict(**size, funding_managed=True, bot_id=bot_id, symbol=row['symbol'], direction=direction,
                 range_low=low, range_high=high, step_pct=step_pct, grids=grids,
                 grid_interval=spacing["interval"], profit_pct_min=spacing["profit_pct_min"],
                 profit_pct_max=spacing["profit_pct_max"],
@@ -77,7 +79,7 @@ def eligible(state, row, direction, source_section, now_ms):
     if row.get('range_verified') != 1:
         return False
     bots = [item['engine'] for item in state['open_bots']]
-    allocated = sum(w['engine']['notional_usdt'] + w['reserve_usdt'] for w in state['open_bots'])
+    allocated = sum(w['engine']['notional_usdt'] + w['engine'].get('reserve_added_usdt',0) + w['reserve_usdt'] for w in state['open_bots'])
     if _equity(state) - allocated < NOTIONAL_PER_BOT_USDT + NEUTRAL_RESERVE_USDT:
         return False
     if len(bots) >= MAX_BOTS or not row.get('passes_liquidity', False):
@@ -150,7 +152,7 @@ def _qualified_rows(radar, rows):
 
 def _mark_wrapper(wrapper):
     equity = wrapper['engine']['equity'] + wrapper['reserve_usdt']
-    initial = wrapper['engine']['notional_usdt'] + wrapper['reserve_usdt']
+    initial = wrapper['engine']['notional_usdt'] + wrapper['engine'].get('reserve_added_usdt',0) + wrapper['reserve_usdt']
     peak = max(wrapper.get('peak_equity', initial), equity)
     wrapper['peak_equity'] = peak
     wrapper['max_drawdown_pct'] = max(wrapper.get('max_drawdown_pct', 0.0), 100*(peak-equity)/peak)
@@ -201,7 +203,7 @@ def decide(state, radar, prices, now_ms, scan_id):
         missing = sum(not entry['present'] for entry in seen) if radar_available else 0
         reason = _reason(wrapper, labels, missing, now_ms)
         if (not reason and bot['symbol'] in prices and
-                (bot['leverage'] != LEVERAGE_TREND or wrapper['reserve_usdt'] != NEUTRAL_RESERVE_USDT)):
+                (bot['leverage'] != LEVERAGE_TREND or bot.get('accounting_version') != ACCOUNTING_VERSION)):
             reason = 'PROFILE_UPDATE'
         if reason:
             wrapper['engine'], emitted = close_bot(bot, prices.get(bot['symbol'], bot['last_price']), now_ms, reason)
@@ -222,6 +224,7 @@ def decide(state, radar, prices, now_ms, scan_id):
                 continue
             spec, reserve = profile(marked, direction, result['next_bot_id'])
             bot = open_bot(spec, marked['price'], now_ms)
+            bot['risk_metadata_at_ms'] = now_ms - int(row.get('snapshot_age_min',0)*60000)
             result['open_bots'].append(dict(engine=bot, reserve_usdt=reserve,
                                            source_section=section, slot_direction=slot, signals=[],
                                            open_label=labels.get(bot['symbol']), range_verified=row.get('range_verified', 0)))
@@ -272,6 +275,19 @@ def advance(state, updates):
             events.extend(e for e in emitted if e['type'] != 'STOP_LOSS')
             reason = None
             price = wrapper['engine']['last_price']
+        if not reason and wrapper['engine'].get('accounting_version') == ACCOUNTING_VERSION:
+            current=wrapper['engine']
+            if update['ts_ms']-current.get('risk_metadata_at_ms',0)>120*60000:
+                reason='RISK_LIMIT'
+            elif protection_needed(current):
+                reserve=wrapper['reserve_usdt']
+                if reserve>0:
+                    current['reserve_added_usdt']=current.get('reserve_added_usdt',0)+reserve
+                    wrapper['reserve_usdt']=0
+                    from trader.papergrid.engine import _mark
+                    _mark(current,price)
+                    events.append(dict(ts_ms=update['ts_ms'],bot_id=current['bot_id'],symbol=current['symbol'],type='RESERVE',amount=reserve))
+                if protection_needed(current):reason='RISK_LIMIT'
         if reason:
             wrapper['engine'], emitted = close_bot(wrapper['engine'], price, update['ts_ms'], reason)
             events.extend(emitted)
@@ -323,6 +339,7 @@ def snapshot(state, now_ms, health):
         bot = wrapper['engine']
         row = {key: value for key, value in bot.items() if not isinstance(value, (list, dict))}
         duration = max(0, (bot['closed_ms'] if bot['closed_ms'] is not None else now_ms) - bot['opened_ms'])
+        row['order_ladder'] = [dict(line=o['line'],price=bot['lines'][o['line']],side=1 if o['side']=='buy' else -1,book=o.get('book',0)) for o in bot['orders']]
         row.update(price=bot['last_price'], reserve_usdt=wrapper['reserve_usdt'],
                    range_verified=wrapper.get('range_verified', 0),
                    source_section=wrapper['source_section'], equity=bot['equity'] + wrapper['reserve_usdt'],
