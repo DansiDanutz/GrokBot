@@ -71,10 +71,16 @@ manual runs (one tick pass + one decision pass, then exit).
 
 Constants (one module, `trader/autopilot/constants.py`):
 `PAPER_EQUITY_USDT = 10_000`, `MAX_BOTS = 6`, `NOTIONAL_PER_BOT_USDT = 1_000`,
-`LEVERAGE = 3`, `MAJORS_MAX = 1`, `MOVERS_MAX = 1`,
+`SLOTS = {NEUTRAL: 2, LONG: 2, SHORT: 2}`, `DIRECTION_CAP = 4`,
+`LEVERAGE_TREND = 3`, `LEVERAGE_NEUTRAL = 5`, `STEP_NEUTRAL_PCT = 0.45`,
+`NEUTRAL_RESERVE_USDT = 200`, `MAJORS_MAX = 1`, `MOVERS_MAX = 1`,
 `MIN_EXPECTED_GRIDS_PER_HOUR = 2.0`, `COOLDOWN_HOURS = 6`, `MAX_AGE_HOURS = 72`,
 `TICK_INTERVAL_S = 10`, `DECISION_INTERVAL_S = 300`, `SNAPSHOT_MAX_INTERVAL_S = 30`,
 `TICK_STALE_ALERT_S = 180`, `KUCOIN_DOWN_ALERT_S = 300`.
+
+- `MOVERS_MAX`: max trend-profile bots whose radar source section is `movers`.
+- `MAJORS_MAX`: max bots on major symbols, any profile.
+- Neutral-profile bots sourced from `movers` fill NEUTRAL slots and are exempt from `MOVERS_MAX`.
 
 Tick loop (every 10 s): one KuCoin public allTickers call; keep open-bot symbols
 plus BTC/ETH/SOL. Feed each open bot `step(bot, tick)`. Update live mark,
@@ -88,11 +94,41 @@ Decision pass (every 5 min, and whenever `radar.json` mtime changes):
   label LONG or TURNING-UP; NEUTRAL bot and label LONG or SHORT); when the symbol
   is absent from the radar for 2 consecutive scans (`DROPPED`); after
   `MAX_AGE_HOURS` (`MAX_AGE`). Closed symbol enters cooldown.
-- Then open: candidates by `rank_score` from sections in the order turning_up,
-  long, turning_down, short, neutral, movers; skip open symbols, cooldowns, rows
-  with `expected_grids_per_hour < MIN_EXPECTED_GRIDS_PER_HOUR`; respect
-  `MAJORS_MAX` and `MOVERS_MAX`; open until `MAX_BOTS`. Bot spec comes straight
-  from the radar row.
+- Then open: allocate `MAX_BOTS = 6` across LONG, SHORT and NEUTRAL slots, two
+  each. LONG takes turning_up then long rows; SHORT takes turning_down then short;
+  NEUTRAL takes neutral then movers rows, movers ordered by highest atr_1h_pct.
+  Rank candidates by rank_score within each non-mover section. Skip open symbols,
+  cooldowns and candidates below MIN_EXPECTED_GRIDS_PER_HOUR; keep MAJORS_MAX and
+  MOVERS_MAX. If a direction has no qualifying candidate, its free slot goes to
+  NEUTRAL first, then to the other trend side, never exceeding four of one direction.
+  Rebalance only when a slot frees up; never close a bot merely to rebalance.
+
+### Phase B direction mix and profiles (Dan's amendment)
+
+- TREND (LONG/SHORT): radar range and step unchanged (0.8%, or 0.52% for majors),
+  leverage 3, notional 1,000 USDT.
+- NEUTRAL: `ATR4h = price * atr_4h_pct / 100`,
+  `range_low = min(low_7d, price - ATR4h)`,
+  `range_high = max(high_7d, price + ATR4h)`, step 0.45%, leverage 5,
+  notional 1,000 USDT plus 200 reserve counted in bot equity but not deployed.
+  Grid count is `round(ln(high/low) / ln(1 + step_pct/100))`, capped at 200.
+  The profile is modeled on Dan's RAY Neutral 5x bot (1.10–2.00, 140 grids,
+  18.6 observed grids/hour). STOP_LOSS stays 12% of notional; RANGE_BREAK remains
+  three consecutive updates beyond the range by more than one step.
+- Share k(step) between radar and autopilot: standard coins use
+  `1.9 * sqrt(step_pct / 0.8)`, majors (turnover >=50M USDT) use
+  `0.45 * sqrt(step_pct / 0.52)`. Expected grids/hour is k(step)*ATR1h%/step%.
+  Assert RAY with step 0.43% and ATR1h 6.2% is within **17–21 grids/hour**.
+- Open and closed bots are grouped by direction, with per-direction totals:
+  bots, completed grids, grid profit, unrealized, fees, funding and true net.
+  Every bot row includes grids/hour since opening. Daily 08:00 Europe/Bucharest
+  Telegram summary puts LONG, SHORT and NEUTRAL on separate lines with grids/hour
+  and net PnL. Phase C uses the same grouped data on the paper page.
+- Tests: balanced eligible radar opens 2/2/2; only-long trend candidates open at
+  most four LONG and fill remaining slots with NEUTRAL from movers; freed SHORT
+  slot refills with SHORT when available.
+- Test that an additional movers candidate as a LONG bot is refused when
+  MOVERS_MAX is already reached while neutral-profile movers remain eligible.
 
 Restart backfill: on start, replay 1m candles from the market DB from each bot's
 `last_ts_ms` to now (add 1m klines ingestion to the data layer for open symbols,
@@ -121,6 +157,83 @@ Tests: fixture `radar.json` plus fixture ticks and candles; assert open selectio
 order, `MAX_BOTS`, majors and movers caps, cooldown, each close rule, tick fill
 semantics, restart backfill, idempotency, snapshot atomicity (no partial file
 readable mid-write), state file free of tokens.
+
+## Phase B amendment: dynamic two-tier watchlist (Dan)
+
+This amendment supersedes the earlier six-bot admission rule. Implement in Phase B;
+render in Phase C. No real orders or deployment is authorized.
+
+### Shared radar score
+
+Score every radar row from 0 to 100 in `trader/radar`, shared by radar and autopilot.
+Each row carries `score` and `score_parts: [{code, value, points}]`; value is the
+measured number used by the rule. No free text in the data; the page maps codes to
+sentence templates and fills the numbers.
+
+- OSCILLATION, weight 30: expected_grids_per_hour scaled 0..30, reaching 30 at
+  >=20 grids/hour.
+- TREND_CLARITY, weight 20: LONG/SHORT with daily and 4h agreeing =20; TURNING =14;
+  NEUTRAL with price in the middle 25..75% of the 7d range =16; otherwise 6.
+- LIQUIDITY_TURNOVER: value is 24h turnover in USDT; 0 points at <=3M,
+  linear to 10 at 30M, capped at 10 above.
+- LIQUIDITY_SPREAD: value is spread in percent; 5 points at <=0.05%,
+  linear to 0 at 0.15%, 0 above. Each code gets its own Phase C template.
+- ROOM, weight 15: distance to the nearest range edge in ATR4h units, scaled
+  0..15, reaching 15 at >=2 ATR.
+- FUNDING, weight 10: 10 when funding favours the bot side (short and positive,
+  long and negative); 5 when absolute rate <0.01%; 0 against.
+- STABILITY, weight 10: 10 when atr_1h / (atr_4h / 2) is between 0.6 and 1.4;
+  4 outside.
+- Penalties are separate reason codes: MOVER_RISK -15 when absolute change_24h
+  >30%; YOUNG_LISTING -10 when listed <14 days; STALE_DATA -20 when snapshot
+  age >60 minutes; MAJOR_LOW_YIELD -10 on BTC/ETH/SOL.
+
+### Persistent core and bench
+
+Constants: `CORE_SIZE=5`, `BENCH_SIZE=5`, `PROMOTION_MARGIN=10`,
+`CORE_MIN_HOLD_HOURS=2`, `MAX_SWAPS_PER_SCAN=1`, `MAX_BOTS=CORE_SIZE=5`.
+Persist core and bench in state and snapshot. Each entry is
+`{symbol, direction, score, score_parts, since_ms, rank}`.
+
+Every hourly radar scan, bench is the five best-scoring qualifying rows not in
+core. Then at most one swap: the top bench coin replaces the lowest-scoring core
+coin if its score is at least core_score + PROMOTION_MARGIN and the core coin has
+been in core for at least CORE_MIN_HOLD_HOURS. A core coin absent from the radar
+entirely (fails filters two scans in a row) is removed regardless, and the top
+bench coin fills the seat. Same-symbol direction changes update the entry in
+place with a DIRECTION_CHANGE event. Cold start: core is the top five by score.
+
+Every swap writes a WATCHLIST event with
+`{ts_ms, type: PROMOTE|DEMOTE|DROP|DIRECTION_CHANGE, symbol, score,
+replaced_symbol, replaced_score, margin}`. Keep the last 48 in the snapshot as
+`watchlist_history`.
+
+Bots open from core only. The direction slots (2 NEUTRAL, 2 LONG, 2 SHORT,
+cap 4 of one kind) are preferred slots, borrowing up to 4 of one direction.
+Fill preferred slots first; lend an unavailable direction’s slots to NEUTRAL
+first, then the other trend side. Total MAX_BOTS is five, one bot per symbol.
+With five LONG core coins, open four LONG and leave one seat empty. A demoted coin's open bot keeps running
+under its own close rules (label flip, range break, stop, max age); it is just
+not reopened. Bench coins never get a bot.
+
+### Telegram and Phase C rendering
+
+Telegram sends one message per hourly scan only when core or bench changed:
+"Core: SYM dir score (top reason code) …", then "Bench: …", then the swap line with
+both scores and the margin. Daily summary adds the number of swaps.
+
+Phase C adds a Watchlist section above the bots on `/paper`: Core and Bench
+columns, one card per coin with symbol, direction chip, a 0..100 score bar, small
+labelled score-part bars with measured values, and a why-list built from code
+templates. Examples: OSCILLATION "18.4 expected grids/h", ROOM "1.6 ATR to the
+nearest edge", MOVER_RISK "up 31% in 24h, hit-and-run". Below, display the last
+24 watchlist events (for example "RAY promoted over SAGA, 71 vs 52"). Same CSP
+rules; sentence templates live in the page script, only codes and numbers in JSON
+apart from the prescribed symbol/direction fields.
+
+Tests: known-number score fixtures; promotion margin and minimum-hold hysteresis;
+at most one swap per scan; drop after two missed scans; no bots from bench;
+watchlist and history in snapshots; Telegram silent when nothing changed.
 
 ## Phase C: reporting, `/paper` page, LaunchAgent
 
@@ -159,6 +272,37 @@ readable mid-write), state file free of tokens.
 - `docs/STATUS.md`: rewrite "what GrokBot is" and the done table; add a RUNBOOK
   with exact install steps for radar and autopilot LaunchAgents, the tailscale
   serve command, and the publisher cutover from the v1 checkout.
+
+### Phase C amendment: landing page and publisher cutover (Dan)
+
+Make `/paper` the site landing page. `publish_vercel.py` stages
+`paper/index.html` also as `index.html`, retains `/radar`, and publishes the v1
+dashboard at `/control`. Home navigation links Paper, Radar and Control. Update
+CSP routes and `test_publish_vercel.py` for these destinations. The watchlist
+cards and last 24 watchlist events described above render in Phase C, with code
+templates for every score part in the page script and the same CSP as radar.html.
+
+Add `config/launchd/com.danslab.trader-publisher.plist.example`: run
+`paper_grid/publish_vercel.py` from the GrokBot checkout every five minutes through
+the credential-exec wrapper. Read radar and autopilot snapshots from the GrokBot
+runtime directory and the v1 report from the existing v1 runtime directory
+read-only. Do not install the template or modify any installed launchd agent.
+
+The `docs/STATUS.md` RUNBOOK must contain exact manual cutover steps for Dan:
+
+1. Boot out the current `com.danslab.trader-publisher`.
+2. Install radar, autopilot and publisher plists from the three examples, using
+   his chat id where required.
+3. Bootstrap them; configure `tailscale serve` for the local dashboard.
+4. Verify `/`, `/radar` and `/paper` on the live site with curl and tail all three
+   logs.
+5. Roll back by booting out the new publisher and bootstrapping the old plist.
+
+These are documented operator actions only; Codex does not execute them. Phase B
+and Phase C each retain their own PR and frozen-head audit on issue #16. Remain
+idle after each handoff until Claude's gate. After the Phase C gate, merge, post
+default head, test count, all three plist paths and Dan's manual steps on #16,
+then close #16.
 
 After the Phase C gate: merge, post the final handoff on #16 (default branch
 head, test count, both plist paths, the manual steps for Dan), close #16.

@@ -6,6 +6,9 @@ import math
 import sqlite3
 import time
 
+from trader.radar.rates import K_STANDARD, K_MAJOR, expected_grids_per_hour
+from trader.radar.scoring import score_row
+
 
 HOUR_MS = 3_600_000
 DAY_MS = 24 * HOUR_MS
@@ -16,8 +19,6 @@ MAX_SNAPSHOT_AGE_MIN = 120
 MIN_LISTING_AGE_DAYS = 7
 STANDARD_STEP_PCT = 0.8
 MAJOR_STEP_PCT = 0.52
-K_STANDARD = 1.9
-K_MAJOR = 0.45
 SECTION_LIMIT = 8
 MAJORS = ("XBTUSDTM", "ETHUSDTM", "SOLUSDTM")
 
@@ -160,7 +161,6 @@ def analyse(database, asof_ms=None):
         age_days = (now - listed) / DAY_MS
         snapshot_age_min = max(0, (now - min(ticker_time, book_time)) / 60_000)
         step = MAJOR_STEP_PCT if turnover >= MAJOR_TURNOVER_USDT else STANDARD_STEP_PCT
-        coefficient = K_MAJOR if turnover >= MAJOR_TURNOVER_USDT else K_STANDARD
         atr_1h_pct, atr_4h_pct = atr_1h / price * 100, atr_4h / price * 100
         if direction in ("LONG", "TURNING-UP"):
             low, high = price - 1.5 * atr_4h, max(high_7d, price + 2 * atr_4h)
@@ -168,8 +168,8 @@ def analyse(database, asof_ms=None):
             low, high = min(low_7d, price - 2 * atr_4h), price + 1.5 * atr_4h
         else:
             low, high = low_7d, high_7d
-        expected = round(coefficient * atr_1h_pct / step, 2)
-        rows.append({
+        expected = round(expected_grids_per_hour(atr_1h_pct, step, turnover), 2)
+        row = {
             "symbol": symbol, "direction": direction, "price": price,
             "turnover_24h_usdt": turnover, "spread_pct": spread,
             "snapshot_age_min": snapshot_age_min,
@@ -185,7 +185,12 @@ def analyse(database, asof_ms=None):
             "passes_liquidity": turnover >= MIN_TURNOVER_USDT
                                 and spread <= MAX_SPREAD_PCT and age_days >= MIN_LISTING_AGE_DAYS
                                 and snapshot_age_min <= MAX_SNAPSHOT_AGE_MIN,
-        })
+        }
+        try:
+            row.update(score_row(row))
+        except ValueError:
+            continue
+        rows.append(row)
     rows.sort(key=lambda row: (-row["rank_score"], row["symbol"]))
     return {"schema_version": 1, "generated_at_ms": int(time.time() * 1000),
             "asof_ms": now, "constants": {"standard_step_pct": STANDARD_STEP_PCT,
