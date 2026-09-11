@@ -15,7 +15,7 @@ MAX_BODY = 2000000
 MAX_CANDLES = 200
 PATH_WEIGHTS = {'/api/v1/contracts/active': 3, '/api/v1/kline/query': 3,
                 '/api/v1/contract/funding-rates': 5, '/api/v1/ticker': 2,
-                '/api/v1/level2/depth20': 5}
+                '/api/v1/level2/depth20': 5, '/api/v1/allTickers': 5}
 
 
 class ProtocolError(ValueError):
@@ -92,11 +92,11 @@ class PublicClient:
         self.sleep, self.timeout = sleep, timeout
         self.deadline, self.clock = deadline, clock
 
-    def _get(self, path, params=None):
+    def _get(self, path, params=None, *, attempts=3):
         if path not in PATH_WEIGHTS:
             raise ValueError('public endpoint not allowed')
         url = BASE + path + ('?' + urlencode(params) if params else '')
-        for attempt in range(3):
+        for attempt in range(attempts):
             self._acquire(PATH_WEIGHTS[path])
             request = Request(url, headers={'Accept': 'application/json',
                                            'User-Agent': 'DansLab-public-data/2'}, method='GET')
@@ -113,7 +113,7 @@ class PublicClient:
                     raise ProtocolError('public HTTP request rejected') from None
             except (URLError, TimeoutError, OSError):
                 pass
-            if attempt < 2:
+            if attempt < attempts - 1:
                 delay = 2 ** attempt
                 if self.deadline is not None and self.clock() + delay >= self.deadline:
                     raise ProtocolError("public request deadline reached")
@@ -203,6 +203,27 @@ class PublicClient:
         if number(data['bestBidPrice']) > number(data['bestAskPrice']):
             raise ProtocolError('crossed ticker book')
         return data
+
+    def all_tickers(self):
+        """One anonymous request per daemon pass; retain only numeric quote fields."""
+        from trader.data.updater_runtime import epoch_ms
+        data = self._get('/api/v1/allTickers', attempts=1)
+        if not isinstance(data, list) or len(data) > 5000:
+            raise ProtocolError('invalid allTickers response')
+        result = {}
+        for item in data:
+            if not isinstance(item, dict):
+                raise ProtocolError('invalid allTickers row')
+            try:
+                symbol = symbol_name(item.get('symbol'))
+                at = epoch_ms(item.get('ts'))
+            except ValueError:
+                raise ProtocolError('invalid allTickers identity or timestamp') from None
+            row = dict(symbol=symbol, ts_ms=at, price=number(item.get('price'), positive=True))
+            if symbol in result:
+                raise ProtocolError('duplicate allTickers symbol')
+            result[symbol] = row
+        return list(result.values())
 
     def book(self, symbol):
         data = self._get('/api/v1/level2/depth20', {'symbol': symbol_name(symbol)})
