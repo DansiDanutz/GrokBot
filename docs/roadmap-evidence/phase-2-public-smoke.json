@@ -80,5 +80,11 @@
   },
   "quality_elapsed_seconds": 1.838,
   "collector_24h_started_at_ms": 1789091042275,
-  "continuation_automation": "complete-grokbot-phase-2-evidence"
+  "continuation_automation": "complete-grokbot-phase-2-evidence",
+  "collector_24h_original_attempt_status": "stopped_for_funding_range_correction; not completed acceptance",
+  "collector_restart": {
+    "source_commit": "4df123d62c5cb31dfc84478852c71d0285b49713",
+    "started_at_ms": 1789091731190,
+    "expected_end_ms": 1789178131190
+  }
 }

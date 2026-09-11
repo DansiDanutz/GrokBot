@@ -15,7 +15,7 @@ No Phase 2 PR is frozen for audit yet; measured data collection is outstanding.
 ## Implemented source
 
 Tasks 2.1–2.5 and P1 followups are implemented. Baseline: 38 Node + 279 Python = 317.
-Current: **38 Node + 289 paper + 102 trader = 429 tests**. No dependencies added.
+Current: **38 Node + 289 paper + 106 trader = 433 tests**. No dependencies added.
 [Per-commit gate transcripts](phase-2-gates.md) contain commands and output tails.
 Each original task has its own commit; review corrections are separate commits
 associated with that same task. Formatting changed no calculation syntax trees;
@@ -38,6 +38,7 @@ d7eaf09 feat(phase-2.2): bound parallel backfill time and disk usage
 177abea fix(phase-2.1): reserve SQLite writes before reading page state
 78155d8 fix(phase-2.3): refuse linked or foreign collector locks
 02163b3 fix(phase-2.4): reject historical labels on newer registry state
+4df123d fix(phase-2.3): accept successful empty funding windows
 ```
 
 P1-1 uses private, rebuildable per-archive event indexes. Full lifetime events are
@@ -65,8 +66,9 @@ and process manifests. It contains no credentials or account data.
 `acceptance.json` records exact commands, owned PIDs, source snapshot, database,
 fixed historical end, start timestamps and log paths. Verify both PID and command
 before controlling any process; never signal a PID solely from a stale file.
-The fixed source copy was exported from **02163b3** (trader sources only),
-so later documentation edits cannot change an in-flight collection.
+The backfill uses the fixed source copy exported from **02163b3** (trader
+sources only). The corrected collector uses **4df123d**, recorded explicitly
+on its job. Later documentation edits cannot change an in-flight collection.
 
 Initial jobs recorded there:
 
@@ -88,13 +90,21 @@ candle intervals; 207 symbols had all requested intervals. Both book and full ra
 contract/OI snapshots were recorded for 522 symbols. These are data omissions,
 not a software crash or authorization to synthesize bars.
 
-The real 24-hour collector is now running as `collector-24h`, started
-**2026-09-11 04:44:02 Europe/Bucharest**, with expected completion approximately
-**2026-09-12 04:44:02** plus bounded shutdown overhead. Its quality warnings must
+The first sustained collector attempt started at 04:44:02 Bucharest but its first
+incremental cycle failed all 522 funding streams. KuCoin returned successful
+`data: null` for empty funding windows; the client had required a list. Only that
+new collector was stopped, preserving its rows and logs under manifest job
+`collector-24h-failed-funding`. This attempt does **not** count as completed
+24-hour acceptance. Recorded public responses and a red-first updater regression
+support correction `4df123d`. No settlement rows or periods are fabricated.
+
+The corrected real 24-hour collector is now running as `collector-24h`, started
+**2026-09-11 04:55:31 Europe/Bucharest**, with expected completion approximately
+**2026-09-12 04:55:31** plus bounded shutdown overhead. Its quality warnings must
 be distinguished from failed requests and missed cycles; do not restart a full
 24-hour observation solely because a warning produces a nonzero CLI exit.
-An ephemeral `caffeinate -i -w` process is tied only to the owned collector PID
-to prevent idle sleep; no system power setting or LaunchAgent was changed.
+Ephemeral `caffeinate -i -w` processes are tied only to the owned collector and
+backfill PIDs to prevent idle sleep; no power setting or LaunchAgent was changed.
 
 [Public smoke evidence](phase-2-public-smoke.json) records the measured summary,
 initial real registry count 522 and a persisted majors quality report (15 passes,
@@ -106,7 +116,8 @@ An hourly Codex continuation is active: `complete-grokbot-phase-2-evidence`.
 It monitors only these owned jobs, stays quiet on normal progress, finishes the
 reports/PR once the observation period and feasible collection complete, then
 disables itself and holds for Claude's audit. Current source is pushed on the
-Phase 2 branch; CI at progress head `b284f5f` passed on Ubuntu and macOS.
+Phase 2 branch; CI at progress head `e38aaca` passed on Ubuntu and macOS.
+The final audit head must receive its own exact-head CI verification.
 No Phase 2 PR is open for audit yet. The market-data `.plist.example` remains
 source only, with no installed job.
 

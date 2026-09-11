@@ -620,3 +620,48 @@ npm run verify:secrets > /tmp/grok-phase2-24-time-secrets.log 2>&1
 
 Staged-secret gate passed (161 tracked files scanned).
 ```
+
+## 2.3 empty funding correction
+
+RED: `/tmp/grok-phase2-funding-null-red.log`: 4 tests, 1 failure and 1 error.
+The recorded successful null response failed parsing; the incremental updater
+reported failure instead of advancing its queried-window checkpoint.
+
+```sh
+npm run verify > /tmp/grok-phase2-funding-verify.log 2>&1
+```
+
+```text
+ℹ duration_ms 1012.64975
+
+> danslab-grokbot@0.1.0 test:paper
+> python3 -m unittest discover -s paper_grid -p "test_*.py" -q
+
+Replay rejected invalid input or unsafe/unavailable output; no runtime changes made.
+Replay rejected invalid input or unsafe/unavailable output; no runtime changes made.
+paper audit: ValueError
+----------------------------------------------------------------------
+Ran 289 tests in 6.589s
+
+OK
+
+> danslab-grokbot@0.1.0 test:trader
+> python3 -m unittest discover -s trader/tests -p "test_*.py" -q
+
+----------------------------------------------------------------------
+Ran 106 tests in 1.020s
+
+OK
+```
+
+```sh
+npm run verify:secrets > /tmp/grok-phase2-funding-secrets.log 2>&1
+```
+
+```text
+
+> danslab-grokbot@0.1.0 verify:secrets
+> node scripts/check-committed-secrets.mjs
+
+Staged-secret gate passed (169 tracked files scanned).
+```
