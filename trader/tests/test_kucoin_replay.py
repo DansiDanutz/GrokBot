@@ -46,6 +46,34 @@ class ReplayTests(unittest.TestCase):
         self.assertIsNone(result['metrics']['net'])
         self.assertEqual(result['ledger'], [])
 
+    def test_flat_cash_floor_reaches_radar_and_funded_entries_in_both_reader_paths(self):
+        for streamed in (False, True):
+            for minimum, expected in ((0, 1), (1, 0)):
+                with self.subTest(streamed=streamed, minimum=minimum):
+                    snapshot = MemorySnapshot()
+                    if streamed:
+                        snapshot.iter_records = snapshot.records
+                    row = candidate()
+                    row['setup']['preview']['profit_per_grid_min'] = .25
+                    with patch('trader.research.kucoin_replay.radar', return_value=
+                            dict(radar=[row], rejected=[], coverage={'observed': 1})) as mocked:
+                        result = run_window(snapshot, START, START+HOUR, {'minimum_grid_net_usdt': minimum})
+                    self.assertEqual(mocked.call_args.args[3]['setup']['minimum_grid_net_usdt'], minimum)
+                    self.assertEqual(len(result['bots']), expected)
+
+    def test_zero_history_decision_uses_actual_subunit_setup_cash(self):
+        from trader.research.kucoin_replay import _decision_summaries
+        from trader.research.kucoin_tracker import track_summary
+        from trader.strategies.kucoin_grid import GridConfig, create_bot
+        state = create_bot(GridConfig(pair='A', low=90, high=110, grids=10,
+                           direction='long', entry_price=100, quantity=.1, multiplier=.1), 100, START)
+        bot = dict(bot_id='A', active=True, state=state,
+                   latest=track_summary(state, START, START+HOUR, 1))
+        rows, _ = _decision_summaries(MemorySnapshot(), {'bots': [bot]}, START+HOUR)
+        self.assertEqual(rows[0]['completed_grids'], 0)
+        self.assertAlmostEqual(rows[0]['actual_net_usdt_per_grid'], .18692)
+        self.assertEqual(rows[0]['cash_estimate_basis'], 'modeled setup cash after both fill fees')
+
     def test_fixed_four_missing_start_price_has_explicit_reason_and_no_entries(self):
         fixtures = [dict(symbol=pair+'USDT', mode='long', range_low=90, range_high=110,
                          grids_buy=5, grids_sell=5, leverage=5, margin_usdt=1200,
@@ -290,6 +318,7 @@ class ReplayTests(unittest.TestCase):
         rows = [candidate('UNSAFE'), candidate('BELOW')]
         rows[0]['setup']['eligible'] = False
         rows[1]['setup']['preview']['profit_per_grid_min'] = .9
+        rows[1]['setup']['minimum_grid_net_usdt'] = 1
         with patch('trader.research.kucoin_replay.radar', return_value=dict(radar=rows, rejected=[], coverage={'observed': 2})):
             result = run_window(MemorySnapshot(), START, START+HOUR)
         self.assertEqual(result['bots'], [])

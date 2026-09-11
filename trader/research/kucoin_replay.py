@@ -14,7 +14,7 @@ from trader.research.kucoin_tracker import track_bars, track_summary
 from trader.strategies.grid_features import features
 from trader.strategies.grid_setup import build_setup
 from trader.strategies.grid_calibration import fixture_config
-from trader.strategies.kucoin_grid import create_bot, stop, net_equity, floating_pnl, FEE
+from trader.strategies.kucoin_grid import create_bot, stop, net_equity, floating_pnl, preview, FEE
 from trader.strategies.grid_types import GridConfig
 
 HOUR_MS = 3600000
@@ -153,7 +153,7 @@ def _fill_slots(snapshot, report, candidates, at, cash, rng, maximum=2):
     occupied = {bot['state'].config.pair for bot in report['bots'] if bot['active']}
     options = report['parameters']
     horizon = options.get('replacement_horizon_hours', options.get('horizon_hours', 6))
-    selection = select_funded_entries(rows, occupied, cash, maximum, horizon, random_order)
+    selection = select_funded_entries(rows, occupied, cash, maximum, horizon, random_order, options)
     report['entry_decisions'].append(dict(selection, asof_ms=at))
     for row in selection['selected']:
         price = _price(snapshot, row['pair'], at, row['setup']['entry'])
@@ -329,6 +329,9 @@ def _decision_summaries(snapshot, report, end):
         quote = {} if state.status in TERMINAL else _require_quote(snapshot, state.config.pair, end)
         summary = dict(bot['latest'], bot_id=bot['bot_id'], asof_ms=end,
                        capital_released=bool(bot.get('released')))
+        if summary.get('completed_grids') == 0:
+            summary.update(actual_net_usdt_per_grid=preview(state.config)['profit_per_grid_min'],
+                           cash_estimate_basis='modeled setup cash after both fill fees')
         rows.append(close_cost_summary(state, summary, quote))
         quotes[bot['bot_id']] = quote
     return rows, quotes

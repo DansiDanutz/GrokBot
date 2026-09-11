@@ -188,8 +188,12 @@ def _track_bot(snapshot, bot, asof, pairs, parameters):
                    running_pairs=pairs)
     quote = _quote(snapshot, bot['pair'], asof) if state.status not in TERMINAL else None
     decision = _decision(state, summary, bot['bot_id'], quote)
+    estimate = preview(state.config)
+    if summary.get('completed_grids') == 0:
+        decision.update(actual_net_usdt_per_grid=estimate['profit_per_grid_min'],
+                        cash_estimate_basis='modeled setup cash after both fill fees')
     modeled_close = state.stop_reason in ('stop_loss', 'liquidation')
-    return dict(bot_id=bot['bot_id'], form=bot, preview=preview(_config(bot)),
+    return dict(bot_id=bot['bot_id'], form=bot, preview=estimate,
                 tracker=summary, _decision=decision, ledger=ledger, hourly_history=history,
                 execution_cost_coverage=dict(complete=not modeled_close,
                     reason='intrabar bid/ask unavailable; modeled mark-price emergency close' if modeled_close
@@ -216,7 +220,7 @@ def _portfolio(tracked, candidates, parameters, available_cash):
 def _funded_decisions(scan, tracked, parameters, capital):
     horizon = parameters.get('replacement_horizon_hours', parameters.get('horizon_hours', 6))
     entries = select_funded_entries(scan['radar'], [bot['form']['pair'] for bot in tracked],
-                                    capital['available_cash_usdt'], 2, horizon)
+                                    capital['available_cash_usdt'], 2, horizon, parameters=parameters)
     proposed_pairs = {row['pair'] for row in entries['selected']}
     challengers = [row for row in scan['radar'] if row['pair'] not in proposed_pairs]
     portfolio = _portfolio(tracked, challengers, parameters, entries['remaining_cash'])

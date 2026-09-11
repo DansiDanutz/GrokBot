@@ -43,6 +43,27 @@ def candidate(pair='NEW', score=10):
 
 
 class OperatorTests(unittest.TestCase):
+    def test_flat_cash_floor_reaches_radar_and_funded_entries(self):
+        for minimum, expected in ((0, 1), (1, 0)):
+            with self.subTest(minimum=minimum):
+                row = candidate()
+                row['setup']['preview']['profit_per_grid_min'] = .25
+                with patch('trader.research.kucoin_operator.radar', return_value=
+                           dict(radar=[row], rejected=[], coverage={'observed': 1})) as mocked:
+                    result = operator_report(MemorySnapshot(), HOUR,
+                        funded(dict(schema_version=1, bots=[]), HOUR, 1200),
+                        {'minimum_grid_net_usdt': minimum})
+                self.assertEqual(mocked.call_args.args[3]['setup']['minimum_grid_net_usdt'], minimum)
+                self.assertEqual(len(result['recommended_forms']), expected)
+
+    def test_zero_history_operator_uses_actual_subunit_setup_cash(self):
+        from trader.research.kucoin_operator import _track_bot
+        bot = running()['bots'][0]
+        tracked = _track_bot(MemorySnapshot(), bot, HOUR, [bot['pair']], {})
+        self.assertEqual(tracked['tracker']['completed_grids'], 0)
+        self.assertAlmostEqual(tracked['_decision']['actual_net_usdt_per_grid'], .8686)
+        self.assertEqual(tracked['_decision']['cash_estimate_basis'], 'modeled setup cash after both fill fees')
+
     def test_running_document_rejects_unknown_fields_credentials_and_bad_margin(self):
         for document in [dict(running(), api_key='not-a-credential'),
                          running(used_margin=999), running(start_ms=-1),

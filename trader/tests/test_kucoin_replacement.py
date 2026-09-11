@@ -125,7 +125,7 @@ class PortfolioReplacementTests(unittest.TestCase):
     def test_no_unsafe_subtarget_tied_or_running_challenger(self):
         choices = [policy_candidate('GOOD', 30), policy_candidate('TIE', 3),
                    policy_candidate('BAD', 30, eligible=False),
-                   policy_candidate('LOW', 30, preview={'profit_per_grid_min': .99})]
+                   policy_candidate('LOW', 30, minimum_grid_net_usdt=1, preview={'profit_per_grid_min': .99})]
         result = self.decide([policy_current('GOOD', 10), policy_current('WORST', 3)], choices)
         self.assertEqual(result['action'], 'keep')
         self.assertEqual(len(result['rejected_candidates']), 4)
@@ -206,3 +206,79 @@ class FundedEntryTests(unittest.TestCase):
         full = self.select([policy_candidate('A'), policy_candidate('B'), policy_candidate('C')], [], 2400)
         self.assertEqual(len(full['selected']), 2)
         self.assertEqual(full['remaining_cash'], 0)
+
+
+class PositiveNetPolicyTests(unittest.TestCase):
+    def test_candidate_accepts_only_known_strictly_positive_cash_net(self):
+        from trader.research.kucoin_replacement import candidate_economics
+        for floor, accepted in ((.25, True), (1, True), (0, False), (-.1, False), (None, False)):
+            with self.subTest(floor=floor):
+                result = candidate_economics(policy_candidate(preview={'profit_per_grid_min': floor}))
+                self.assertEqual(result['eligible'], accepted)
+
+    def test_declared_and_explicit_requirements_cannot_contradict_or_weaken_each_other(self):
+        from trader.research.kucoin_replacement import candidate_economics
+        for changes, parameters in (({'minimum_grid_net_usdt': 1}, None),
+                ({'minimum_grid_net_usdt': 0, 'target_profit_per_grid': 1}, None),
+                ({'minimum_grid_net_usdt': 0}, {'minimum_grid_net_usdt': 1}),
+                ({'minimum_grid_net_usdt': None}, None), ({'target_profit_per_grid': -1}, None)):
+            with self.subTest(changes=changes, parameters=parameters):
+                row = policy_candidate(preview={'profit_per_grid_min': .25}, **changes)
+                self.assertFalse(candidate_economics(row, parameters=parameters)['eligible'])
+        row = policy_candidate(minimum_grid_net_usdt=1, target_profit_per_grid=1)
+        self.assertTrue(candidate_economics(row, parameters={'minimum_grid_net_usdt': 1})['eligible'])
+
+    def test_funded_entries_use_positive_cash_and_explicit_floor(self):
+        from trader.research.kucoin_replacement import select_funded_entries
+        row = policy_candidate(preview={'profit_per_grid_min': .25})
+        self.assertEqual(len(select_funded_entries([row], available_cash=1200)['selected']), 1)
+        legacy = select_funded_entries([row], available_cash=1200, parameters={'minimum_grid_net_usdt': 1})
+        self.assertEqual(legacy['selected'], [])
+
+    def test_positive_subunit_challenger_can_recover_switch_costs(self):
+        from trader.research.kucoin_replacement import decide_portfolio_replacement
+        row = policy_candidate(score=30, preview={'profit_per_grid_min': .25})
+        incumbent = policy_current('OLD', 1)
+        result = decide_portfolio_replacement([incumbent], [row], {'available_cash': 100})
+        self.assertEqual(result['action'], 'replace')
+        legacy = decide_portfolio_replacement([incumbent], [row],
+                    {'available_cash': 100, 'minimum_grid_net_usdt': 1})
+        self.assertEqual(legacy['action'], 'keep')
+
+    def test_no_completed_history_never_invents_unit_income(self):
+        from trader.research.kucoin_replacement import _current_economics, decide_portfolio_replacement
+        row = policy_current('OLD', 1, completed_grids=0, grid_net_profit=0)
+        result = decide_portfolio_replacement([row], [policy_candidate(score=50)], {'available_cash': 100})
+        self.assertEqual(result['action'], 'keep')
+        self.assertIn('per-grid income', result['reason'])
+        self.assertIsNone(_current_economics(row, 6))
+        supplied = dict(row, actual_net_usdt_per_grid=.25)
+        estimate = _current_economics(supplied, 6)
+        self.assertEqual(estimate['current_net_per_grid'], .25)
+        self.assertEqual(estimate['current_projected_income'], 1.5)
+        self.assertIn('supplied actual', estimate['profit_basis'])
+        nominal = dict(row, target_profit_per_grid=1)
+        self.assertIsNone(_current_economics(nominal, 6))
+
+    def test_unknown_income_does_not_mask_mandatory_risk_warning(self):
+        from trader.research.kucoin_replacement import decide_portfolio_replacement
+        for status in ('running', 'liquidated'):
+            with self.subTest(status=status):
+                row = policy_current('RISK', 0, completed_grids=0, grid_net_profit=0,
+                                     status=status, distance_liquidation_pct=4)
+                result = decide_portfolio_replacement([row], [], {'available_cash': 100})
+                self.assertEqual(result['action'], 'emergency')
+                self.assertEqual(result['emergency_actions'][0]['bot_id'], 'RISK')
+                self.assertIsNone(result['replacement'])
+
+    def test_actual_cash_prior_is_visible_and_completed_mean_takes_precedence(self):
+        from trader.research.kucoin_replacement import decide_portfolio_replacement
+        for count, grid_net, expected, basis in ((0, 0, .25, 'supplied actual'),
+                                                (4, 2, .5, 'observed mean')):
+            with self.subTest(count=count):
+                row = policy_current('OLD', 1, completed_grids=count, grid_net_profit=grid_net,
+                                     actual_net_usdt_per_grid=.25)
+                result = decide_portfolio_replacement([row], [policy_candidate(score=10)],
+                                                      {'available_cash': 100})
+                self.assertEqual(result['comparison']['current_net_per_grid'], expected)
+                self.assertIn(basis, result['comparison']['current_profit_basis'])

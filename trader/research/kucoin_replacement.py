@@ -1,5 +1,6 @@
 """Pure hourly switch decisions; monetary outputs are signed USDT cash effects."""
 import math
+from trader.strategies.grid_setup import minimum_grid_net_usdt
 
 HOUR_MS = 3_600_000
 
@@ -104,7 +105,17 @@ def _finite_number(value):
     return type(value) in (int, float) and math.isfinite(value)
 
 
-def candidate_economics(candidate, horizon_hours=6):
+def _cash_requirement(form, parameters):
+    declared = [minimum_grid_net_usdt({'minimum_grid_net_usdt': form[key]})
+                for key in ('minimum_grid_net_usdt', 'target_profit_per_grid') if key in form]
+    if parameters is not None and 'minimum_grid_net_usdt' in parameters:
+        declared.append(minimum_grid_net_usdt(parameters))
+    if declared and any(value != declared[0] for value in declared):
+        raise ValueError('contradictory minimum_grid_net_usdt requirements')
+    return declared[0] if declared else 0.
+
+
+def candidate_economics(candidate, horizon_hours=6, parameters=None):
     """Transparent forecast using the crossing proxy, net floor and entry budget."""
     form = candidate.get('setup', {})
     score = candidate.get('score', candidate.get('expected_gph'))
@@ -112,18 +123,23 @@ def candidate_economics(candidate, horizon_hours=6):
     fee = form.get('opening_fee_budget')
     if fee is None and all(key in form for key in ('quantity', 'grids', 'entry')):
         fee = form['quantity'] * form['grids'] * form['entry'] * .0006
-    reason = None
-    if candidate.get('eligible', True) is not True or form.get('eligible') is not True:
+    try:
+        minimum, reason = _cash_requirement(form, parameters), None
+    except ValueError as error:
+        minimum, reason = None, str(error)
+    if reason is not None:
+        pass
+    elif candidate.get('eligible', True) is not True or form.get('eligible') is not True:
         reason = 'setup is not eligible and safe'
     elif (form.get('used_margin'), form.get('reserved_margin'), form.get('leverage')) != (1000, 200, 5):
         reason = 'setup must use 1000 margin plus 200 reserve at exactly 5x'
-    elif not _finite_number(floor) or floor < 1:
-        reason = 'net profit floor must be known and at least 1 USDT'
+    elif not _finite_number(floor) or floor <= 0 or floor < minimum:
+        reason = 'actual fee-net grid profit must be known, strictly positive and meet the declared cash floor'
     elif not _finite_number(score) or score <= 0 or not _finite_number(fee) or fee < 0:
         reason = 'positive crossing rate and nonnegative entry fee budget must be known'
     gross = score*floor*horizon_hours if reason is None else None
     return dict(eligible=reason is None, reason=reason, horizon_hours=horizon_hours,
-                expected_gph=score, net_profit_floor=floor, opening_fee_budget=fee,
+                expected_gph=score, net_profit_floor=floor, minimum_grid_net_usdt=minimum, opening_fee_budget=fee,
                 projected_grid_income=gross, projected_net_income=None if gross is None else gross-fee,
                 forecast_basis='crossing proxy times per-grid net floor; not observed completed grids')
 
@@ -131,14 +147,15 @@ def candidate_economics(candidate, horizon_hours=6):
 def _current_economics(row, horizon):
     rate, cost = _rate(row), _switch_cost(row)
     completed, grid_net = row.get('completed_grids', 0), row.get('grid_net_profit', 0)
-    profit = grid_net/completed if completed and _finite_number(grid_net) else 1.
+    observed = _finite_number(completed) and completed > 0 and _finite_number(grid_net)
+    profit = grid_net/completed if observed else row.get('actual_net_usdt_per_grid') if completed == 0 else None
     if rate is None or not cost['known'] or not _finite_number(profit):
         return None
     income = rate*profit*horizon
     return dict(current_realized_gph=rate, current_net_per_grid=profit,
                 current_projected_income=income, switch_cost=cost,
                 worst_score=income+cost['net_realized_on_close'],
-                profit_basis='observed mean grid net' if completed else '1 USDT target; no completed history')
+                profit_basis='observed mean grid net' if observed else 'supplied actual setup cash estimate; no completed history')
 
 
 def _emergencies(currents):
@@ -153,13 +170,14 @@ def _emergencies(currents):
 
 
 def _comparison(current, candidate, economics, horizon, options):
-    proposed = candidate_economics(candidate, horizon)
+    proposed = candidate_economics(candidate, horizon, options)
     if not proposed['eligible']:
         return None, proposed['reason']
     income, cost = economics['current_projected_income'], economics['switch_cost']
     loss = max(0, -cost['net_realized_on_close'])
     advantage = proposed['projected_net_income']-loss-income
     result = dict(horizon_hours=horizon, current_projected_income=income,
+        current_net_per_grid=economics['current_net_per_grid'], current_profit_basis=economics['profit_basis'],
         current_realized_gph=economics['current_realized_gph'], challenger_expected_gph=proposed['expected_gph'],
         challenger_projected_income=proposed['projected_grid_income'], opening_fee_budget=proposed['opening_fee_budget'],
         close_loss_cost=loss, net_advantage_usdt=advantage,
@@ -231,7 +249,7 @@ def decide_portfolio_replacement(currents, radar, parameters=None):
     if result['emergency_actions']:
         result.update(action='emergency', reason='resolve liquidation emergency before an ordinary replacement')
     elif not evaluated or any(value is None for row, value in evaluated):
-        result['reason'] = 'incumbent rates or executable close costs are unknown'
+        result['reason'] = 'incumbent rates, per-grid income or executable close costs are unknown'
     else:
         evaluated.sort(key=lambda item: (item[0].get('status') not in ('stopped', 'liquidated'),
                                          item[1]['worst_score'], item[0]['bot_id']))
@@ -248,7 +266,7 @@ def decide_portfolio_replacement(currents, radar, parameters=None):
 
 
 
-def _entry_ranking(candidates, occupied, horizon_hours):
+def _entry_ranking(candidates, occupied, horizon_hours, parameters):
     seen, accepted, rejected = set(), [], []
     for row in candidates:
         pair = row['pair']
@@ -256,7 +274,7 @@ def _entry_ranking(candidates, occupied, horizon_hours):
             rejected.append(dict(pair=pair, reason='already occupied or duplicate candidate'))
             continue
         seen.add(pair)
-        estimate = candidate_economics(row, horizon_hours)
+        estimate = candidate_economics(row, horizon_hours, parameters)
         if not estimate['eligible'] or estimate['projected_net_income'] <= 0:
             rejected.append(dict(pair=pair, reason=estimate['reason'] or 'projected income does not cover entry fee budget'))
         else:
@@ -265,7 +283,7 @@ def _entry_ranking(candidates, occupied, horizon_hours):
 
 
 def select_funded_entries(candidates, occupied_pairs=(), available_cash=None, slots=2,
-                          horizon_hours=6, random_order=False):
+                          horizon_hours=6, random_order=False, parameters=None):
     """Rank research opportunities separately from funded startup/vacancy forms.
 
     Caller supplies fresh available cash, and reserves ``required_cash`` before
@@ -276,7 +294,7 @@ def select_funded_entries(candidates, occupied_pairs=(), available_cash=None, sl
     if not _finite_number(horizon_hours) or horizon_hours <= 0:
         raise ValueError('positive forecast horizon required')
     occupied = set(occupied_pairs)
-    accepted, rejected = _entry_ranking(candidates, occupied, horizon_hours)
+    accepted, rejected = _entry_ranking(candidates, occupied, horizon_hours, parameters)
     ranked = sorted(accepted, key=lambda row: (-row['economics']['projected_net_income'], -row['economics']['expected_gph'], row['pair']))
     ordered = accepted if random_order else ranked
     known = _finite_number(available_cash) and available_cash >= 0
