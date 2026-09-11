@@ -38,6 +38,30 @@ def scan(records,asof,running_pairs=(),parameters=None):
 
 
 class IncomeChartReplayTests(unittest.TestCase):
+    def test_compact_research_storage_preserves_execution_and_checkpoint_semantics(self):
+        from trader.research.replay_evidence import compact_scan, compact_form
+        def rich_scan(*args,**kwargs):
+            result=scan(*args,**kwargs)
+            result['strategy']='income_chart_v3'
+            for row in result['radar']:
+                row['setup']['search']={'evaluated_count':199,'rejected_counts':[
+                    {'grids':count,'reason':'fixture rejection','diagnostics':'unused detail '*300}
+                    for count in range(2,201)]}
+            return result
+        with patch('trader.research.kucoin_replay.radar',side_effect=rich_scan), \
+             patch('trader.research.kucoin_replay.compact_scan',wraps=compact_scan,create=True) as scan_storage, \
+             patch('trader.research.kucoin_replay.compact_form',wraps=compact_form,create=True) as form_storage:
+            small=run_window(ChartSnapshot(),START,START+2*HOUR,dict(strategy='income_chart_v3'))
+        self.assertTrue(scan_storage.called)
+        self.assertTrue(form_storage.called)
+        with patch('trader.research.kucoin_replay.radar',side_effect=rich_scan), \
+             patch('trader.research.kucoin_replay.compact_scan',side_effect=copy.deepcopy,create=True), \
+             patch('trader.research.kucoin_replay.compact_form',side_effect=copy.deepcopy,create=True):
+            full=run_window(ChartSnapshot(),START,START+2*HOUR,dict(strategy='income_chart_v3'))
+        for key in ('ledger','partial_metrics','equity_timeline','capital_events','switches','entry_decisions','hourly_tracker'):
+            self.assertEqual(small[key],full[key],key)
+        self.assertLess(len(json.dumps(small['hourly_radar'])),len(json.dumps(full['hourly_radar']))/3)
+
     def test_missing_challenger_observation_cannot_close_the_incumbent(self):
         from trader.research.kucoin_replay import _execute_portfolio_switch, _config
         from trader.strategies.kucoin_grid import create_bot

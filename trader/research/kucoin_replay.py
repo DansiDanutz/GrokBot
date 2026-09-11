@@ -11,6 +11,7 @@ from time import perf_counter
 from trader.research.kucoin_radar import radar, normalize_market, crossing_score
 from trader.research.kucoin_replacement import (decide_replacement, decide_portfolio_replacement, select_funded_entries)
 from trader.research.kucoin_tracker import track_bars, track_summary
+from trader.research.replay_evidence import compact_scan, compact_form
 from trader.strategies.grid_features import features
 from trader.strategies.grid_setup import build_setup
 from trader.strategies.grid_calibration import fixture_config
@@ -116,7 +117,8 @@ def _open(report, candidate, at, cash, price=None, config=None):
     if report['parameters'].get('strategy') == 'income_chart_v3':
         bot.update(expected=candidate.get('expected_gph', candidate['setup'].get('expected_gph')),
             expected_start_income_per_hour=candidate.get('grid_income_per_hour',
-                candidate['setup'].get('grid_income_per_hour')), funding_modeled_complete=True)
+                candidate['setup'].get('grid_income_per_hour')), funding_modeled_complete=True,
+            form=compact_form(candidate['setup']))
     report['bots'].append(bot)
     _append_events(report, bot, [asdict(event) for event in state.fill_events])
     _mark(report, bot, at, net_equity(state, state.price))
@@ -142,7 +144,7 @@ def _scan(snapshot, report, at, options, allowed=None):
         records = snapshot.records(at, pairs=allowed)
         records = [dict(row, bars=row.get('bars', row.get('bars7days', []))) for row in records]
         result = radar(records, at, running, radar_options)
-    report['hourly_radar'].append(result)
+    report['hourly_radar'].append(compact_scan(result) if options.get('strategy') == 'income_chart_v3' else result)
     if not result.get('coverage', {}).get('observed', len(records)):
         _gap(report, 'no historical market membership observations at ' + str(at))
     for row in result.get('rejected', []):
