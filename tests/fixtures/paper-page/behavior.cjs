@@ -62,3 +62,6 @@ assert.ok(Math.abs(run('gridLadder({range_low:1.4,range_high:2,grids:70,empty_li
 assert.equal(run('openingPrice({opening_price:1.5468,notional_usdt:1000,leverage:5,grids:70,contracts_per_line:39})'),1.5468);
 assert.equal(run('gridLadder({order_ladder:[{line:1,price:1.56,side:-1,book:1}]})[0].side'),'SELL');
 assert.equal(run('EVENT_TYPES.has("RESERVE")'),true);
+
+assert.equal(run("px(.00000001)"),"0.00000001");
+assert.notEqual(run("px(.00000291)"),run("px(.00000304)"));
