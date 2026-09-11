@@ -80,6 +80,46 @@ class PublicSnapshotTests(unittest.TestCase):
         self.rows.append(dict(id=audit['id'], summary=SECRET, html_url='/Users/private/.env'))
         return audit
 
+    def test_paper_landing_and_control_are_distinct_with_missing_snapshot(self):
+        self.export()
+        stage = self.root / 'site'
+        self.assertEqual((stage / 'index.html').read_bytes(),
+                         (stage / 'paper/index.html').read_bytes())
+        self.assertEqual((stage / 'control/index.html').read_bytes(), self.index.read_bytes())
+        self.assertTrue((stage / 'radar/index.html').is_file())
+        snapshot = json.loads((stage / 'data/autopilot.json').read_text())
+        self.assertEqual(snapshot['status'], 'unavailable')
+        self.assertEqual(snapshot['published_at_ms'], AT * 1000)
+
+    def test_autopilot_is_sanitized_and_publication_time_is_not_input_controlled(self):
+        from trader.autopilot import policy
+        value = policy.snapshot(policy.new_state(1000), 2000,
+            dict(heartbeat_ms=2000, tick_age_s=10, kucoin_ok=True, radar_age_min=1))
+        value.update(private=SECRET, published_at_ms=7)
+        source = self.root / 'autopilot.json'
+        source.write_text(json.dumps(value))
+        before = source.read_bytes()
+        self.export(autopilot_path=source)
+        published = json.loads((self.root / 'site/data/autopilot.json').read_text())
+        self.assertEqual(published['equity'], 10000)
+        self.assertEqual(published['published_at_ms'], AT * 1000)
+        self.assertEqual(published['generated_at_ms'], 2000)
+        self.assertNotIn(SECRET, json.dumps(published))
+        self.assertEqual(source.read_bytes(), before)
+
+    def test_explicit_snapshot_missing_oversized_or_symlink_fails_closed(self):
+        target = self.root / 'missing.json'
+        with self.assertRaises(ValueError):
+            self.export(autopilot_path=target)
+        target.write_text(' ' * (2 * 1024 * 1024 + 1))
+        with self.assertRaises(ValueError):
+            self.export(autopilot_path=target)
+        target.unlink()
+        target.symlink_to(self.runtime / 'experiment.json')
+        with self.assertRaises(ValueError):
+            self.export(autopilot_path=target)
+        self.assertFalse((self.root / 'site').exists())
+
     def test_audit_discloses_only_allowlisted_boundary_conventions(self):
         for boundary in ('[start, end)', '(start, end]', None, SECRET, ['invalid']):
             with self.subTest(boundary=boundary):
@@ -100,7 +140,7 @@ class PublicSnapshotTests(unittest.TestCase):
     def test_explicit_dto_excludes_private_and_provider_data(self):
         metadata = self.export()
         text = self.contents()
-        for banned in (SECRET, '/Users/', '123456789', 'burst_ratio', 'long_share', 'api_key', '<script>'):
+        for banned in (SECRET, '/Users/', '123456789', 'burst_ratio', 'long_share', 'api_key', '<script>alert(1)</script>'):
             self.assertNotIn(banned, text)
         report = json.loads((self.root / 'site/data/report.json').read_text())
         self.assertEqual(report['mode'], 'paper')
@@ -108,7 +148,7 @@ class PublicSnapshotTests(unittest.TestCase):
         self.assertEqual(report['accounts']['baseline']['equity'], 1000)
         self.assertEqual(report['coinglass']['symbols']['BTCUSDTM'],
                          dict(eligible=True, reason='liquidation_filter_pass'))
-        self.assertEqual(metadata['file_count'], 5)
+        self.assertEqual(metadata['file_count'], 10)
         self.assertIsNone(report['health']['worker_alive'])
 
     def test_health_is_allowlisted_not_exception_text(self):
@@ -161,7 +201,8 @@ class PublicSnapshotTests(unittest.TestCase):
             (self.runtime / 'audits' / (audit['id'] + ext)).write_text(SECRET + '<script>evil</script>')
         self.export()
         self.assertNotIn(SECRET, self.contents())
-        self.assertNotIn('<script>', self.contents())
+        for archive in (self.root / 'site/reports').glob('*'):
+            self.assertNotIn('<script>', archive.read_text())
         value = json.loads((self.root / 'site/reports' / (audit['id'] + '.json')).read_text())
         self.assertEqual(value['accounts']['baseline']['equity_change'], 1.5)
         self.assertEqual(value['findings'], [dict(subject='Coverage', severity='info')])

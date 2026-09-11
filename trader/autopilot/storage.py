@@ -251,10 +251,16 @@ class EventLog:
             os.close(directory_fd)
 
 
-def read_events(directory, since_ms, limit=500):
-    """Return earliest events after since, at most500; reject oversized daily files."""
+def read_events(directory, since_ms, limit=500, *, after_event_id=None):
+    """Return at most 500 events after a timestamp or composite timestamp/ID cursor.
+
+    Omitted after_event_id preserves the original strictly-newer timestamp query.
+    Daily files remain size bounded and validated before public projection.
+    """
     if type(since_ms) is not int or since_ms < 0 or type(limit) is not int or not 1 <= limit <= 500:
         raise ValueError("invalid event query bounds")
+    if after_event_id is not None and (type(after_event_id) is not int or after_event_id < 0):
+        raise ValueError("invalid event cursor")
     directory = _safe(directory)
     paths = sorted(directory.glob("events-????-??-??.jsonl"))
     active = directory / "events.jsonl"
@@ -266,6 +272,9 @@ def read_events(directory, since_ms, limit=500):
         for path in paths:
             for line in _read(path, MAX_BYTES).splitlines():
                 event = validate_event(_decode(line))
-                if event["ts_ms"] > since_ms:
+                if (event["ts_ms"] > since_ms or
+                        (after_event_id is not None and event["ts_ms"] == since_ms
+                         and event.get("event_id", 0) > after_event_id)):
                     yield event
-    return heapq.nsmallest(limit, rows(), key=lambda event: event["ts_ms"])
+    return heapq.nsmallest(limit, rows(),
+                          key=lambda event: (event["ts_ms"], event.get("event_id", 0)))
