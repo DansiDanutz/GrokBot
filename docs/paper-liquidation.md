@@ -3,8 +3,8 @@
 All directions use 1,000 USDT deployed margin at 5×, plus a separately allocated
 200 USDT reserve. Five bots allocate 6,000 USDT from the 10,000 USDT account,
 not 30,000 USDT of cash. Reserve is not leveraged or automatically transferred.
-The paper engine stops at the first observed range-boundary hit; it also retains
-the 120 USDT net-loss trigger. Both close on that update at the observed price.
+The paper engine stops at the first observed range-boundary hit; the stop-loss is the adverse range boundary, with no separate 120 USDT
+net-loss trigger. Range hits close on that update at the observed price.
 A gap or missing feed can cross these thresholds; no absence-of-liquidation claim
 is made. Existing nonmatching profiles close as PROFILE_UPDATE before ordinary
 Core admission opens replacement bots. Historical fees and losses remain.

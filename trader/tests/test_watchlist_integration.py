@@ -45,7 +45,7 @@ class WatchlistIntegrationTests(unittest.TestCase):
         for event in events:
             validate_event(event)
         wrapper = next(w for w in state['open_bots'] if w['engine']['symbol'] == victim)
-        wrapper['signals'] = ['STOP_LOSS']
+        wrapper['signals'] = ['RANGE_BREAK']
         closed, _ = policy.decide(state, report, {}, 2*HOUR+1, str(2*HOUR))
         closed['cooldowns'] = {}
         again, _ = policy.decide(closed, report, {}, 2*HOUR+2, str(2*HOUR))
@@ -74,9 +74,9 @@ class WatchlistIntegrationTests(unittest.TestCase):
         unchanged, _ = policy.decide(state, old, {}, 2*HOUR+1, str(HOUR))
         self.assertEqual(unchanged['closed_bots'], [])
         self.assertEqual([w['engine']['symbol'] for w in unchanged['open_bots']], ['A'])
-        unchanged['open_bots'][0]['signals'] = ['STOP_LOSS']
+        unchanged['open_bots'][0]['signals'] = ['RANGE_BREAK']
         closed, _ = policy.decide(unchanged, old, {}, 2*HOUR+2, str(HOUR))
-        self.assertEqual(closed['closed_bots'][0]['engine']['reason'], 'STOP_LOSS')
+        self.assertEqual(closed['closed_bots'][0]['engine']['reason'], 'RANGE_BREAK')
 
     def test_watchlist_events_reject_unexpected_text(self):
         event = dict(ts_ms=0, bot_id=0, type='PROMOTE', symbol='A', score=80,

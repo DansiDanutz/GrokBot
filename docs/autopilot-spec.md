@@ -371,3 +371,23 @@ verified public maintenance-margin parameters, show their freshness and fee
 assumptions, and report both current margin and the additional-reserve scenario.
 Missing parameters or flat inventory must be labeled explicitly. A range stop
 does not guarantee avoiding liquidation. No real exchange orders are authorized.
+
+
+## Dan clarification — stop-loss is the range boundary
+
+Supersedes the separate 12% loss trigger in the paper autopilot: Long stop-loss
+is range_low, Short stop-loss is range_high, and Neutral exits at either edge.
+Any first observed touch or crossing of a range edge closes on that update;
+the opposite edge remains a range exit. No range is widened after entry.
+
+New radar setups must identify a usable structural level from completed hourly
+candles over the last 7 days. Confirm pivots with two candles either side; cluster
+levels within min(0.25 ATR1h, 0.5% price), require two distinct tests separated
+by at least 3 hours. Pick nearest confirmed support below price and resistance
+above price. Two completed closes beyond an old resistance/support allow the
+level to change roles. Long uses support as its lower bound, Short resistance as its upper,
+Neutral requires both. Unverified rows cannot open a bot; legacy snapshots missing
+the verification flag cannot admit new bots. This is a deterministic heuristic,
+not a claim that support cannot break. RAY 1.40 is Dan’s observed example, not a
+universal hard-coded limit. Existing bots retain their entered ranges and are
+labeled legacy until they close normally.

@@ -22,7 +22,10 @@
         "listing_age_days": 30,
         "snapshot_age_min": 0,
         "position_7d": 0.5,
-        "change_24h_pct": 0
+        "change_24h_pct": 0,
+        "range_verified": 1,
+        "support": 90,
+        "resistance": 110
       },
       {
         "price": 100,
@@ -45,7 +48,10 @@
         "listing_age_days": 30,
         "snapshot_age_min": 0,
         "position_7d": 0.5,
-        "change_24h_pct": 0
+        "change_24h_pct": 0,
+        "range_verified": 1,
+        "support": 90,
+        "resistance": 110
       }
     ],
     "turning_up": [
@@ -70,7 +76,10 @@
         "listing_age_days": 30,
         "snapshot_age_min": 0,
         "position_7d": 0.5,
-        "change_24h_pct": 0
+        "change_24h_pct": 0,
+        "range_verified": 1,
+        "support": 90,
+        "resistance": 110
       }
     ],
     "long": [
@@ -95,7 +104,10 @@
         "listing_age_days": 30,
         "snapshot_age_min": 0,
         "position_7d": 0.5,
-        "change_24h_pct": 0
+        "change_24h_pct": 0,
+        "range_verified": 1,
+        "support": 90,
+        "resistance": 110
       }
     ],
     "turning_down": [
@@ -120,7 +132,10 @@
         "listing_age_days": 30,
         "snapshot_age_min": 0,
         "position_7d": 0.5,
-        "change_24h_pct": 0
+        "change_24h_pct": 0,
+        "range_verified": 1,
+        "support": 90,
+        "resistance": 110
       }
     ],
     "short": [
@@ -145,7 +160,10 @@
         "listing_age_days": 30,
         "snapshot_age_min": 0,
         "position_7d": 0.5,
-        "change_24h_pct": 0
+        "change_24h_pct": 0,
+        "range_verified": 1,
+        "support": 90,
+        "resistance": 110
       }
     ]
   },
@@ -171,7 +189,10 @@
       "listing_age_days": 30,
       "snapshot_age_min": 0,
       "position_7d": 0.5,
-      "change_24h_pct": 0
+      "change_24h_pct": 0,
+      "range_verified": 1,
+      "support": 90,
+      "resistance": 110
     },
     {
       "price": 100,
@@ -194,7 +215,10 @@
       "listing_age_days": 30,
       "snapshot_age_min": 0,
       "position_7d": 0.5,
-      "change_24h_pct": 0
+      "change_24h_pct": 0,
+      "range_verified": 1,
+      "support": 90,
+      "resistance": 110
     },
     {
       "price": 100,
@@ -217,7 +241,10 @@
       "listing_age_days": 30,
       "snapshot_age_min": 0,
       "position_7d": 0.5,
-      "change_24h_pct": 0
+      "change_24h_pct": 0,
+      "range_verified": 1,
+      "support": 90,
+      "resistance": 110
     },
     {
       "price": 100,
@@ -240,7 +267,10 @@
       "listing_age_days": 30,
       "snapshot_age_min": 0,
       "position_7d": 0.5,
-      "change_24h_pct": 0
+      "change_24h_pct": 0,
+      "range_verified": 1,
+      "support": 90,
+      "resistance": 110
     },
     {
       "price": 100,
@@ -263,7 +293,10 @@
       "listing_age_days": 30,
       "snapshot_age_min": 0,
       "position_7d": 0.5,
-      "change_24h_pct": 0
+      "change_24h_pct": 0,
+      "range_verified": 1,
+      "support": 90,
+      "resistance": 110
     },
     {
       "price": 100,
@@ -286,7 +319,10 @@
       "listing_age_days": 30,
       "snapshot_age_min": 0,
       "position_7d": 0.5,
-      "change_24h_pct": 0
+      "change_24h_pct": 0,
+      "range_verified": 1,
+      "support": 90,
+      "resistance": 110
     }
   ]
 }

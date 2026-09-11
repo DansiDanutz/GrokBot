@@ -52,3 +52,5 @@ paper watchlist will render these reasons; the current public radar DTO is uncha
 The shared k(step) implementation lives in `trader/radar/rates.py`: the standard
 coefficient is `1.9 * sqrt(step_pct / 0.8)`; at turnover >=50M it is
 `0.45 * sqrt(step_pct / 0.52)`. The table above shows the unchanged base-step values.
+
+Entry boundaries use repeated pivots in the last seven days of completed hourly candles: two candles confirm each pivot, two distinct tests at least three hours apart confirm a cluster, and clustering tolerance is the smaller of 0.25 hourly ATR and 0.5% of price. The nearest confirmed support below price anchors Long; resistance above price anchors Short; Neutral requires both. Two completed closes beyond a former resistance/support allow it to change roles. Setups without the required level are withheld. These are modeled levels, not a guarantee of support. Entered boundaries remain fixed; the paper bot exits on the first observed boundary touch, including a loss.
