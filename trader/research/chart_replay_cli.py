@@ -17,6 +17,7 @@ import sys
 import tempfile
 import zlib
 
+from trader.research import kucoin_cli as offline_cli
 from trader.research.kucoin_cli import _safe_location, _read_json, _encoded, _asof, _wrap_snapshot, load_funding_history
 from trader.research.kucoin_portfolio import ROOT, _registered
 from trader.research.kucoin_snapshot import Snapshot, SnapshotError
@@ -33,11 +34,11 @@ MAX_EXPANDED = 2*1024*1024*1024
 def _source_revision():
     revision = subprocess.run(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'],
         check=True, capture_output=True, text=True).stdout.strip()
-    changed = subprocess.run(['git', '-C', str(ROOT), 'diff', '--quiet', 'HEAD', '--', 'trader'], capture_output=True)
-    untracked = subprocess.run(['git', '-C', str(ROOT), 'ls-files', '--others', '--exclude-standard', '--', 'trader'],
+    changed = subprocess.run(['git', '-C', str(ROOT), 'diff', '--quiet', 'HEAD', '--', 'trader', 'config', 'research/preregistration'], capture_output=True)
+    untracked = subprocess.run(['git', '-C', str(ROOT), 'ls-files', '--others', '--exclude-standard', '--', 'trader', 'config', 'research/preregistration'],
         check=True, capture_output=True, text=True).stdout
     if not re.fullmatch('[0-9a-f]{40}', revision) or changed.returncode or untracked:
-        raise ValueError('replay requires a frozen full source HEAD and clean trader tree')
+        raise ValueError('replay requires a frozen full source HEAD and clean trader/config/preregistration tree')
     return revision
 
 
@@ -78,9 +79,10 @@ def _inputs(args):
     document = _registered(paths['registration'])
     parameters = _parameters(document, args)
     funding = load_funding_history(paths['funding_history'])
+    offline_cli._load_membership()
     manifest = _safe_location(paths['snapshot'].with_name('snapshot.json'))
     _read_json(manifest)
-    hashes = dict(snapshot_sha256=_hash_file(paths['snapshot']), funding_sha256=_hash_file(paths['funding_history']),
+    hashes = dict(membership_sha256=_hash_file(offline_cli.MEMBERSHIP_PATH), snapshot_sha256=_hash_file(paths['snapshot']), funding_sha256=_hash_file(paths['funding_history']),
                   registration_sha256=_hash_file(paths['registration']), snapshot_manifest_sha256=_hash_file(manifest))
     seed = document.get('random_seed')
     if type(seed) is not int:

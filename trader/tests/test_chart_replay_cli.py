@@ -220,3 +220,35 @@ class ChartReplayCliTests(unittest.TestCase):
         self.assertEqual(code, 2)
         calls.assert_not_called()
         self.assertIn('checkpoint', error['error'])
+
+    def test_registry_bytes_bind_resume_even_if_source_revision_is_unchanged(self):
+        from trader.research import kucoin_cli
+        path = self.root/'membership.json'
+        path.write_bytes(kucoin_cli.MEMBERSHIP_PATH.read_bytes())
+        with patch('trader.research.kucoin_cli.MEMBERSHIP_PATH', path):
+            code, calls, _ = self.invoke(self.runner)
+            self.assertEqual(code, 0)
+            with gzip.open(self.output/'checkpoint.json.gz', 'rt') as stream:
+                packet = json.load(stream)
+            self.assertIn('membership_sha256', packet['binding'])
+            changed = json.loads(path.read_text())
+            changed['basis'] += ' revised'
+            path.write_text(json.dumps(changed))
+            code, calls, error = self.invoke(self.runner)
+        self.assertEqual(code, 2)
+        calls.assert_not_called()
+        self.assertIn('binding', error['error'])
+
+    def test_dirty_registry_or_preregistration_cannot_be_labeled_as_frozen_source(self):
+        from types import SimpleNamespace
+        from trader.research.chart_replay_cli import _source_revision
+        for scope in ('config', 'research/preregistration'):
+            def git_result(command, **kwargs):
+                if 'rev-parse' in command:
+                    return SimpleNamespace(stdout=SOURCE, returncode=0)
+                if 'diff' in command:
+                    return SimpleNamespace(stdout='', returncode=int(scope in command))
+                return SimpleNamespace(stdout='', returncode=0)
+            with self.subTest(scope=scope), patch('trader.research.chart_replay_cli.subprocess.run', side_effect=git_result):
+                with self.assertRaisesRegex(ValueError, 'frozen|clean'):
+                    _source_revision()

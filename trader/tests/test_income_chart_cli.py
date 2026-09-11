@@ -127,3 +127,48 @@ class IncomeChartCliTests(unittest.TestCase):
             code, operator, _, _ = self.execute(*options)
             self.assertEqual(code, 2)
             operator.assert_not_called()
+
+    def test_bundled_ray_membership_reaches_wrapper_and_applies_sol_overlay(self):
+        from trader.tests.test_regime import ASOF, charts
+        code, operator, _, _ = self.execute('--strategy', 'income_chart_v3')
+        self.assertEqual(code, 0)
+        wrapped = operator.call_args.args[0]
+        self.assertIn('RAYUSDTM', wrapped.membership['members'])
+        self.assertIn('JUPUSDTM', wrapped.membership['members'])
+        rows = [dict(timestamp_ms=ASOF-7*24*HOUR+index*60000) for index in range(10080)]
+        record = dict(pair='RAYUSDTM', bars=rows, market={})
+        with patch.object(wrapped.source, 'iter_records', return_value=[record]), patch.object(
+                wrapped, 'frames', return_value={}), patch.object(wrapped, 'chart_reads', return_value=charts(sol='down')):
+            result = wrapped.records(ASOF)[0]['regime']
+        self.assertEqual(result['membership']['status'], 'member')
+        self.assertTrue(result['sol_gate']['applied'])
+        self.assertEqual(result['allowed_directions'], ['neutral'])
+        self.assertEqual(result['macro_gate']['allowed_directions'], ['long','neutral'])
+
+    def test_legacy_does_not_read_the_membership_registry(self):
+        with patch('trader.research.kucoin_cli._load_membership', side_effect=AssertionError('legacy registry read')) as loader:
+            code, operator, _, _ = self.execute()
+        self.assertEqual(code, 0)
+        loader.assert_not_called()
+
+    def test_missing_malformed_or_conflicting_registry_fails_before_report(self):
+        path = self.root/'registry.json'
+        for document in (None, {}, {'schema_version':True},
+                         {'schema_version':1,'members':{'RAYUSDTM':{}},'non_members':{}}):
+            if document is not None:
+                path.write_text(json.dumps(document))
+            with patch('trader.research.kucoin_cli.MEMBERSHIP_PATH', path):
+                code, operator, _, error = self.execute('--strategy','income_chart_v3')
+            self.assertEqual(code, 2)
+            operator.assert_not_called()
+            self.assertIn('error', json.loads(error))
+        real = Path(__file__).resolve().parents[2]/'config/solana-ecosystem.json'
+        document = json.loads(real.read_text())
+        document['non_members']['RAYUSDTM'] = document['members']['RAYUSDTM']
+        path.write_text(json.dumps(document))
+        with patch('trader.research.kucoin_cli.MEMBERSHIP_PATH', path):
+            code, operator, _, error = self.execute('--strategy','income_chart_v3')
+        self.assertEqual(code, 2)
+        operator.assert_not_called()
+        self.assertIn('conflict', error)
+        self.assertFalse(self.output.exists())

@@ -17,6 +17,7 @@ from trader.research.public_funding import _bounds, _records, _initial_state
 
 OWNER = {'schema_version': 1, 'purpose': 'offline-kucoin-operator-artifacts'}
 MARKER = '.offline-grid-operator.json'
+MEMBERSHIP_PATH = Path(__file__).resolve().parents[2]/'config/solana-ecosystem.json'
 PROTECTED = ('Sandbox/grokbot/market-data', 'ZCodeProject/ZmartyChat-paper-grid',
              'Sandbox/grokbot/vercel-publisher', 'ZCodeProject/GrokBot',
              'Sandbox/grokbot/zmarty-paper-runtime', 'Sandbox/grokbot/trader-v2-runtime',
@@ -107,10 +108,37 @@ def _parameters(arguments):
     return parameters
 
 
+def _load_membership():
+    """The bundled sourced registry is required for this explicit chart strategy."""
+    registry = _read_json(MEMBERSHIP_PATH)
+    fields = {'schema_version', 'reviewed_at', 'coverage_complete', 'basis',
+              'historical_basis', 'contract_identifier_policy', 'members', 'non_members'}
+    if not isinstance(registry, dict) or set(registry) != fields:
+        raise ValueError('membership registry requires exact sourced schema fields')
+    if type(registry['schema_version']) is not int or registry['schema_version'] != 1 or type(registry['coverage_complete']) is not bool:
+        raise ValueError('invalid membership registry schema or coverage flag')
+    if any(not isinstance(registry[key], str) or not registry[key].strip()
+           for key in ('reviewed_at', 'basis', 'historical_basis', 'contract_identifier_policy')):
+        raise ValueError('membership registry requires provenance statements')
+    members, nonmembers = registry['members'], registry['non_members']
+    if not isinstance(members, dict) or not isinstance(nonmembers, dict):
+        raise ValueError('membership registry requires explicit member and non-member mappings')
+    if members.keys() & nonmembers.keys():
+        raise ValueError('conflicting membership registry classifications')
+    for pair, row in {**members, **nonmembers}.items():
+        _bounds(pair, 0, 0)
+        if (not isinstance(row, dict) or set(row) != {'basis', 'sources'} or
+                not isinstance(row['basis'], str) or not row['basis'].strip() or
+                not isinstance(row['sources'], list) or not row['sources'] or
+                any(not isinstance(source, str) or not source.strip() for source in row['sources'])):
+            raise ValueError('membership classification requires explicit basis and source evidence')
+    return registry
+
+
 def _wrap_snapshot(snapshot, parameters, funding):
     source = HistoricalSnapshot(snapshot, parameters) if parameters.get('historical_candle_only') else snapshot
     if parameters.get('strategy') == 'income_chart_v3':
-        return ChartSnapshot(source, parameters, funding_histories=funding)
+        return ChartSnapshot(source, parameters, funding_histories=funding, membership=_load_membership())
     return source
 
 
