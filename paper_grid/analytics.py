@@ -25,7 +25,7 @@ REASONS = ('net_profit_target', 'position_loss_limit', 'price_stop',
            'daily_loss_limit', 'rotation', 'unknown')
 DEFINITIONS = [
     'Checks are persisted decision attempts; successful checks exclude skipped cycles.',
-    'Windows include both boundaries. A fill at experiment start is included.',
+    'Analytics windows are [start, end]: both boundaries, including closes, are included.',
     'Distinct scan snapshots include cached scans. New discovery scans count distinct scan timestamps inside the window.',
     'Coins found means distinct shortlisted symbols, not the sum of a repeatedly scanned universe.',
     'Eligible symbol-observations are research signals, not orders or executable entry guarantees.',
@@ -208,11 +208,24 @@ def _account(doc, arm, start, end, events, trades):
         items = [t for t in closes if (t['adds'] if t['adds'] in (0, 1, 2) else None) == adds]
         cohorts.append(dict(adds=adds, closes=len(items), wins=sum(t['net_pnl'] > 0 for t in items),
                             losses=sum(t['net_pnl'] < 0 for t in items), net_pnl=sum(t['net_pnl'] for t in items)))
-    performance = (trade_metrics.report(doc,arm,start,end,include_start=True)
-                   if any(t['closed_at']==start for t in trades) else marked['performance'])
-    excursions = {(t['symbol'],t['closed_at']):t for t in performance['trades']}
-    closes = [dict(t,**{k:v for k,v in excursions.get((t['symbol'],t['closed_at']),{}).items()
-                       if k.startswith('observed_') or k.startswith('excursion_')}) for t in closes]
+    # Without boundary closes, the cached audit metric has the same inclusive result.
+    performance = (
+        trade_metrics.report(doc, arm, start, end, include_start=True)
+        if any(t["closed_at"] == start for t in trades)
+        else marked["performance"]
+    )
+    excursions = {(t["symbol"], t["closed_at"]): t for t in performance["trades"]}
+    closes = [
+        dict(
+            t,
+            **{
+                k: v
+                for k, v in excursions.get((t["symbol"], t["closed_at"]), {}).items()
+                if k.startswith("observed_") or k.startswith("excursion_")
+            },
+        )
+        for t in closes
+    ]
     first, last = marked['start_mark'], marked['end_mark']
     result.update(fills=result['entries']+result['adds']+result['closes'],
         breakeven=len(closes)-result['wins']-result['losses'],

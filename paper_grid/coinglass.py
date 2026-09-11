@@ -7,6 +7,7 @@ liquidation heatmap, and its exchanges are not KuCoin execution data.
 from __future__ import annotations
 
 import copy
+import errno
 import json
 import math
 import os
@@ -97,17 +98,29 @@ def secrets_path(path=None):
     return configured
 
 
+def _open_private_component(name, flags, directory):
+    metadata = os.stat(name, dir_fd=directory, follow_symlinks=False)
+    if stat.S_ISLNK(metadata.st_mode):
+        raise CoinGlassError('path contains a symlink')
+    try:
+        return os.open(name, flags | os.O_NOFOLLOW, dir_fd=directory)
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise CoinGlassError('path contains a symlink') from None
+        raise
+
+
 def _private_descriptor(path):
     directory = os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     descriptor = None
     try:
         for component in path.parts[1:-1]:
-            following = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
-                                dir_fd=directory)
+            following = _open_private_component(
+                component, os.O_RDONLY | os.O_DIRECTORY, directory)
             os.close(directory)
             directory = following
-        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
-                             dir_fd=directory)
+        descriptor = _open_private_component(
+            path.name, os.O_RDONLY | os.O_NONBLOCK, directory)
         metadata = os.fstat(descriptor)
         if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
                 or stat.S_IMODE(metadata.st_mode) != PRIVATE_FILE_MODE
@@ -130,6 +143,8 @@ def _secret_text(path):
         if len(payload) > MAX_SECRETS_BYTES:
             raise CoinGlassError('API key unavailable')
         return payload.decode('utf-8')
+    except CoinGlassError:
+        raise
     except (OSError, UnicodeError, ValueError):
         raise CoinGlassError('API key unavailable') from None
 

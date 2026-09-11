@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template only. Review absolute paths and create log directories before use.
+     Each invocation collects one bounded cycle and holds a per-database flock.
+     The 24-hour CLI and this template must not run against the same DB together.
+     No credentials, CoinGlass requests, account requests, or exchange orders. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.danslab.market-data</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>-m</string>
+        <string>trader.data.updater</string>
+        <string>--database</string>
+        <string>/Users/REPLACE_ME/Sandbox/grokbot/market-data/market.sqlite3</string>
+        <string>--once</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/REPLACE_ME/ZCodeProject/GrokBot</string>
+    <key>StartInterval</key>
+    <integer>300</integer>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>Umask</key>
+    <integer>63</integer>
+    <key>StandardOutPath</key>
+    <string>/Users/REPLACE_ME/Sandbox/grokbot/market-data/logs/updater.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/REPLACE_ME/Sandbox/grokbot/market-data/logs/updater.err.log</string>
+</dict>
+</plist>

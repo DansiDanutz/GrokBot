@@ -97,3 +97,10 @@ trading mode. Report generation does not tune strategies or alter paper position
 
 The earlier [48-hour specification](RUN_48H.md) and [activation record](ACTIVATION_48H.md)
 are historical. This document supersedes their automatic deadline behavior.
+
+## Fixed development timezone
+
+The development engine accepts only `timezone = Europe/Bucharest`. This field
+is a compatibility assertion, not an operator-selectable timezone; other values
+are rejected so halt and reporting days cannot diverge. UTC archive partitioning
+and the disclosed post-tick valuation convention remain unchanged.

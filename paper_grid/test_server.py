@@ -58,6 +58,21 @@ class ServerTests(unittest.TestCase):
         self.assertIn(b'<script>bad()', body)
         self.assertNotIn(b'<script nonce=', body)
 
+    def test_radar_page_and_json_are_read_only(self):
+        radar = self.monitor.runtime.parent / 'radar'
+        radar.mkdir(exist_ok=True)
+        source = radar / 'radar.json'
+        source.write_text('{"schema_version":1,"sections":{}}')
+        self.addCleanup(source.unlink, missing_ok=True)
+        page, html = self.request('/radar')
+        response, content = self.request('/api/radar')
+        self.assertEqual(page.status, 200)
+        self.assertIn(b'KuCoin grid radar', html)
+        self.assertIn("'nonce-", page.getheader('Content-Security-Policy'))
+        self.assertEqual(response.status, 200)
+        self.assertEqual(json.loads(content)['schema_version'], 1)
+        self.assertEqual(self.request('/api/radar', method='POST')[0].status, 405)
+
     def test_read_only_routes_and_no_directory_or_state_exposure(self):
         for path in ('/account.json', '/experiment.json', '/../../etc/passwd', '/.env'):
             response, _ = self.request(path)

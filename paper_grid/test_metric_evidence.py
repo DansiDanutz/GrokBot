@@ -56,8 +56,9 @@ class MetricEvidenceTests(unittest.TestCase):
                 metric_evidence,'_read_archive',side_effect=AssertionError('must not read')):
             with self.assertRaisesRegex(ValueError,'size limit'):
                 metric_evidence.load(self.root,doc,START+100)
-        with self.assertRaisesRegex(ValueError,'supported range'):
-            metric_evidence.load(self.root,doc,START+401*86400)
+        # Run age does not impose a cumulative evidence ceiling.
+        metric_evidence.load(self.root,doc,START+401*86400,
+                             windows=[(START+400*86400,START+401*86400)])
 
     def test_actual_read_bound_holds_when_stat_understates_archive_size(self):
         import os

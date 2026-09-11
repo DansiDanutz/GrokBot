@@ -22,6 +22,7 @@ from paper_grid.telemetry_constants import READABLE_BUY_REJECTION_REASONS
 MAX_BYTES = 5 * 1024 * 1024
 MAX_REPORTS = 100
 PUBLIC_INDEX = Path(__file__).parent / 'public' / 'index.html'
+RADAR_PAGE = Path(__file__).parent / 'radar.html'
 SYMBOL = re.compile(r'[A-Z0-9]{1,24}USDTM\Z')
 REASONS = frozenset(('invalid_contract stale_quote low_turnover wide_spread atr_outside_bounds '
     'not_lower_range no_completed_rebound strong_downtrend insufficient_rebound_room '
@@ -271,6 +272,28 @@ def _encoded(value):
     return (json.dumps(value, indent=2, allow_nan=False) + '\n').encode()
 
 
+def _radar(source):
+    directions = ('LONG', 'SHORT', 'TURNING-UP', 'TURNING-DOWN', 'NEUTRAL')
+    numeric = ('price turnover_24h_usdt spread_pct snapshot_age_min funding_pct listing_age_days atr_1h_pct '
+               'atr_4h_pct slope_4h_pct position_7d change_24h_pct low_7d high_7d range_low '
+               'range_high step_pct grids expected_grids_per_hour rank_score').split()
+    result = dict(schema_version=1, generated_at_ms=_number(source.get('generated_at_ms')),
+                  asof_ms=_number(source.get('asof_ms')), sections={})
+    for section, rows in _object(source.get('sections')).items():
+        if section not in ('majors', 'turning_up', 'turning_down', 'long', 'short', 'neutral', 'movers'):
+            continue
+        result['sections'][section] = []
+        for item in _array(rows)[:8]:
+            item = _object(item)
+            if item.get('direction') not in directions:
+                raise ValueError('invalid radar direction')
+            row = dict(symbol=_symbol(item.get('symbol')), direction=item['direction'],
+                       passes_liquidity=item.get('passes_liquidity') is True)
+            row.update(_numbers(item, numeric))
+            result['sections'][section].append(row)
+    return result
+
+
 def _audit_files(report):
     encoded = _encoded(report).decode()
     title = 'DansLabTrader — ' + report['kind'] + ' paper report'
@@ -345,6 +368,11 @@ def export_snapshot(runtime, output_dir, now=None, *, health=None):
     if not index.is_file() or index.stat().st_size > 512 * 1024:
         raise ValueError('missing or oversized public dashboard')
     payloads['index.html'] = index.read_bytes()
+    radar = runtime.parent / 'radar' / 'radar.json'
+    if radar.exists() or radar.is_symlink():
+        payloads['data/radar.json'] = _encoded(_radar(_read_json(radar)))
+        _no_symlinks(RADAR_PAGE)
+        payloads['radar/index.html'] = RADAR_PAGE.read_bytes()
     rows = []
     for row in audits.list_reports(runtime)[:MAX_REPORTS]:
         identifier = _identifier(row.get('id'))

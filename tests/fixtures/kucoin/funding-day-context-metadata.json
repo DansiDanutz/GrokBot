@@ -1,0 +1,12 @@
+{
+  "url": "https://api-futures.kucoin.com/api/v1/contract/funding-rates?symbol=XBTUSDTM&from=1789004642336&to=1789091042335",
+  "status": 200,
+  "retrieved_at_ms": 1789091522340,
+  "headers": {
+    "Date": "Fri, 11 Sep 2026 01:52:02 GMT",
+    "gw-ratelimit-remaining": "1577",
+    "gw-ratelimit-limit": "2000",
+    "gw-ratelimit-reset": "4214"
+  },
+  "docs": "https://www.kucoin.com/docs-new/rest/futures-trading/funding-fees/get-public-funding-history"
+}
