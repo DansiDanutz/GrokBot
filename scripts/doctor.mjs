@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { paths, settings, runtimeEnv } from './runtime.mjs';
 import { arch, totalmem } from 'node:os';
+import { inspectMcpCommand } from './doctor-config.mjs';
 const p = paths(), s = settings();
 const command = (args) => spawnSync(p.codex, args, { encoding: 'utf8', timeout: 15000, env: runtimeEnv(p, s) });
 const version = existsSync(p.codex) ? command(['--version']) : null;
@@ -16,6 +17,7 @@ const report = {
   authentication: signedIn ? 'ChatGPT subscription' : 'ChatGPT sign-in required',
   requestedModel: s.model, modelAccess: 'Check the live engine catalog; no generation request made by doctor.',
   localUrl: `http://127.0.0.1:${s.port}`, configurationPresent: existsSync(join(p.data, 'config.json')),
+  mcpCommand: inspectMcpCommand(p),
 };
 console.log(JSON.stringify(report, null, 2));
 if (!report.built || !report.ossOnly || !signedIn) process.exitCode = 1;

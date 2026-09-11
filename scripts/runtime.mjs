@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const STABLE_NODE = '/opt/homebrew/bin/node';
 export function paths(root = ROOT) {
   const runtime = join(root, '.runtime');
   const pin = JSON.parse(readFileSync(join(root, 'upstream.lock.json'), 'utf8'));
@@ -24,7 +25,7 @@ export function initialConfig(p, s) {
     threads: { maxConcurrentPerBot: s.maxConcurrentPerBot },
     localVm: { mode: 'shared', maxInstances: s.localVmMaxInstances },
     instances: { codex: { driver: 'codex', displayName: 'Codex · GPT-6 Astra', enabled: true, config: { cli: JSON.stringify(p.codex), fullAuto: false } } },
-    mcpServers: { danslab_status: { command: process.execPath, args: [join(p.root, 'scripts/fleet-mcp.mjs')], enabled: true } },
+    mcpServers: { danslab_status: { command: STABLE_NODE, args: [join(p.root, 'scripts/fleet-mcp.mjs')], enabled: true } },
   };
 }
 export function initialize(p, s) {
