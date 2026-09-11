@@ -56,13 +56,16 @@ execution outcome.
 | Trigger | Optional entry price; no position before activation |
 | Take-profit | Absent; neither per-grid nor cumulative profit terminates a bot |
 
-At activation, the paper model uses 50% of its leveraged notional as gross
-initial inventory. Long uses that inventory long; short uses it short. Neutral
-splits it equally: **25% long plus 25% short**, so initial net exposure is zero
-and gross exposure is 50%. The remaining capacity supports grid orders.
-This symmetric allocation is an explicit modeling choice, **not a rule verified
-from KuCoin**. Both opening sides incur fees. Contract lot rounding and exchange
-margin reservations may change actual initialization and quantities.
+At activation, each arithmetic interval owns one quantity slot. Directional
+bots seed the slots whose closing level lies beyond the current price (roughly
+half at the range center). Neutral seeds the nearest `floor(grids/4)` upper
+slots long and the nearest `floor(grids/4)` lower slots short; remaining lower
+slots wait to buy and upper slots wait to sell. At a centered, 20-grid start
+this is five long plus five short slots: about **25% long and 25% short** of
+the reference leveraged notional. Odd counts, off-center entry and lot rounding
+change the ratio; two- or three-grid neutral configurations have no seeds.
+This is the exact paper allocation rule, **not verified KuCoin behavior**.
+Both opening sides incur fees; no already-marketable limit is left resting.
 
 A grid completes only when its entry inventory is matched by the opposing
 exit fill. A price crossing alone is not a completed grid. Opening inventory

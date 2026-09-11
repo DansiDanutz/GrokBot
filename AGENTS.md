@@ -5,7 +5,7 @@ the separate continuous paper research system for Dan's Lab.
 Machine rules: `~/AGENTS.md`, `~/CLAUDE.md`, `~/ZCodeProject/AGENTS.md`.
 Issue: https://github.com/DansiDanutz/GrokBot/issues/1
 
-- Own code lives in scripts/, tests/, config/, docs/ and paper_grid/. Never edit the upstream runtime.
+- Own code lives in scripts/, tests/, config/, docs/, paper_grid/ and trader/. Never edit the upstream runtime.
 - Pin upstream revisions in upstream.lock.json. Exclude enterprise/ when exporting OSS.
 - Runtime, credentials, logs and machine snapshots stay in ignored .runtime/.
 - Default engine is the project-local Codex CLI using its existing ChatGPT sign-in.
@@ -25,3 +25,10 @@ _Last verified: 2026-09-11_
 - Do not edit sealed source files in the active checkout or reset a running experiment during repository work.
 - Keep paper-only execution, deterministic controls and separate publication. No live exchange orders.
 - `npm run verify` includes the offline Python test suite; no provider requests or live credentials are needed.
+
+## Grid research branch
+
+- `trader/` is source-only paper research from base `3db5613`. No runtime or account execution.
+- Read only separately provided, detached SQLite copies; never access Phase 2 acceptance.
+- `npm run verify` includes offline `test:grid`; tests use temporary synthetic fixtures.
+- The corrected grid specification supersedes earlier profit-target or averaging-down prompts.
