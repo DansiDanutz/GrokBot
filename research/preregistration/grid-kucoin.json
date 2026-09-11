@@ -1,0 +1,86 @@
+{
+  "id": "grid-kucoin",
+  "registered_at": "2026-09-11",
+  "author": "Dan; implementation by Codex",
+  "base_commit": "3db5613",
+  "mode": "source_only_offline_research",
+  "primary_metric": "completed_grids_per_hour_at_net_1_usdt",
+  "secondary_metric": "net_after_funding_and_switch_costs",
+  "margin_per_bot": 1000,
+  "maximum_running_bots": 2,
+  "scan_interval_ms": 3600000,
+  "fee_per_fill": 0.0006,
+  "funding_interval_ms": 28800000,
+  "minimum_grid_net_usdt": 1,
+  "holdouts": [
+    {
+      "start": "2026-07-01T00:00:00Z",
+      "end": "2026-08-01T00:00:00Z"
+    },
+    {
+      "start": "2026-08-01T00:00:00Z",
+      "end": "2026-09-01T00:00:00Z"
+    }
+  ],
+  "training_days": 7,
+  "sweep": {
+    "minimum_rate_factor": [
+      0.5,
+      0.75
+    ],
+    "consecutive_hours": [
+      1,
+      2
+    ],
+    "replacement_factor": [
+      1.5,
+      2.0
+    ],
+    "leverage_cap": [
+      4,
+      6
+    ],
+    "direction_threshold": [
+      0.12,
+      0.24
+    ]
+  },
+  "selection": "Train only on preceding seven days. Maximize primary rate among fully covered, zero-liquidation trials. Tie-break net then canonical parameter JSON. Freeze parameters for each holdout.",
+  "baselines": [
+    "four_observed_long_forms_unchanged",
+    "same_four_symbols_system_setup",
+    "random_radar_identical_rules"
+  ],
+  "random_seed": 20260911,
+  "volatility_candidate": "100*(24h_high-24h_low)/24h_low; NOT verified as KuCoin UI definition",
+  "volatility_tolerance_percentage_points": 1,
+  "profit_calibration_relative_tolerance": 0.15,
+  "liquidation_calibration_relative_tolerance": 0.1,
+  "hard_constraints": {
+    "liquidations": 0,
+    "closest_approach_fraction_of_range_min": 0.1,
+    "complete_causal_coverage": true,
+    "calibration_passes_all_four": true,
+    "volatility_definition_and_fixture_validation": true,
+    "neutral_fixture_calibration": true
+  },
+  "decision_rule": {
+    "two_disjoint_full_months": true,
+    "net_each_month_strictly_positive": true,
+    "max_drawdown_fraction_of_margin_strictly_below": 0.15,
+    "pass": "eligible_for_separate_hourly_recommender_review",
+    "otherwise": "shelve"
+  },
+  "execution_limits": [
+    "No runtime, installed scheduler, account login, order API or live recommendations.",
+    "OHLC-generated fill ledgers are simulations, not observed KuCoin trades.",
+    "Snapshot calibration cannot recover unknown original quantities or margin amendments; never fit each symbol to its target.",
+    "Both continuous and gap-aware price paths are disclosed; any liquidation fails the trial.",
+    "Missing historical books, funding, membership or candles stays explicit coverage failure.",
+    "Stop-loss closes automatically; no qualifying replacement means remain closed, not resurrect a stopped bot.",
+    "Baseline actual margins plus reserve are reported separately from the 2000-USDT two-bot portfolio."
+  ],
+  "neutral_preview_tolerance_percentage_points": 0.3,
+  "neutral_evidence": "RAY: 70 grids, 140 orders, long 544 lots and short 629 lots, 17 lots per order, used 1000 plus 200 reserve; preview and post-creation states remain separate.",
+  "minimum_grid_rule": "Minimum >=1 USDT over the whole range after both fill fees and contract rounding. Also report margin-per-grid leveraged return percentages. The approximate RAY 50-grid centre result does not prove a full-range floor."
+}
