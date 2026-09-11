@@ -45,7 +45,7 @@ def profile(row, direction, bot_id):
         raise ValueError('invalid profile range')
     price = row['price']
     low, high, step_pct = row['range_low'], row['range_high'], row['step_pct']
-    grids, leverage, reserve = row['grids'], LEVERAGE_TREND, 0
+    grids, leverage, reserve = row['grids'], LEVERAGE_TREND, NEUTRAL_RESERVE_USDT
     if direction == 'NEUTRAL':
         atr = price * row['atr_4h_pct'] / 100
         low, high = min(row['low_7d'], price - atr), max(row['high_7d'], price + atr)
@@ -62,6 +62,9 @@ def profile(row, direction, bot_id):
 def eligible(state, row, direction, source_section, now_ms):
     """Admission shared by slot selection, including explicit trend movers caps."""
     bots = [item['engine'] for item in state['open_bots']]
+    allocated = sum(w['engine']['notional_usdt'] + w['reserve_usdt'] for w in state['open_bots'])
+    if _equity(state) - allocated < NOTIONAL_PER_BOT_USDT + NEUTRAL_RESERVE_USDT:
+        return False
     if len(bots) >= MAX_BOTS or not row.get('passes_liquidity', False):
         return False
     if any(bot['symbol'] == row['symbol'] for bot in bots):
@@ -79,7 +82,7 @@ def eligible(state, row, direction, source_section, now_ms):
     try:
         spec, _ = profile(row, direction, 0)
         rate = expected_grids_per_hour(row['atr_1h_pct'], spec['step_pct'], row['turnover_24h_usdt'])
-        return rate >= MIN_EXPECTED_GRIDS_PER_HOUR and spec['range_low'] <= row['price'] <= spec['range_high']
+        return rate >= MIN_EXPECTED_GRIDS_PER_HOUR and spec['range_low'] < row['price'] < spec['range_high']
     except (KeyError, TypeError, ValueError, ZeroDivisionError):
         return False
 
@@ -182,13 +185,17 @@ def decide(state, radar, prices, now_ms, scan_id):
             del seen[:-2]
         missing = sum(not entry['present'] for entry in seen) if radar_available else 0
         reason = _reason(wrapper, labels, missing, now_ms)
+        if (not reason and bot['symbol'] in prices and
+                (bot['leverage'] != LEVERAGE_TREND or wrapper['reserve_usdt'] != NEUTRAL_RESERVE_USDT)):
+            reason = 'PROFILE_UPDATE'
         if reason:
             wrapper['engine'], emitted = close_bot(bot, prices.get(bot['symbol'], bot['last_price']), now_ms, reason)
             _mark_wrapper(wrapper)
             events.extend(emitted)
             result['open_bots'].remove(wrapper)
             result['closed_bots'].append(wrapper)
-            result['cooldowns'][bot['symbol']] = now_ms + COOLDOWN_HOURS * HOUR_MS
+            if reason != 'PROFILE_UPDATE':
+                result['cooldowns'][bot['symbol']] = now_ms + COOLDOWN_HOURS * HOUR_MS
     # Fill each original slot before considering overflow; no live bot is moved.
     vacancies = [direction for direction, count in SLOTS.items()
                  for _ in range(count - sum(w['slot_direction'] == direction for w in result['open_bots']))]
@@ -220,17 +227,43 @@ def decide(state, radar, prices, now_ms, scan_id):
     return sample(result, now_ms), events
 
 
+def _boundary_price(bot, update):
+    from trader.papergrid.engine import _number
+    if 'price' in update:
+        path = [_number(update['price'], positive=True)]
+    else:
+        opened, high, low, close = [_number(update[k], positive=True)
+                                    for k in ('open', 'high', 'low', 'close')]
+        if low > min(opened, close) or high < max(opened, close) or low > high:
+            raise ValueError('invalid candle range')
+        path = [opened, *( [low, high] if opened-low <= high-opened else [high, low]), close]
+    return next((p for p in path if p <= bot['range_low'] or p >= bot['range_high']), None)
+
+
 def advance(state, updates):
     result, events = deepcopy(state), []
-    for wrapper in result['open_bots']:
-        update = updates.get(wrapper['engine']['symbol'])
-        if update is None:
+    for wrapper in list(result['open_bots']):
+        bot = wrapper['engine']
+        update = updates.get(bot['symbol'])
+        if update is None or update['ts_ms'] <= bot['last_ts_ms']:
             continue
-        wrapper['engine'], emitted = step(wrapper['engine'], update, funding_pct=update.get('funding_pct'))
+        boundary = _boundary_price(bot, update)
+        if boundary is not None:
+            reason, price = 'RANGE_BREAK', boundary
+            events.append(dict(ts_ms=update['ts_ms'], bot_id=bot['bot_id'],
+                               symbol=bot['symbol'], type=reason, price=price))
+        else:
+            wrapper['engine'], emitted = step(bot, update, funding_pct=update.get('funding_pct'))
+            events.extend(emitted)
+            reason = 'STOP_LOSS' if any(e['type'] == 'STOP_LOSS' for e in emitted) else None
+            price = wrapper['engine']['last_price']
+        if reason:
+            wrapper['engine'], emitted = close_bot(wrapper['engine'], price, update['ts_ms'], reason)
+            events.extend(emitted)
+            result['open_bots'].remove(wrapper)
+            result['closed_bots'].append(wrapper)
+            result['cooldowns'][bot['symbol']] = update['ts_ms'] + COOLDOWN_HOURS * HOUR_MS
         _mark_wrapper(wrapper)
-        events.extend(emitted)
-        wrapper['signals'] = sorted(set(wrapper['signals']) | {
-            event['type'] for event in emitted if event['type'] in ('STOP_LOSS', 'RANGE_BREAK')})
     return result, events
 
 

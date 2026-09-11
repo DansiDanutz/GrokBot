@@ -37,3 +37,12 @@ class PositionVisibilityTests(unittest.TestCase):
                         for i in range(1,601)])
             self.assertEqual([e['event_id'] for e in read_events(path,0,limit=50,latest=True)],list(range(551,601)))
             self.assertEqual(read_events(path,0,limit=50)[0]['event_id'],1)
+
+    def test_liquidation_estimate_is_allowlisted(self):
+        source = dict(schema_version=1, equity=10000, open_bots=[dict(bot_id=1,
+            symbol='RAYUSDTM', direction='LONG', liquidation=dict(status='ESTIMATED',
+            price=1.2, with_reserve_price=1.1, mmr=.005, fee_rate=.0006,
+            metadata_at_ms=1000, private_note='omit'))], closed_bots=[], groups={}, totals={})
+        risk = safe(source)['open_bots'][0]['liquidation']
+        self.assertEqual(risk['price'], 1.2)
+        self.assertNotIn('private_note', risk)

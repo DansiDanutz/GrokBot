@@ -7,7 +7,7 @@ from trader.autopilot.constants import PAPER_EQUITY_USDT
 
 DIRECTIONS = ('LONG', 'SHORT', 'NEUTRAL')
 LABELS = DIRECTIONS + ('TURNING-UP', 'TURNING-DOWN')
-REASONS = ('LABEL_FLIP', 'RANGE_BREAK', 'STOP_LOSS', 'DROPPED', 'MAX_AGE', 'MANUAL')
+REASONS = ('LABEL_FLIP', 'RANGE_BREAK', 'STOP_LOSS', 'DROPPED', 'MAX_AGE', 'MANUAL', 'PROFILE_UPDATE')
 CODES = ('OSCILLATION', 'TREND_CLARITY', 'LIQUIDITY_TURNOVER', 'LIQUIDITY_SPREAD',
          'ROOM', 'FUNDING', 'STABILITY', 'MOVER_RISK', 'YOUNG_LISTING',
          'STALE_DATA', 'MAJOR_LOW_YIELD')
@@ -126,6 +126,10 @@ def bot(source):
     result.update(symbol=symbol(source.get('symbol')),
                   direction=enum(source.get('direction'), DIRECTIONS),
                   pnl_curve=curve(source.get('pnl_curve', []), 120))
+    if 'liquidation' in source:
+        risk = obj(source['liquidation'])
+        result['liquidation'] = numbers(risk, ('price', 'with_reserve_price', 'mmr', 'fee_rate', 'metadata_at_ms'))
+        result['liquidation']['status'] = enum(risk.get('status'), ('ESTIMATED', 'FLAT', 'NO_POSITIVE_PRICE', 'STALE_METADATA', 'INVALID_METADATA', 'INVALID_POSITION', 'TIER_UNAVAILABLE', 'METADATA_UNAVAILABLE'))
     if source.get('reason') is not None:
         result['reason'] = enum(source['reason'], REASONS)
     return result
