@@ -1,0 +1,84 @@
+{
+  "source_commit": "02163b38c62f21624e86b717446388616ce48755",
+  "cutoff_ms": 1789088400000,
+  "generated_at_ms": 1789091222418,
+  "smoke": {
+    "status": "warn",
+    "contracts": 522,
+    "elapsed_seconds": 278.2320142920071,
+    "missing_candle_intervals": 812,
+    "request_failures": 0,
+    "approved_for_24h_continuity": true,
+    "note": "Provider candle omissions stay warnings; do not rerun 24h solely to manufacture quality passes."
+  },
+  "majors": {
+    "complete": true,
+    "gap_free": false,
+    "pages": 1977,
+    "written_rows": 389357,
+    "elapsed_seconds": 404.903,
+    "universe_count": 3,
+    "failures": [],
+    "series": [
+      {
+        "symbol": "ETHUSDTM",
+        "interval": "1m",
+        "stored_count": 128049,
+        "missing_count": 1551,
+        "queried_complete": true
+      },
+      {
+        "symbol": "ETHUSDTM",
+        "interval": "1h",
+        "stored_count": 2160,
+        "missing_count": 0,
+        "queried_complete": true
+      },
+      {
+        "symbol": "SOLUSDTM",
+        "interval": "1m",
+        "stored_count": 127133,
+        "missing_count": 2467,
+        "queried_complete": true
+      },
+      {
+        "symbol": "SOLUSDTM",
+        "interval": "1h",
+        "stored_count": 2160,
+        "missing_count": 0,
+        "queried_complete": true
+      },
+      {
+        "symbol": "XBTUSDTM",
+        "interval": "1m",
+        "stored_count": 127695,
+        "missing_count": 1905,
+        "queried_complete": true
+      },
+      {
+        "symbol": "XBTUSDTM",
+        "interval": "1h",
+        "stored_count": 2160,
+        "missing_count": 0,
+        "queried_complete": true
+      }
+    ]
+  },
+  "quality_status_counts": {
+    "pass": 15,
+    "unknown": 12,
+    "warn": 3
+  },
+  "database_counts_at_check": {
+    "klines": 419678,
+    "funding": 2814,
+    "top_of_book": 522,
+    "open_interest": 522,
+    "ticker_snapshots": 522,
+    "universe": 522,
+    "data_quality": 1597
+  },
+  "quality_elapsed_seconds": 1.838,
+  "collector_24h_started_at_ms": 1789091042275,
+  "continuation_automation": "complete-grokbot-phase-2-evidence"
+}

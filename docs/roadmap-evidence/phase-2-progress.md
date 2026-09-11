@@ -68,21 +68,47 @@ before controlling any process; never signal a PID solely from a stale file.
 The fixed source copy was exported from **02163b3** (trader sources only),
 so later documentation edits cannot change an in-flight collection.
 
-Current jobs recorded there:
+Initial jobs recorded there:
 
 1. `majors-200`: corrected 90-day BTC (`XBTUSDTM`), ETH and SOL 1m/1h backfill,
    four workers, fixed end `1789088400000`, shared 15 weight/second limiter.
 2. `collector-smoke`: one complete-universe `--once` cycle. Inspect this before
    starting the actual `--duration-hours 24` acceptance run.
 
-After the majors query finishes, start the same fixed-range backfill with no
-`--symbols` option to query all current eligible contracts. The range+200-slot
-checkpoint identity lets it reuse majors progress without erasing evidence.
-Save full stdout/stderr and new process metadata alongside `acceptance.json`.
-After smoke is healthy enough to test sustained operation, launch the 24-hour
-collector from the same source copy. Its separate 30-weight/second bucket keeps
-combined configured throughput below the documented public pool budget.
-No LaunchAgent is installed; the `.plist.example` remains source only.
+The majors request has now completed: **1,977 pages, 389,357 stored candle
+records, 404.903 seconds, zero collection failures**. All three hourly series
+have 2,160 candles and zero gaps. Minute-series omissions remain: ETH 1,551;
+SOL 2,467; BTC 1,905. A zero-gap minute-history acceptance claim is not supported.
+The full current-universe job is now running under `full-universe` in the manifest,
+using the same end and 200-slot checkpoint identity. Do not launch a duplicate.
+
+The full-universe smoke finished in **278.232 seconds**, with 522 contracts,
+zero request failures and no missed scheduling slots. It warned on 812 missing
+candle intervals; 207 symbols had all requested intervals. Both book and full raw
+contract/OI snapshots were recorded for 522 symbols. These are data omissions,
+not a software crash or authorization to synthesize bars.
+
+The real 24-hour collector is now running as `collector-24h`, started
+**2026-09-11 04:44:02 Europe/Bucharest**, with expected completion approximately
+**2026-09-12 04:44:02** plus bounded shutdown overhead. Its quality warnings must
+be distinguished from failed requests and missed cycles; do not restart a full
+24-hour observation solely because a warning produces a nonzero CLI exit.
+An ephemeral `caffeinate -i -w` process is tied only to the owned collector PID
+to prevent idle sleep; no system power setting or LaunchAgent was changed.
+
+[Public smoke evidence](phase-2-public-smoke.json) records the measured summary,
+initial real registry count 522 and a persisted majors quality report (15 passes,
+12 unknowns, 3 warnings). Full private/public-source detail is in
+`quality-majors.json` and `registry-initial.json` inside the acceptance workspace.
+All counts are timestamped interim evidence while the larger run continues.
+
+An hourly Codex continuation is active: `complete-grokbot-phase-2-evidence`.
+It monitors only these owned jobs, stays quiet on normal progress, finishes the
+reports/PR once the observation period and feasible collection complete, then
+disables itself and holds for Claude's audit. Current source is pushed on the
+Phase 2 branch; CI at progress head `b284f5f` passed on Ubuntu and macOS.
+No Phase 2 PR is open for audit yet. The market-data `.plist.example` remains
+source only, with no installed job.
 
 A real public discovery found **687 contract records, 522 active crypto USDT
 perpetuals**. Raw discovery is in `contracts.json` with retrieval time. This
