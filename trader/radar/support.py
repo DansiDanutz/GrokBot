@@ -2,7 +2,7 @@
 from statistics import median
 
 
-def levels(hourly, price, atr):
+def candidates(hourly, price, atr):
     """Two candles confirm either side of each pivot; at least two tests required."""
     pivots = []
     rows = hourly[-168:]
@@ -31,6 +31,12 @@ def levels(hourly, price, atr):
         if level > price and (any(p[2] == 'high' for p in cluster)
                                or all(r[4] < level for r in rows[-2:])):
             resistances.append((level, len(times)))
+    return sorted(supports), sorted(resistances)
+
+
+def levels(hourly, price, atr):
+    """Nearest confirmed pair, retained for structure diagnostics."""
+    supports, resistances = candidates(hourly, price, atr)
     support = max(supports, default=(None, 0))
     resistance = min(resistances, default=(None, 0))
     return dict(support=support[0], support_touches=support[1],

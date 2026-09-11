@@ -105,3 +105,12 @@ New paper orders and dashboard ladders use the same arithmetic interval.
 Existing bots retain their original orders and are labeled legacy; they are not
 silently resized or represented as passing this new entry requirement.
 Reference definition: https://www.kucoin.com/support/21959472633113
+
+New entry layout: at least 70 configured arithmetic grids, each full pair with
+estimated return strictly above 1% on allocated margin at 5× after both 0.06%
+fill fees. Long targets 40% buy / 60% sell orders; Short 60% buy / 40% sell;
+Neutral 50% / 50% across its two books, allowing one order of rounding. The
+selector tries confirmed support/resistance pairs, choosing the narrowest pair
+that passes and then its highest qualifying count. It never invents range
+limits. No valid pair means no offer; admission checks the split again using
+the current quote. Existing positions keep their original settings.

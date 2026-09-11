@@ -11,10 +11,12 @@ HOUR = 3_600_000
 
 
 def row(symbol, direction='LONG', **extra):
-    result = dict(maintain_margin=.005, risk_limit=1000000, multiplier=.001, lot_size=1, symbol=symbol, direction=direction, range_verified=1, price=100, range_low=90,
-                range_high=110, low_7d=92, high_7d=108, atr_4h_pct=4,
+    low, high = {'LONG': (80, 130), 'TURNING-UP': (80, 130),
+                 'SHORT': (70, 120), 'TURNING-DOWN': (70, 120), 'NEUTRAL': (75, 125)}[direction]
+    result = dict(maintain_margin=.005, risk_limit=1000000, multiplier=.001, lot_size=1, symbol=symbol, direction=direction, range_verified=1, price=100, range_low=low,
+                range_high=high, low_7d=92, high_7d=108, atr_4h_pct=4,
                 atr_1h_pct=6.2, turnover_24h_usdt=8_000_000, step_pct=.8,
-                grids=25, rank_score=10, expected_grids_per_hour=14,
+                grids=70, rank_score=10, expected_grids_per_hour=14,
                 funding_pct=0, passes_liquidity=True, spread_pct=.05, listing_age_days=30,
                 snapshot_age_min=0, position_7d=.5, change_24h_pct=0)
     result.update(extra)
@@ -55,7 +57,7 @@ class PolicyTests(unittest.TestCase):
         state, _ = policy.decide(policy.new_state(0), radar(long=[row('A')]), {}, 0, 'a')
         state['open_bots'][0]['source_section'] = 'movers'
         self.assertFalse(policy.eligible(state, row('B'), 'LONG', 'movers', 0))
-        self.assertTrue(policy.eligible(state, row('B'), 'NEUTRAL', 'movers', 0))
+        self.assertTrue(policy.eligible(state, row('B', 'NEUTRAL'), 'NEUTRAL', 'movers', 0))
         state['open_bots'][0]['engine']['symbol'] = 'SOLUSDTM'
         self.assertFalse(policy.eligible(state, row('ETHUSDTM'), 'NEUTRAL', 'neutral', 0))
 
@@ -89,7 +91,7 @@ class PolicyTests(unittest.TestCase):
                 self.assertEqual(state['closed_bots'][0]['engine']['reason'], reason)
 
     def test_neutral_bot_on_trending_mover_survives_its_opening_label(self):
-        mover = row('RAY', 'LONG', change_24h_pct=24, position_7d=.85)
+        mover = row('RAY', 'LONG', range_low=75, range_high=125, change_24h_pct=24, position_7d=.85)
         state, _ = policy.decide(policy.new_state(0), radar(movers=[mover]), {}, 0, 'a')
         bot = state['open_bots'][0]
         self.assertEqual((bot['engine']['direction'], bot['open_label']), ('NEUTRAL', 'LONG'))
@@ -107,7 +109,7 @@ class PolicyTests(unittest.TestCase):
         spec, reserve = policy.profile(row('RAY'), 'NEUTRAL', 1)
         self.assertEqual((spec['leverage'], reserve), (5, 200))
         self.assertGreater(spec['profit_pct_min'], 1)
-        self.assertEqual((spec['range_low'], spec['range_high']), (90, 110))
+        self.assertEqual((spec['range_low'], spec['range_high']), (80, 130))
         self.assertTrue(17 <= expected_grids_per_hour(6.2, .43, 8_000_000) <= 21)
         self.assertAlmostEqual(expected_grids_per_hour(6.2, .8, 8_000_000), 1.9*6.2/.8)
         self.assertAlmostEqual(expected_grids_per_hour(6.2, .52, 50_000_000), .45*6.2/.52)
@@ -210,7 +212,7 @@ class FiveXBoundaryTests(unittest.TestCase):
             self.assertEqual((spec['notional_usdt'], spec['leverage'], reserve), (1000, 5, 200))
 
     def test_first_boundary_tick_closes_at_observed_gap_price_and_no_more_grids(self):
-        for price in (90, 110, 80, 120):
+        for price in (80, 130, 70, 140):
             state, _ = policy.decide(policy.new_state(0), radar(long=[row('A')]), {}, 0, 'a')
             count = state['open_bots'][0]['engine']['completed_grids']
             ended, events = policy.advance(state, {'A': dict(ts_ms=1000, price=price)})
@@ -227,8 +229,8 @@ class FiveXBoundaryTests(unittest.TestCase):
         inside, _ = policy.advance(state, {'A': dict(ts_ms=1000, price=100)})
         stale, _ = policy.advance(inside, {'A': dict(ts_ms=1000, price=80)})
         self.assertEqual(len(stale['open_bots']), 1)
-        ended, _ = policy.advance(stale, {'A': dict(ts_ms=2000, open=100, high=111, low=99, close=100)})
-        self.assertEqual(ended['closed_bots'][0]['engine']['last_price'], 111)
+        ended, _ = policy.advance(stale, {'A': dict(ts_ms=2000, open=100, high=131, low=99, close=100)})
+        self.assertEqual(ended['closed_bots'][0]['engine']['last_price'], 131)
 
     def test_old_profile_closes_then_new_bot_opens_without_rewriting_history(self):
         state, _ = policy.decide(policy.new_state(0), radar(long=[row('A')]), {}, 0, 'a')
@@ -252,12 +254,12 @@ class FiveXBoundaryTests(unittest.TestCase):
     def test_unverified_structure_is_not_admitted_and_verified_neutral_range_is_preserved(self):
         bad = row('A', range_verified=0)
         self.assertFalse(policy.eligible(policy.new_state(0), bad, 'LONG', 'long', 0))
-        good = row('A', range_verified=1, range_low=94, range_high=106)
+        good = row('A', range_verified=1, range_low=94, range_high=106, grids=25)
         spec, reserve = policy.profile(good, 'NEUTRAL', 1)
         self.assertEqual((spec['range_low'], spec['range_high']), (94,106))
 
     def test_neutral_borrowing_requires_both_structural_edges(self):
-        candidate = row("A", range_low=94, range_high=106, support=94, resistance=None)
+        candidate = row("A", range_low=94, range_high=106, support=94, resistance=None, grids=25)
         self.assertFalse(policy.eligible(policy.new_state(0), candidate, "NEUTRAL", "movers", 0))
         candidate["resistance"] = 106
         spec, _ = policy.profile(candidate, "NEUTRAL", 1)
@@ -267,3 +269,42 @@ class FiveXBoundaryTests(unittest.TestCase):
         candidate = row("A")
         del candidate["support"]
         self.assertFalse(policy.eligible(policy.new_state(0), candidate, "LONG", "long", 0))
+
+class EntryLayoutAdmissionTests(unittest.TestCase):
+    def candidate(self, **extra):
+        return row('LAYOUT', range_low=80, range_high=130, grids=70, **extra)
+
+    def test_minimum_grid_count_and_direction_split(self):
+        good = self.candidate()
+        self.assertTrue(policy.eligible(policy.new_state(0), good, 'LONG', 'long', 0))
+        for changes in ({'grids': 69}, {'price': 105}):
+            with self.subTest(changes=changes):
+                self.assertFalse(policy.eligible(policy.new_state(0), dict(good, **changes), 'LONG', 'long', 0))
+
+    def test_live_entry_rechecks_split_without_moving_structure(self):
+        candidate = self.candidate()
+        report = radar(long=[candidate])
+        state, _ = policy.decide(policy.new_state(0), report, {'LAYOUT': 100}, 0, 'a', require_live_prices=True)
+        self.assertEqual(len(state['open_bots']), 1)
+        unchanged, _ = policy.decide(state, report, {'LAYOUT': 105}, 1, 'b', require_live_prices=True)
+        self.assertEqual(unchanged['open_bots'][0]['engine'], state['open_bots'][0]['engine'])
+        rejected, _ = policy.decide(policy.new_state(0), report, {'LAYOUT': 105}, 0, 'a', require_live_prices=True)
+        self.assertEqual(rejected['open_bots'], [])
+
+    def test_existing_smaller_layout_is_not_migrated(self):
+        from trader.papergrid import open_bot
+        candidate = self.candidate()
+        report = radar(long=[candidate])
+        state, _ = policy.decide(policy.new_state(0), report, {}, 0, 'a')
+        historical = row('LAYOUT', range_low=90, range_high=110, grids=25)
+        spec, _ = policy.profile(historical, 'LONG', 1)
+        state['open_bots'][0]['engine'] = open_bot(spec, 100, 0)
+        before = deepcopy(state['open_bots'][0]['engine'])
+        updated, events = policy.decide(state, report, {'LAYOUT': 100}, 1, 'b', require_live_prices=True)
+        self.assertEqual(updated['open_bots'][0]['engine'], before)
+        self.assertFalse(any(event['type'] in ('OPEN', 'CLOSE') for event in events))
+
+    def test_neutral_preserves_offered_count(self):
+        candidate = row('N', 'NEUTRAL', range_low=75, range_high=125, grids=70)
+        spec, _ = policy.profile(candidate, 'NEUTRAL', 1)
+        self.assertEqual(spec['grids'], 70)

@@ -497,3 +497,27 @@ execution queue or settlement statement. No promise of zero liquidation or
 positive total return follows from the entry filter or range stop.
 
 New live-daemon entries require a quote from the current allTickers response, no older than120seconds; the hourly radar price cannot be used as the execution entry. Recheck that quote against both fixed boundaries before sizing/opening. Persist only open-bot/major quotes as before.
+
+## Entry layout — 11 September 2026
+
+New admissions require at least 70 configured arithmetic grids (maximum 200).
+Long targets 40% pending buys below entry and 60% sells above; Short targets
+60% buys and 40% sells; Neutral targets 50% buys and 50% sells across its two
+books. Allow at most one order of integer rounding from the target. These are
+entry inventory/order allocations, not a prediction of the fraction of grids
+that will profit. A Neutral bot with 70 configured grids has 140 pending orders.
+
+Consider all confirmed repeated support/resistance levels from the completed
+hourly chart. Choose the narrowest confirmed pair satisfying the layout,
+after-fee return and liquidation checks; within that pair prefer the greatest
+qualifying grid count. Round bounds inward and intervals down to the contract
+tick. Never manufacture wider levels or accept fewer than 70 grids to force a
+trade. If no pair works, reject the setup. The strict >1% floor remains the
+estimated full adjacent-pair return on allocated margin at 5× after both 0.06%
+fill fees; funding, slippage and partial first closes are accounted separately.
+
+Recheck the actual order split against the current admission quote, including
+when a mover is considered for a Neutral slot. The hourly radar is not an
+execution-price guarantee. Existing bots retain their fixed boundaries, count,
+inventory and history; this amendment does not trigger PROFILE_UPDATE or reset
+the bankroll. Existing range-touch and liquidation-buffer exits remain active.
