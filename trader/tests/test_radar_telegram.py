@@ -8,7 +8,7 @@ from trader.radar.telegram import deliver
 
 
 def report(symbol='AAAUSDTM'):
-    row = dict(symbol=symbol, direction='LONG', expected_grids_per_hour=2.5,
+    row = dict(symbol=symbol, direction='LONG', price=1.5, expected_grids_per_hour=2.5,
                range_low=1.0, range_high=2.0, step_pct=.8, grids=50)
     return {'sections': {'long': [row], 'short': [], 'neutral': []}}
 
@@ -33,7 +33,8 @@ class RadarTelegramTests(unittest.TestCase):
         self.assertEqual(len(self.requests), 1)
         body = json.loads(self.requests[0][0].data)
         self.assertEqual(body['chat_id'], '123456')
-        self.assertIn('AAAUSDTM', body['text'])
+        self.assertIn('AAAUSDTM · LONG · 1.5 · range 1..2 · 50 grids · '
+                      'step 0.80% · est 2.50 grids/h', body['text'])
         self.assertNotIn('test-token', self.state.read_text())
         self.assertEqual(self.state.stat().st_mode & 0o777, 0o600)
 

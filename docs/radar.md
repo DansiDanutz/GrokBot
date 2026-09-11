@@ -17,13 +17,13 @@ The uninstalled template `config/launchd/com.danslab.trader-radar.plist.example`
 
 ## Columns and sections
 
-- **Direction:** `LONG` when 4-hour and daily EMA20/50 agree upward, `SHORT` when both agree downward, `TURNING-UP` or `TURNING-DOWN` when only the 4-hour trend has turned, otherwise `NEUTRAL`.
+- **Direction:** `LONG` when 4-hour and daily EMA20/50 agree upward, `SHORT` when both agree downward, `TURNING-UP` or `TURNING-DOWN` when only the 4-hour trend has turned, otherwise `NEUTRAL`. With fewer than 20 daily bars, the daily fast EMA falls back from 20 to 10 periods; with fewer than 50 daily bars, the daily slow EMA falls back from 50 to 20 periods.
 - **ATR 1h %:** 14-period hourly average true range divided by current price. It represents oscillation, not a forecast.
 - **Range:** directional candidates use current price, 4-hour ATR, and the 7-day extreme. Neutral candidates use the 7-day low and high.
 - **Step % / grids:** the arithmetic grid interval and the range width divided by that interval, capped at 200.
 - **Expected grids/h:** the fixed coefficient times hourly ATR% divided by step%. Ranking multiplies this estimate by liquidity, capped at full weight from 8 million USDT turnover.
 
-The output shows Majors (BTC, ETH, SOL direction only), Turning up, Turning down, Long, Short, Neutral candidates in the middle 25–75% of their 7-day range, and Movers with an absolute 24-hour move above 15%. Each section is capped at eight rows. Candidate sections require at least 3 million USDT 24-hour turnover, spread at or below 0.15%, and seven days of listing age.
+The output shows Majors (BTC, ETH, SOL direction only), Turning up, Turning down, Long, Short, Neutral candidates in the middle 25–75% of their 7-day range, and Movers with an absolute 24-hour move above 15%. Each section is capped at eight rows. Candidate sections require at least 3 million USDT 24-hour turnover, spread at or below 0.15%, seven days of listing age, and both latest ticker and book inputs no more than 120 minutes old. `snapshot_age_min` reports the age of the older required input.
 
 ## Fixed live-bot constants
 

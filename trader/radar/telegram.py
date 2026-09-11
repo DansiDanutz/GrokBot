@@ -32,8 +32,10 @@ def _message(leaders):
         lines.append('\n' + label)
         for row in rows:
             lines.append(f"{row.get('symbol', '—')} · {row.get('direction', '—')} · "
-                         f"{row.get('expected_grids_per_hour', 0):.2f} grids/h · "
-                         f"{row.get('grids', 0)} grids · {row.get('step_pct', 0):.2f}% step")
+                         f"{row.get('price', 0):.8g} · range {row.get('range_low', 0):.8g}.."
+                         f"{row.get('range_high', 0):.8g} · {row.get('grids', 0)} grids · "
+                         f"step {row.get('step_pct', 0):.2f}% · est "
+                         f"{row.get('expected_grids_per_hour', 0):.2f} grids/h")
     return '\n'.join(lines)
 
 

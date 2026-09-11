@@ -103,6 +103,32 @@ class RadarTests(unittest.TestCase):
         self.assertTrue(any("TURNING UP" in line for line in lines))
         self.assertTrue(any("est.grids/h" in line for line in lines))
 
+    def test_oldest_required_snapshot_age_blocks_liquidity_and_is_printed(self):
+        connection = sqlite3.connect(self.database)
+        connection.execute("UPDATE top_of_book SET time_ms=? WHERE symbol='UPUSDTM'",
+                           (NOW - 121 * 60_000,))
+        connection.commit()
+        connection.close()
+        report = analyse(self.database, NOW)
+        row = next(row for row in report["rows"] if row["symbol"] == "UPUSDTM")
+        self.assertEqual(row["snapshot_age_min"], 121)
+        self.assertFalse(row["passes_liquidity"])
+        destination = Path(self.temp.name) / "radar.json"
+        lines = []
+        main(["--database", str(self.database), "--json", str(destination),
+              "--asof-ms", str(NOW)], printer=lines.append)
+        self.assertIn("age min", "\n".join(lines))
+        self.assertEqual(next(item for item in json.loads(destination.read_text())["rows"]
+                              if item["symbol"] == "UPUSDTM")["snapshot_age_min"], 121)
+        connection = sqlite3.connect(self.database)
+        connection.execute("UPDATE top_of_book SET time_ms=? WHERE symbol='UPUSDTM'",
+                           (NOW - 120 * 60_000,))
+        connection.commit()
+        connection.close()
+        row = next(row for row in analyse(self.database, NOW)["rows"]
+                   if row["symbol"] == "UPUSDTM")
+        self.assertTrue(row["passes_liquidity"])
+
 
 if __name__ == "__main__":
     unittest.main()
