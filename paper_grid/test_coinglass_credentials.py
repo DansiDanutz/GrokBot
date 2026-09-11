@@ -71,8 +71,10 @@ class PrivateCoinGlassCredentialsTests(unittest.TestCase):
             with self.subTest(name=path.name), \
                  patch.object(Path, 'open', side_effect=AssertionError('unexpected legacy read')), \
                  patch.object(os, 'fdopen', side_effect=AssertionError('unsafe bytes read')) as reader:
-                with self.assertRaisesRegex(c.CoinGlassError, 'API key unavailable'):
+                message = 'path contains a symlink' if path in (link, parent_link / self.path.name) else 'API key unavailable'
+                with self.assertRaisesRegex(c.CoinGlassError, message) as caught:
                     c.read_api_key(path)
+                self.assertNotIn(str(self.root), str(caught.exception))
                 reader.assert_not_called()
 
     def test_oversized_credentials_rejected_before_read(self):
