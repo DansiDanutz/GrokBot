@@ -163,3 +163,33 @@ After the Phase C gate: merge, post the final handoff on #16 (default branch
 head, test count, both plist paths, the manual steps for Dan), close #16.
 
 _Last verified: 2026-09-11_
+
+## Phase A accounting
+
+## Answer: Phase A accounting rules (copy verbatim into `docs/autopilot-spec.md`, section "Phase A accounting", first commit of the Phase A PR)
+
+### A1. Position, orders and pair matching
+
+- **One signed net position per bot** (`position_contracts`, positive long, negative short) with a volume-weighted `avg_entry`, the way KuCoin Futures Grid holds one position. No per-pair inventory.
+- **One resting order per grid line, and exactly one empty line at all times.** At open the empty line is the line nearest the price. Below it every line holds a buy, above it every line holds a sell (NEUTRAL); LONG holds buys below and sells above plus the seeded long inventory; SHORT mirrored.
+- **Fill rule.** A fill consumes the order on line `i` and places the counter-order on the adjacent line toward the fill direction, which is by construction the empty line: after a buy on `i`, a sell on `i+1`; after a sell on `i`, a buy on `i-1`. Line `i` becomes the new empty line. An update that crosses several lines processes them one at a time in price order, each at its own line price (paper limit fills, never at the tick price).
+- **Two ledgers, both updated on every fill:**
+  - *Position ledger:* every fill updates `position_contracts` and `avg_entry`. When a fill reduces `|position|`, `realized_pnl += closed_contracts * (fill_price - avg_entry) * side_sign`. When it increases `|position|`, `avg_entry` is re-weighted. Fees and funding are separate fields and are never mixed into `avg_entry`.
+  - *Grid ledger:* every resting order carries `paired_line` (the line index of the fill that placed it). A fill of an order with `paired_line` set counts one `completed_grid` and adds `contracts * |line_price - paired_line_price|` to `grid_profit`. Seeded orders carry `paired_line = the adjacent line toward the open price` (a seeded sell on `k` pairs with `k-1`, a seeded buy on `k` pairs with `k+1`), so a seeded fill also counts a grid; the difference between that adjacent line and the actual open price shows up in the position ledger, not the grid ledger.
+  - `grid_profit` is the KuCoin "Grid Profit" figure; `realized_pnl + unrealized_pnl - fees_paid - funding_paid` is the bot's true net. They are reported side by side, never summed together.
+- **Seeded inventory for LONG/SHORT:** bought (or sold) at the open price as one taker fill with fee, size `contracts_per_line * number_of_lines_above_price` (LONG) or below (SHORT); `avg_entry = open price`.
+- **Close:** cancel all resting orders, flatten at the close price with fee, realize through the position ledger. No grid is counted on close.
+
+### A2. Funding valuation and ordering
+
+- Funding is charged **at each 8 h boundary (00:00, 08:00, 16:00 UTC)** on the **position as it stands before the update that crosses the boundary**, valued at `last_price` (the last price seen before the boundary): `funding_paid += |position_contracts| * last_price * funding_pct / 100 * side_sign`, where longs pay when the rate is positive.
+- **Ordering inside one update:** funding first (on the pre-update state), then the fills of that update, then RANGE_BREAK / STOP_LOSS evaluation.
+- **Missed boundaries** (daemon down, restart backfill): process the backfill candles in time order; at each boundary between two candles use the position after the earlier candle and its close as `last_price`. If no candle exists across a boundary, the position is unchanged and `last_price` is the last known price. Every boundary since `last_ts_ms` is charged exactly once; `last_funding_ts_ms` on the bot makes this idempotent.
+- **Rate:** Phase A uses `funding_pct` from the bot spec. `step(bot, update, *, funding_pct=None)` accepts an override so Phase B can pass the latest rate from the market DB `funding` table at each boundary.
+
+### Tests to add for these rules
+Multi-line jump fills in order; seeded fill counts a grid and the open-price gap lands in realized; grid_profit vs net never double counted; funding charged once per boundary across restart with and without candles; ordering funding → fills → stops inside a boundary-crossing update.
+
+Codex: no other question is open. Copy this into the spec, implement, post the frozen Phase A head here and stay idle for the gate.
+
+
