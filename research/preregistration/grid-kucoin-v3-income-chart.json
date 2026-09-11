@@ -1,0 +1,155 @@
+{
+  "author": "Dan; implementation by Codex",
+  "base_commit": "e90781e2b11c30d07a490b2e346b2de103c03386",
+  "mode": "source_only_offline_research",
+  "primary_metric": "grid_income_per_hour",
+  "margin_per_bot": 1200,
+  "maximum_running_bots": 2,
+  "scan_interval_ms": 3600000,
+  "fee_per_fill": 0.0006,
+  "holdouts": [
+    {
+      "start": "2026-07-01T00:00:00Z",
+      "end": "2026-08-01T00:00:00Z"
+    },
+    {
+      "start": "2026-08-01T00:00:00Z",
+      "end": "2026-09-01T00:00:00Z"
+    }
+  ],
+  "random_seed": 20260911,
+  "decision_rule": {
+    "two_disjoint_full_months": true,
+    "net_each_month_strictly_positive": true,
+    "max_drawdown_fraction_of_margin_strictly_below": 0.15,
+    "pass": "eligible_for_separate_hourly_recommender_review",
+    "otherwise": "shelve"
+  },
+  "range_exit_policy": "Close all paper inventory at market when price reaches or crosses either low or high, regardless of direction. Stop priority cancels an order at the same edge. No 5% wait or 1% fallback. A gap executes at the observed quote and can still cause liquidation before a solvent close.",
+  "margin_used_per_bot": 1000,
+  "reserved_margin_per_bot": 200,
+  "total_bankroll_usdt": 2400,
+  "fixed_leverage": 5,
+  "radar_size": 10,
+  "coverage": {
+    "window_minutes": 10080,
+    "minimum_observed_fraction": 0.95,
+    "indicator_gaps": "causal previous-close forward fill; no future seed",
+    "crossing_gaps": "exclude synthetic minutes and crossings bridging gaps"
+  },
+  "historical_assumptions": [
+    "Derive quote turnover from candle contract volume times contract multiplier times close; approximate not observed quote turnover.",
+    "Skip spread, depth and funding-window admission checks only in explicitly labeled candle-only filters mode.",
+    "Static contract metadata from the copied capture is a retrospective assumption, with survivorship and contract-change limitations.",
+    "Ten basis points full modeled spread when historical quotes are unavailable; retain actual quotes where available.",
+    "Missing minute extrema and intraminute OHLC order remain execution uncertainty.",
+    "Existing uncalibrated sizing may be used only for labeled sensitivity results pending independently observed quantities.",
+    "Public history traversal is not independent proof of complete funding coverage; missing rates are never verified zero."
+  ],
+  "id": "grid-kucoin-v3-income-chart",
+  "registered_at": "2026-09-11T12:17:06.304060+00:00",
+  "amends_registration": "grid-kucoin-v3-positive",
+  "amendment": "Dan requires median-hold funding-aware positive grid economics, searched grid counts, multi-timeframe chart direction/range/entry and macro/SOL regime variants.",
+  "minimum_grid_net_usdt": 0,
+  "range_exit_stop_pct": 0,
+  "fixed_parameters": {
+    "strategy": "income_chart_v3",
+    "historical_candle_only": true,
+    "historical_spread_bps": 10,
+    "candle_volume_unit": "contracts",
+    "replacement_horizon_hours": 6,
+    "radar_size": 10,
+    "minimum_grid_net_usdt": 0,
+    "range_exit_stop_pct": 0,
+    "adaptive_range_stops": false,
+    "min_grids": 2,
+    "max_grids": 200,
+    "fee_safety_ratio": 0.2,
+    "minimum_confidence": 0.75,
+    "neutral_band": [
+      0.2,
+      0.8
+    ]
+  },
+  "sweep": {
+    "regime_gate": [
+      false,
+      true
+    ],
+    "bias_mode": [
+      "4h-only",
+      "1d+4h"
+    ]
+  },
+  "sweep_authorized": true,
+  "primary_variant": {
+    "regime_gate": true,
+    "bias_mode": "1d+4h"
+  },
+  "selection": "At each hourly decision, test every feasible integer count 2..min(200, known venue maximum). Rank by min(last24h grid income/hour,last7d grid income/hour); deterministic count tie-break. Report top3. Outer four variants are reported individually, not selected by holdout performance.",
+  "minimum_grid_rule": "At every adjacent price interval and for each active directional leg, actual modeled base quantity times interval minus both 0.06% fill fees minus expected signed funding must be positive. Admission uses max(0,funding cost), so credits cannot rescue a fee-floor failure. Default net safety reserve is at least 20% of both fees. No fixed1USDT floor.",
+  "funding": {
+    "projection": "Latest settled public rate available after an assumed60second publication lag; interval inferred causally from actual settlement timestamps, never a fixed8h default. Missing/irregular/stale terms leave adjusted net unknown and cannot arm a funded paper entry.",
+    "hold": "Empirical median completed-pair hold separately for each leg in24h and7d. Upper adjacent price notional; rate prorated over hold. Neutral funding legs never cancel for per-cycle admission.",
+    "execution": "Actual recorded settlement timestamps applied before orders at the same time, only to inventory already open. No fee or funding double-counting. Gap marks are estimates and coverage is not independently verified."
+  },
+  "chart": {
+    "timeframes": [
+      "5m",
+      "15m",
+      "1h",
+      "4h",
+      "1d"
+    ],
+    "utc_aligned": true,
+    "closed_only": true,
+    "ema_periods": [
+      20,
+      50
+    ],
+    "slope_bars": 5,
+    "swings": "Confirmed pivots with2 closed bars on either side; no future pivot use.",
+    "warmup": "55closed bars per timeframe; missing prehistory remains unknown. Finite causal fills may feed indicators and estimated pivots with minute-coverage confidence penalty.",
+    "bias": "1d+4h agreement above0.75 confidence; disagreement/unknown ->Neutral.4h-only is a separate registered variant.",
+    "range": "Fresh1h support/resistance; observed1h extrema fallback disclosed; >=95% indicator-minute coverage, no raw7d range substitution.",
+    "entry": "Long/Short5m+15m pullback, never fresh high/low respectively. Neutral central20-80% band, no fresh breakout. Lower-timeframe coverage>=95%, latestsignal bucket contains actual observations; actual1m quote required for execution."
+  },
+  "regime": {
+    "macro": "XBTUSDTM and ETHUSDTM4h+1d allup allowLong/Neutral; alldown allowShort/Neutral; mixed/unknownNeutral.",
+    "sol": "Known members intersect SOLUSDTM read. Maintained config list with citations; unclassified usesmacro gate with explicitSOL-not-appliedwarning.",
+    "application": "New entries only; record full readings and allowed directions. No forced close solely because regime changes."
+  },
+  "replacement": "Cost-aware income/hour improvement over6h must cover executable floatingclose loss plus close/openfees; no mandatory higherGPH if income improves. Underperformance is known trailing6h income belowhalf immutable startincome OR GPH<2. Under6h/unknown is notzero. No eligible replacement does not resurrect closed bots.",
+  "hard_constraints": {
+    "positive_net_completed_grids_after_fees_and_funding": true,
+    "liquidations": 0,
+    "minimum_observed_candle_fraction": 0.95,
+    "closest_approach_fraction_of_range_min": 0.1,
+    "verified_execution_data_for_continuation": true
+  },
+  "calibration": {
+    "status": "unverified_predictive_quantity_and_liquidation",
+    "offers": "Allowed only with estimated labels; no calibration gate on modeled radar offers.",
+    "deployment": "No deployment or exchange execution authorized; evidence and separateaudit required."
+  },
+  "baselines": [
+    "random_radar_identical_rules"
+  ],
+  "research_status": "July/August data and earlier-policy outputs have already been inspected. This registration precedes the amended strategy sweep, but these months are not claimed to be pristine unseen holdouts.",
+  "evaluation": {
+    "strategy": "grid-kucoin-v3-income-chart",
+    "mode": "paper",
+    "duration_hours": 48,
+    "status": "awaiting_paper_start",
+    "started_at_ms": null,
+    "first_audit_at_ms": null,
+    "start_event": "Fresh matching paper_run_started only; source work and replay do not start the clock."
+  },
+  "execution_limits": [
+    "Source and detached-copy offline research only.",
+    "No credentials, account APIs, live orders, deployment, installed scheduler or runtime changes.",
+    "Public unauthenticated funding history retrieval only, shared token bucket and resumable sidecar checkpoints.",
+    "Report modeled results and coverage limitations separately; missingdata is never verified zero.",
+    "Exact range hit closes all positions; no profit-target stop."
+  ]
+}
