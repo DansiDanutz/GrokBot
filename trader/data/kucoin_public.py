@@ -176,6 +176,10 @@ class PublicClient:
         symbol_name(symbol); _window(start_ms, end_ms)
         data = self._get('/api/v1/contract/funding-rates', {
             'symbol': symbol, 'from': start_ms, 'to': end_ms - 1})
+        # KuCoin encodes a successful window without settlements as JSON null.
+        # _get already requires a success code and an explicit data field.
+        if data is None:
+            return []
         if not isinstance(data, list) or len(data) > 1000:
             raise ProtocolError('invalid funding response')
         rows = []

@@ -108,3 +108,23 @@ reported as `insufficient_storage`; the uncommitted page does not advance its
 checkpoint. Already committed data is retained. The collector never deletes
 files to create capacity. This is a reserve check, not a guarantee against
 concurrent unrelated disk consumption; callers should monitor available space.
+
+## Empty funding windows
+
+An anonymous public probe on 2026-09-11 for XBTUSDTM over
+`[1789090716256, 1789091042336)` returned HTTP 200 with code `200000` and
+`data: null`; the enclosing day returned three settlement records. These two
+responses and their public request metadata are recorded in
+`tests/fixtures/kucoin/funding-empty-incremental*` and `funding-day-context*`.
+The official public funding endpoint documents millisecond `from`/`to` parameters
+but does not describe this empty-window encoding:
+https://www.kucoin.com/docs-new/rest/futures-trading/funding-fees/get-public-funding-history
+
+The funding method therefore treats an explicit null data field in a successful
+response as an empty result. This normalization applies only to funding; missing
+data, non-success codes, invalid shapes, malformed records and records outside
+the requested interval remain errors. The updater can advance its queried-window
+checkpoint without adding settlement rows or inventing a settlement period.
+Its evidence still states `schedule_verified: false` and
+`completeness: queried_window_only`; a successful empty query does not prove the
+exchange's historical settlement schedule is complete.
