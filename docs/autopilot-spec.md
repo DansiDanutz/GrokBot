@@ -391,3 +391,25 @@ the verification flag cannot admit new bots. This is a deterministic heuristic,
 not a claim that support cannot break. RAY 1.40 is Dan’s observed example, not a
 universal hard-coded limit. Existing bots retain their entered ranges and are
 labeled legacy until they close normally.
+
+
+## Range capacity and fees — Dan clarification, 11 September 2026
+
+New entries in every direction require both confirmed support and resistance;
+their fixed prices define the range. Do not expand a range to accommodate a
+requested count. Choose the number of geometric intervals from that range and
+the target step (0.8%, 0.52% on majors, 0.45% for Neutral), capped at 200.
+The actual step is 100 × ((high / low) ** (1 / grids) − 1); use it for the
+expected grids/hour estimate and the bot, rather than the target step.
+
+Validate every adjacent pair: quantity × (sell − buy) − quantity × fee_rate ×
+(buy + sell) must be positive and at least 20% of the two fees. The shared
+configurable safety-margin default is 0.20; the paper fee is 0.0006 per fill.
+For geometric spacing this inequality is identical at every price because
+quantity and the lower line price factor out. A 100..102 range with 70 grids
+fails; fewer grids can fit. Radar reduces the count without moving the bounds;
+if even one interval fails it reports GRID_FEES and withholds the setup.
+Externally supplied counts fail admission if their actual spacing fails, even
+when their claimed step is larger. MISSING_STRUCTURE means either chart level
+is absent. Existing open grids are not resized. This is a fee feasibility check;
+funding, initial inventory costs, and exit losses still affect total bot net PnL.

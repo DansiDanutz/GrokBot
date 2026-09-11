@@ -105,7 +105,8 @@ class PolicyTests(unittest.TestCase):
 
     def test_profile_rates_and_reserve_no_double_count(self):
         spec, reserve = policy.profile(row('RAY'), 'NEUTRAL', 1)
-        self.assertEqual((spec['leverage'], reserve, spec['step_pct']), (5, 200, .45))
+        self.assertEqual((spec['leverage'], reserve), (5, 200))
+        self.assertGreaterEqual(spec['step_pct'], .45)
         self.assertEqual((spec['range_low'], spec['range_high']), (90, 110))
         self.assertTrue(17 <= expected_grids_per_hour(6.2, .43, 8_000_000) <= 21)
         self.assertAlmostEqual(expected_grids_per_hour(6.2, .8, 8_000_000), 1.9*6.2/.8)
@@ -255,7 +256,7 @@ class FiveXBoundaryTests(unittest.TestCase):
         self.assertEqual((spec['range_low'], spec['range_high']), (94,106))
 
     def test_neutral_borrowing_requires_both_structural_edges(self):
-        candidate = row("A", support=94, resistance=None)
+        candidate = row("A", range_low=94, range_high=106, support=94, resistance=None)
         self.assertFalse(policy.eligible(policy.new_state(0), candidate, "NEUTRAL", "movers", 0))
         candidate["resistance"] = 106
         spec, _ = policy.profile(candidate, "NEUTRAL", 1)

@@ -9,6 +9,7 @@ import math
 from trader.papergrid import open_bot, close_bot, step
 from trader.radar.rates import expected_grids_per_hour
 from trader.radar.scoring import score_row
+from trader.radar.spacing import economics, choose_count
 from trader.autopilot import watchlist
 from trader.autopilot.constants import (
     PAPER_EQUITY_USDT, MAX_BOTS, NOTIONAL_PER_BOT_USDT, SLOTS, DIRECTION_CAP,
@@ -46,19 +47,23 @@ def profile(row, direction, bot_id):
     price = row['price']
     low, high, step_pct = row['range_low'], row['range_high'], row['step_pct']
     grids, leverage, reserve = row['grids'], LEVERAGE_TREND, NEUTRAL_RESERVE_USDT
-    required = ('support', 'resistance') if direction == 'NEUTRAL' else (('support',) if direction == 'LONG' else ('resistance',))
+    required = ('support', 'resistance')
     for name in required:
         value = row.get(name)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
             raise ValueError('missing structural boundary')
-    if direction == 'LONG' and low != row['support'] or direction == 'SHORT' and high != row['resistance']:
+    if low != row['support'] or high != row['resistance']:
         raise ValueError('range does not match structure')
     if direction == 'NEUTRAL':
         low, high = row['support'], row['resistance']
         step_pct, leverage, reserve = STEP_NEUTRAL_PCT, LEVERAGE_NEUTRAL, NEUTRAL_RESERVE_USDT
         if low <= 0 or high <= low:
             raise ValueError('invalid neutral range')
-        grids = min(200, max(1, round(math.log(high / low) / math.log1p(step_pct / 100))))
+        grids = choose_count(low, high, step_pct)
+    spacing = economics(low, high, grids)
+    if not spacing['viable']:
+        raise ValueError('grid spacing does not cover both fees plus safety margin')
+    step_pct = spacing['step_pct']
     return dict(bot_id=bot_id, symbol=row['symbol'], direction=direction,
                 range_low=low, range_high=high, step_pct=step_pct, grids=grids,
                 notional_usdt=NOTIONAL_PER_BOT_USDT, leverage=leverage,
