@@ -46,6 +46,27 @@ class ReplayTests(unittest.TestCase):
         self.assertIsNone(result['metrics']['net'])
         self.assertEqual(result['ledger'], [])
 
+    def test_fixed_four_missing_start_price_has_explicit_reason_and_no_entries(self):
+        fixtures = [dict(symbol=pair+'USDT', mode='long', range_low=90, range_high=110,
+                         grids_buy=5, grids_sell=5, leverage=5, margin_usdt=1200,
+                         reserved_margin=200, entry_price=100) for pair in 'ABCD']
+        missing_markets = ({}, dict(assumed=True, candle_observed_at_ms=START-60000,
+                                   bid=99.95, ask=100.05))
+        for missing in missing_markets:
+            with self.subTest(missing=missing):
+                snapshot = MemorySnapshot()
+                snapshot.market = lambda pair, at: (missing if pair == 'DUSDTM' else
+                                                    dict(bid=99.99, ask=100.01, observed_at_ms=at))
+                result = run_window(snapshot, START, START+HOUR,
+                    mode='four_observed_long_forms_unchanged', fixtures=fixtures)
+                self.assertFalse(result['coverage']['complete'])
+                self.assertIn('baseline historical starting price unavailable for DUSDTM at '+str(START),
+                              result['coverage']['reasons'])
+                self.assertEqual(result['bots'], [])
+                self.assertEqual(result['ledger'], [])
+                self.assertIsNone(result['metrics']['net'])
+                self.assertEqual(result['completed_hours'], 0)
+
     @patch('trader.research.kucoin_replay.radar', side_effect=scan)
     def test_two_slots_total_margin_and_fill_identity(self, unused):
         result = run_window(MemorySnapshot(), START, START+HOUR)

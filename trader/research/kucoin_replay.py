@@ -405,12 +405,15 @@ def _actual_start(snapshot, report, fixtures, start):
     cash = report['initial_capital']
     report['limitations'].extend(['Actual baseline capital follows the documented fixture_config interpretation of Margin and Reserved Margin.',
         'Original stop-loss and initial inventory are unknown; no baseline stop-loss is invented.'])
-    for config in configs:
-        form = dict(asdict(config), used_margin=config.investment, entry=config.entry_price)
-        row = dict(pair=config.pair, setup=form, score=0)
-        price = _price(snapshot, config.pair, start, config.entry_price)
+    prices = [_price(snapshot, config.pair, start, None) for config in configs]
+    for config, price in zip(configs, prices):
+        if price is None:
+            raise ValueError('baseline historical starting price unavailable for '+config.pair+' at '+str(start))
         if not config.low <= price <= config.high:
             raise ValueError('baseline original inventory unavailable when start price is outside its fixed range')
+    for config, price in zip(configs, prices):
+        form = dict(asdict(config), used_margin=config.investment, entry=config.entry_price)
+        row = dict(pair=config.pair, setup=form, score=0)
         cash = _open(report, row, start, cash, price, config)
     return cash
 
