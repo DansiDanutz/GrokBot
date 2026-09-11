@@ -149,6 +149,8 @@ def track_summary(state, start_ms, asof_ms, expected_start_gph=0):
 def _validated_bars(state, bars, asof_ms, historical_candle_only=False):
     cursor, result = state.timestamp_ms, []
     for source in bars:
+        if source.get('synthetic') or source.get('indicator_only'):
+            raise ValueError('synthetic or indicator-only candles cannot execute')
         timestamp = source.get('timestamp_ms', source.get('time_ms'))
         if type(timestamp) is not int or timestamp % MINUTE_MS or (timestamp < cursor if historical_candle_only else timestamp != cursor):
             raise ValueError('completed minute bars must be contiguous with state; no gaps or duplicates')

@@ -331,3 +331,22 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(result['summary']['missing_minutes'], 60)
         self.assertEqual(result['equity_timeline'], [])
         self.assertTrue(all(row['kind'] == 'seed' for row in result['ledger']))
+
+    def test_synthetic_and_indicator_rows_rejected_before_any_execution_in_both_modes(self):
+        from unittest.mock import patch
+        for historical in (False, True):
+            for marker in ('synthetic', 'indicator_only'):
+                with self.subTest(historical=historical, marker=marker):
+                    candles = [bar(), bar(60_000, **{marker: True})]
+                    with patch('trader.research.kucoin_tracker.advance', wraps=advance) as execute:
+                        with self.assertRaisesRegex(ValueError, 'synthetic or indicator-only'):
+                            track_bars(state(), candles, historical_candle_only=historical)
+                        execute.assert_not_called()
+
+    def test_explicitly_observed_rows_with_false_synthetic_flags_still_execute(self):
+        for historical in (False, True):
+            result = track_bars(state(), [bar(synthetic=False, indicator_only=False)],
+                                historical_candle_only=historical)
+            self.assertGreater(result['state'].completed_grids, 0)
+            if historical:
+                self.assertEqual(result['summary']['observed_minutes'], 1)
