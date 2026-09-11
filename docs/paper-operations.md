@@ -138,8 +138,10 @@ reimporting the module. The v1 checkout keeps its own existing configuration.
 Dan provisions the private file once, outside this roadmap execution, with mode
 0600 inside a private directory. Copy only the existing CoinGlass assignment
 using a local editor, without pasting it into a terminal command or chat.
-Codex has not read, copied, written or requested the key during Phase 0, and no
-CoinGlass request is made by verification. The env override selects an already
+No key was copied, written or requested during Phase 0, and verification makes
+no CoinGlass requests. An initial RED test inadvertently called the legacy key
+reader; its value was not displayed or saved. The negative test now mocks file
+access; see the phase evidence for the exact limitation. The env override selects an already
 provisioned file; it must never be committed to a plist or repository.
 
 

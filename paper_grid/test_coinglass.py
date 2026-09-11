@@ -39,9 +39,11 @@ class CoinGlassTests(unittest.TestCase):
                 with self.assertRaisesRegex(c.CoinGlassError, 'Desktop.*not allowed'):
                     c.read_api_key(path)
                 opened.assert_not_called()
-        with patch.dict('os.environ', {'PAPER_GRID_SECRETS_FILE': '~/Desktop/key.env'}):
+        with patch.dict('os.environ', {'PAPER_GRID_SECRETS_FILE': '~/Desktop/key.env'}), \
+             patch.object(Path, 'open', side_effect=AssertionError('unexpected file access')) as opened:
             with self.assertRaisesRegex(c.CoinGlassError, 'Desktop'):
                 c.read_api_key()
+            opened.assert_not_called()
 
     def test_secret_override_cannot_be_empty_or_resolve_to_desktop(self):
         with patch.dict('os.environ', {'PAPER_GRID_SECRETS_FILE': ''}):
