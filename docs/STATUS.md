@@ -21,6 +21,8 @@ A lean hourly **KuCoin grid radar**: reads the local KuCoin candle database, lab
 |---|---|---|
 | PR #18: price + range in Telegram, stale-snapshot guard, EMA note | Codex | merged after Claude PASS at `8b43d51` |
 | PR #20: radar dashboard design | Claude | merged at `51aa130` |
+| PR #21: autopilot specification | Claude | merged at `f814172`; single source of truth for Phases A–C |
+| PR #19: phase-2, radar, status and autopilot specification into default | Codex → Claude audit | open; Phase 0 handoff pending |
 
 ## Remaining to call it finished
 1. **Audit + merge PR #18** (Claude, then Codex merges).
