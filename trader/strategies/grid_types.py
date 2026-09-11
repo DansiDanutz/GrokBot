@@ -47,6 +47,7 @@ class GridState:
     grid_profit: float = 0
     grid_net_profit: float = 0
     max_floating_loss: float = 0
+    equity_marks: tuple[float, ...] = ()
     seed_pnl: float = 0
     close_pnl: float = 0
     fees: float = 0

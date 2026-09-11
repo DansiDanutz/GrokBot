@@ -174,3 +174,57 @@ class GridTests(unittest.TestCase):
         self.assertEqual(returned.range_exits, 1)
         self.assertLess(returned.funding, outside.funding)
         self.assertEqual(returned.completed_grids, outside.completed_grids)
+
+    def test_interior_equity_marks_match_grid_level_split_peak_drawdown(self):
+        state = advance(create_bot(self.config(), 100, 0), 95, 1_000)
+        coarse = advance(state, 109, 30_000)
+        split, split_marks = state, []
+        for index, price in enumerate(range(96, 110), 1):
+            split = advance(split, price, 1_000 + index * 1_000)
+            split_marks.extend(split.equity_marks)
+        def stats(marks):
+            peak, drawdown = marks[0], 0
+            for value in marks:
+                peak = max(peak, value)
+                drawdown = max(drawdown, (peak - value) / peak)
+            return peak, drawdown
+        self.assertAlmostEqual(stats(coarse.equity_marks)[0], stats(split_marks)[0])
+        self.assertAlmostEqual(stats(coarse.equity_marks)[1], stats(split_marks)[1])
+        self.assertGreater(max(coarse.equity_marks), net_equity(coarse, 109))
+        self.assertAlmostEqual(net_equity(coarse, 109), net_equity(split, 109))
+
+    def test_equity_marks_are_ephemeral_and_include_liquidation_fee(self):
+        state = create_bot(self.config(direction='long', investment=200, leverage=10), 100, 0)
+        closed = advance(state, 1, 60_000)
+        self.assertAlmostEqual(closed.equity_marks[-1], net_equity(closed, closed.price))
+        self.assertGreater(closed.equity_marks[-2], closed.equity_marks[-1])
+        self.assertGreater(min(closed.equity_marks), 0)
+        same = advance(create_bot(self.config(), 100, 0), 100, 1_000)
+        later = advance(same, 100, 2_000)
+        self.assertEqual(len(same.equity_marks), len(later.equity_marks))
+
+    def test_equity_marks_include_funding_cash_change(self):
+        state = create_bot(self.config(direction='long'), 100, 0)
+        funded = advance(state, 100, 8 * 3_600_000, funding_rate=.001)
+        self.assertAlmostEqual(funded.equity_marks[-2] - funded.equity_marks[-1], 1)
+        self.assertAlmostEqual(funded.equity_marks[-1], net_equity(funded, 100))
+
+    def test_boundary_price_fills_precede_funding_for_closed_inventory(self):
+        state = create_bot(self.config(direction='long'), 100, 0)
+        boundary = advance(state, 110, 8 * 3_600_000, funding_rate=.001)
+        self.assertEqual(boundary.positions, ())
+        self.assertEqual(boundary.funding, 0)
+
+    def test_boundary_funding_charges_inventory_opened_along_path(self):
+        state = create_bot(self.config(direction='long'), 100, 0)
+        boundary = advance(state, 90, 8 * 3_600_000, funding_rate=.001)
+        self.assertEqual(sum(p.quantity for p in boundary.positions), 20)
+        self.assertAlmostEqual(boundary.funding, -1.8)
+
+    def test_funding_can_force_liquidation_after_boundary_fills(self):
+        state = create_bot(self.config(direction='long', investment=200, leverage=10), 100, 0)
+        boundary = advance(state, 100, 8 * 3_600_000, funding_rate=.3)
+        self.assertTrue(boundary.liquidated)
+        self.assertEqual(boundary.price, 100)
+        self.assertAlmostEqual(boundary.funding, -300)
+        self.assertAlmostEqual(boundary.equity_marks[-1], net_equity(boundary, 100))

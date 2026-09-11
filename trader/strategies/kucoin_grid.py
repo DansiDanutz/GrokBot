@@ -11,7 +11,8 @@ Accounting components are GROSS; equity subtracts total fees exactly once.
 Funding is a signed cash flow. Grid net profit allocates both fill fees for
 reporting, but is not added again to equity. Supplied funding rates are applied
 at crossed UTC 8-hour boundaries using the latest supplied mark; callers must
-split paths at boundaries when rates or marks change. There is no take-profit.
+split paths at every funding boundary. At a boundary, price-path fills precede
+funding settlement; only inventory still held then is charged or credited. There is no take-profit.
 """
 from dataclasses import replace
 import math
@@ -136,7 +137,8 @@ def floating_pnl(state, price):
 
 def _track_floating_loss(state, price):
     loss = max(state.max_floating_loss, -floating_pnl(state, price), 0)
-    return replace(state, max_floating_loss=loss)
+    return replace(state, max_floating_loss=loss,
+                   equity_marks=state.equity_marks + (net_equity(state, price),))
 
 
 def net_equity(state, price):
@@ -190,21 +192,35 @@ def _liquidation_due(state, price):
 
 
 def advance(state, price, timestamp_ms, funding_rate=0, bid=None, ask=None):
-    """Process a monotonic price segment; caller chooses the intrabar path."""
+    """Process a monotonic price segment; caller chooses the intrabar path.
+
+    equity_marks contains only this call's chronological critical-price marks,
+    including the before/after cash effect of fills, funding and liquidation.
+    It is reset for every advance rather than retaining a growing price history.
+    """
     _validate_tick(price, timestamp_ms)
     if timestamp_ms < state.timestamp_ms:
         raise ValueError('timestamps must not move backward')
+    state = replace(state, equity_marks=())
     if state.status in ('stopped', 'liquidated'):
         return state
+    state = _track_floating_loss(state, state.price)
     if state.status == 'waiting':
         trigger = state.config.trigger
         if trigger is not None and min(state.price, price) <= trigger <= max(state.price, price):
             activated = _start(replace(state, price=trigger, timestamp_ms=timestamp_ms,
                                      last_funding_ms=timestamp_ms // FUNDING_MS * FUNDING_MS))
-            return advance(activated, price, timestamp_ms, funding_rate, bid, ask)
+            advanced = advance(activated, price, timestamp_ms, funding_rate, bid, ask)
+            return replace(advanced, equity_marks=state.equity_marks + advanced.equity_marks)
         return replace(state, price=price, timestamp_ms=timestamp_ms)
-    funded = _fund(state, price, timestamp_ms, funding_rate)
-    return _advance_orders(funded, price, timestamp_ms, bid, ask)
+    moved = _advance_orders(state, price, timestamp_ms, bid, ask)
+    if moved.liquidated:
+        return moved
+    funded = _fund(moved, price, timestamp_ms, funding_rate)
+    funded = _track_floating_loss(funded, price)
+    if _liquidation_due(funded, price):
+        return _liquidate_at(funded, price, price, timestamp_ms, bid, ask)
+    return funded
 
 
 def _liquidation_between(state, start, end):
@@ -276,10 +292,11 @@ def stop(state, price, timestamp_ms, bid=None, ask=None, reason='replacement'):
         fill = bid if position.side == 1 else ask
         gross += position.side * position.quantity * (fill - position.entry)
         fees += position.quantity * fill * FEE
-    return replace(state, positions=(), orders=(), price=price, timestamp_ms=timestamp_ms,
+    closed = replace(state, positions=(), orders=(), price=price, timestamp_ms=timestamp_ms,
                    close_pnl=state.close_pnl + gross, fees=state.fees + fees,
                    status='liquidated' if reason == 'liquidation' else 'stopped',
                    liquidated=reason == 'liquidation', stop_reason=reason)
+    return _track_floating_loss(closed, price)
 
 
 def _full_inventory_liquidation(config, direction):
