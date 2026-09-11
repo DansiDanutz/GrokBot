@@ -7,7 +7,7 @@ HOUR = 3_600_000
 
 def running(**changes):
     bot = dict(bot_id='test-bot', pair='TESTUSDTM', direction='long', leverage=5,
-               used_margin=1000, reserved_margin=0, entry=100, low=90, high=110,
+               used_margin=1000, reserved_margin=200, entry=100, low=90, high=110,
                grids=20, stop_loss=85, start_ms=0, expected_start_gph=10,
                quantity=1)
     return dict(schema_version=1, bots=[dict(bot, **changes)])
@@ -32,9 +32,13 @@ class MemorySnapshot:
                     book_observed_at_ms=asof)
 
 
+def funded(document, asof_ms, cash=10):
+    return dict(document, capital=dict(available_cash_usdt=cash, asof_ms=asof_ms))
+
+
 def candidate(pair='NEW', score=10):
     return dict(pair=pair, direction='long', score=score, reason='fixture',
-                setup=dict(running()['bots'][0], pair=pair,
+                setup=dict(running()['bots'][0], pair=pair, eligible=True,
                            preview={'profit_per_grid_min': 1}))
 
 
@@ -51,7 +55,7 @@ class OperatorTests(unittest.TestCase):
     @patch('trader.research.kucoin_operator.radar')
     def test_hourly_tracking_has_full_ledger_and_held_replacement(self, mocked):
         mocked.return_value = dict(radar=[candidate()], rejected=[], coverage={})
-        report = operator_report(MemorySnapshot(), 2*HOUR, running())
+        report = operator_report(MemorySnapshot(), 2*HOUR, funded(running(), 2*HOUR))
         self.assertFalse(report['live_use']['actionable'])
         self.assertIn('calibration', report['live_use']['status'])
         bot = report['running'][0]
@@ -66,8 +70,8 @@ class OperatorTests(unittest.TestCase):
     @patch('trader.research.kucoin_operator.radar')
     def test_canonical_form_preview_and_running_exclusion_are_preserved(self, mocked):
         mocked.return_value = dict(radar=[candidate('A'), candidate('B'), candidate('C')], rejected=[], coverage={})
-        report = operator_report(MemorySnapshot(), HOUR, running())
-        self.assertEqual(len(report['recommended_forms']), 2)
+        report = operator_report(MemorySnapshot(), HOUR, funded(running(), HOUR))
+        self.assertEqual(len(report['recommended_forms']), 1)
         self.assertEqual(report['recommended_forms'][0]['preview']['profit_per_grid_min'], 1)
         self.assertEqual(mocked.call_args.args[2], ['TESTUSDTM'])
 
@@ -93,8 +97,8 @@ class OperatorTests(unittest.TestCase):
         self.assertAlmostEqual(sum(row['fee'] for row in bot['ledger']),
                                bot['tracker']['fees'])
 
-    def test_running_form_rejects_leverage_outside_three_to_six(self):
-        for leverage in (2, 7):
+    def test_running_form_requires_fixed_five_times_leverage(self):
+        for leverage in (2, 3, 4, 6, 7):
             with self.assertRaises(ValueError):
                 validate_running(running(leverage=leverage), HOUR)
 
@@ -133,3 +137,113 @@ class OperatorTests(unittest.TestCase):
         self.assertFalse(report['coverage']['execution_costs_complete'])
         self.assertFalse(report['running'][0]['execution_cost_coverage']['complete'])
         self.assertIn('intrabar bid/ask', report['running'][0]['execution_cost_coverage']['reason'])
+
+    def test_fixed_policy_requires_used_1000_plus_reserve_200(self):
+        validate_running(running(), HOUR)
+        for changes in ({'used_margin': 800, 'reserved_margin': 200},
+                        {'used_margin': 1000, 'reserved_margin': 0},
+                        {'used_margin': 900, 'reserved_margin': 300}):
+            with self.subTest(changes=changes):
+                with self.assertRaises(ValueError):
+                    validate_running(running(**changes), HOUR)
+
+    @patch('trader.research.kucoin_operator.radar')
+    def test_two_running_bots_emit_only_one_portfolio_switch(self, mocked):
+        mocked.return_value = dict(radar=[candidate('A'), candidate('B')], rejected=[], coverage={})
+        first = running()['bots'][0]
+        second = dict(first, bot_id='second-bot', pair='SECONDUSDTM')
+        report = operator_report(MemorySnapshot(), 2*HOUR,
+                                 funded(dict(schema_version=1, bots=[first, second]), 2*HOUR))
+        replacements = [bot for bot in report['running'] if bot['verdict']['action'] == 'replace']
+        self.assertEqual(len(replacements), 1)
+        self.assertEqual(report['portfolio_decision']['worst_bot_id'], replacements[0]['bot_id'])
+        self.assertEqual(len(report['recommended_forms']), 1)
+        self.assertEqual(report['capital_policy']['total_for_two_bots'], 2400)
+
+    def test_operator_enables_adaptive_safety_for_new_forms(self):
+        from trader.research.kucoin_operator import _config
+        config = _config(running()['bots'][0])
+        self.assertTrue(config.adaptive_range_stops)
+        self.assertEqual(config.adaptive_tight_stop_pct, .01)
+        self.assertEqual(config.adaptive_liquidation_clearance_pct, .01)
+
+    def test_capital_snapshot_is_strict_finite_and_exactly_asof(self):
+        validate_running(funded(running(), HOUR, 0), HOUR)
+        malformed = [dict(available_cash_usdt=-1, asof_ms=HOUR),
+                     dict(available_cash_usdt=float('nan'), asof_ms=HOUR),
+                     dict(available_cash_usdt=True, asof_ms=HOUR),
+                     dict(available_cash_usdt=1200, asof_ms=0),
+                     dict(available_cash_usdt=1200, asof_ms=2*HOUR),
+                     dict(available_cash_usdt=1200, asof_ms=HOUR, deposit=1)]
+        for capital in malformed:
+            with self.subTest(capital=capital):
+                with self.assertRaises(ValueError):
+                    validate_running(dict(running(), capital=capital), HOUR)
+
+    @patch('trader.research.kucoin_operator.radar')
+    def test_missing_capital_withholds_funded_forms_but_keeps_research_radar(self, mocked):
+        mocked.return_value = dict(radar=[candidate()], rejected=[], coverage={})
+        for document in (running(), dict(schema_version=1, bots=[])):
+            report = operator_report(MemorySnapshot(), HOUR, document)
+            self.assertEqual(report['recommended_forms'], [])
+            self.assertFalse(report['capital']['known'])
+            self.assertIn('unknown', report['capital']['reason'])
+            self.assertEqual(len(report['radar']['radar']), 1)
+            self.assertNotEqual(report['portfolio_decision']['action'], 'replace')
+
+    @patch('trader.research.kucoin_operator.radar')
+    def test_two_allocated_bots_zero_cash_cannot_fund_losing_replacement(self, mocked):
+        mocked.return_value = dict(radar=[candidate()], rejected=[], coverage={})
+        first = running()['bots'][0]
+        second = dict(first, bot_id='second', pair='SECONDUSDTM')
+        document = funded(dict(schema_version=1, bots=[first, second]), HOUR, 0)
+        report = operator_report(MemorySnapshot(), HOUR, document)
+        self.assertEqual(report['recommended_forms'], [])
+        self.assertNotEqual(report['portfolio_decision']['action'], 'replace')
+        self.assertTrue(any('capital cannot fund' in row['reason']
+                           for row in report['portfolio_decision']['rejected_candidates']))
+
+    @patch('trader.research.kucoin_operator.radar')
+    def test_one_kept_bot_can_fill_a_funded_second_slot_without_double_spending(self, mocked):
+        mocked.return_value = dict(radar=[candidate('A'), candidate('B')], rejected=[], coverage={})
+        report = operator_report(MemorySnapshot(), HOUR, funded(running(), HOUR, 1200))
+        self.assertEqual(report['running'][0]['verdict']['action'], 'keep')
+        self.assertEqual([row['pair'] for row in report['entry_decision']['selected']], ['A'])
+        self.assertEqual([row['pair'] for row in report['recommended_forms']], ['A'])
+        self.assertEqual(report['entry_decision']['remaining_cash'], 0)
+        self.assertNotEqual(report['portfolio_decision']['action'], 'replace')
+
+    @patch('trader.research.kucoin_operator.radar')
+    def test_empty_portfolio_uses_same_cost_adjusted_entry_ranking_as_replay(self, mocked):
+        fast, profitable = candidate('FAST', 20), candidate('PROFITABLE', 5)
+        fast['setup']['opening_fee_budget'] = 119
+        profitable['setup']['opening_fee_budget'] = .1
+        mocked.return_value = dict(radar=[fast, profitable], rejected=[], coverage={})
+        document = funded(dict(schema_version=1, bots=[]), HOUR, 1200)
+        report = operator_report(MemorySnapshot(), HOUR, document)
+        self.assertEqual([row['pair'] for row in report['recommended_forms']], ['PROFITABLE'])
+        self.assertEqual(report['entry_decision']['required_cash'], 1200)
+
+    @patch('trader.research.kucoin_operator.radar')
+    def test_asof_cash_does_not_add_already_released_modeled_equity_twice(self, mocked):
+        mocked.return_value = dict(radar=[candidate()], rejected=[], coverage={})
+        snapshot = MemorySnapshot()
+        snapshot.candles = lambda pair, start, end: [
+            dict(time_ms=t, open=100, high=100, low=80, close=90)
+            for t in range(start, end, 60000)]
+        first = running()['bots'][0]
+        second = dict(first, bot_id='second', pair='SECONDUSDTM')
+        document = funded(dict(schema_version=1, bots=[first, second]), HOUR, 300)
+        report = operator_report(snapshot, HOUR, document)
+        self.assertTrue(all(bot['tracker']['status'] == 'stopped' for bot in report['running']))
+        self.assertEqual(report['recommended_forms'], [])
+        self.assertNotEqual(report['portfolio_decision']['action'], 'replace')
+
+    @patch('trader.research.kucoin_operator.radar')
+    def test_operator_propagates_requested_radar_size_and_defaults_to_ten(self, mocked):
+        mocked.return_value = dict(radar=[], rejected=[], coverage={})
+        document = funded(dict(schema_version=1, bots=[]), HOUR, 2400)
+        for parameters, expected in [({}, 10), ({'radar_size': 5}, 5)]:
+            with self.subTest(parameters=parameters):
+                operator_report(MemorySnapshot(), HOUR, document, parameters)
+                self.assertEqual(mocked.call_args.args[3]['radar_size'], expected)

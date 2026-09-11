@@ -196,3 +196,53 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(summary['price'], 115.5)
         self.assertEqual(summary['distance_stop_loss_pct'], 0)
         self.assertEqual(summary['distance_range_exit_stop_high_pct'], 0)
+
+    def test_latched_low_stop_is_reported_instead_of_static_five_percent_preview(self):
+        initial = state(adaptive_range_stops=True)
+        event = (60000, 'low', .01, 'insufficient_liquidation_clearance')
+        latched = replace(initial, effective_range_exit_stop_pct_low=.01,
+                          protective_reason='risk_protection', adaptive_stop_events=(event,))
+        summary = track_summary(latched, 0, HOUR)
+        self.assertEqual(summary['range_exit_stop_low'], 89.1)
+        self.assertEqual(summary['range_exit_stop_high'], 115.5)
+        self.assertEqual(summary['effective_range_exit_stop_pct_low'], .01)
+        self.assertEqual(summary['protective_reason'], 'risk_protection')
+        self.assertEqual(summary['adaptive_stop_events'], [event])
+        self.assertEqual(summary['full_inventory_preview']['range_exit_stop_low'], 85.5)
+        self.assertAlmostEqual(summary['distance_range_exit_stop_low_pct'], 10.9/89.1*100)
+
+    def test_latched_upper_stop_retains_custom_nearer_stop_and_reported_reason(self):
+        config = GridConfig(pair='T', low=90, high=110, grids=20, quantity=1,
+                            direction='short', stop_loss=110.5, adaptive_range_stops=True)
+        initial = create_bot(config, 100, 0)
+        latched = replace(initial, effective_range_exit_stop_pct_high=.01,
+                          protective_reason='risk_protection')
+        summary = track_summary(latched, 0, HOUR)
+        self.assertEqual(summary['range_exit_stop_high'], 111.1)
+        self.assertEqual(summary['effective_stop_loss_high'], 110.5)
+        self.assertEqual(summary['protective_reason'], 'risk_protection')
+        self.assertEqual(summary['effective_range_exit_stop_pct_high'], .01)
+
+    def test_tracking_carries_adaptive_latch_from_live_model_advance_to_close(self):
+        initial = state(investment=200, leverage=10, adaptive_range_stops=True)
+        result = track_bars(initial, [dict(timestamp_ms=0, open=100,
+                            low=88, high=101, close=100)])
+        summary = result['summary']
+        self.assertTrue(summary['adaptive_stop_latched_low'])
+        self.assertEqual(summary['effective_range_exit_stop_pct_low'], .01)
+        self.assertEqual(summary['price'], 89.1)
+        self.assertEqual(summary['distance_stop_loss_pct'], 0)
+        self.assertEqual(summary['adaptive_stop_events'][0][1:],
+                         ('low', .01, 'insufficient_liquidation_clearance'))
+        self.assertFalse(summary['liquidated'])
+        self.assertAlmostEqual(sum(row['fee'] for row in result['ledger']), summary['fees'])
+
+    def test_adaptive_early_warning_does_not_offer_more_than_fixed_reserve(self):
+        initial = state(investment=200, leverage=10, adaptive_range_stops=True)
+        warning = track_summary(replace(initial, price=83), 0, HOUR)
+        self.assertTrue(warning['emergency'])
+        self.assertGreater(warning['distance_liquidation_pct'], 1)
+        self.assertLess(warning['distance_liquidation_pct'], 5)
+        self.assertEqual(warning['emergency_action'],
+            'verify tightened 1% range protection or stop; no additional margin beyond fixed reserve')
+        self.assertNotIn('add reserve', warning['emergency_action'])

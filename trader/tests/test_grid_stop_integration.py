@@ -9,7 +9,7 @@ class StopFormIntegrationTests(unittest.TestCase):
         for direction in ('long', 'short', 'neutral'):
             form = dict(pair='TESTUSDTM', direction=direction, low=85.13,
                         high=140.13, grids=20, leverage=5, used_margin=1000,
-                        reserved_margin=0, entry=100.13, quantity=.1,
+                        reserved_margin=200, entry=100.13, quantity=.1,
                         multiplier=.1, lot_size=1, tick_size=.01,
                         stop_loss=147.13 if direction == 'short' else 80.88,
                         stop_loss_high=147.13 if direction == 'neutral' else None)
@@ -17,6 +17,7 @@ class StopFormIntegrationTests(unittest.TestCase):
                 config = adapter(form)
                 with self.subTest(direction=direction, adapter=adapter.__module__):
                     self.assertEqual(config.tick_size, .01)
+                    self.assertEqual(config.total_margin, 1200)
                     estimate = preview(config)
                     self.assertEqual(estimate['effective_stop_loss_low'], 80.88)
                     self.assertEqual(estimate['effective_stop_loss_high'], 147.13)

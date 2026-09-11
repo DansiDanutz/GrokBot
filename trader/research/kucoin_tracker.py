@@ -5,9 +5,8 @@ neutral uses its net inventory direction. OHLC cannot establish the true trade
 sequence, so this is a conservative execution convention, not a guaranteed bound.
 """
 from dataclasses import asdict, replace
-from functools import lru_cache
 import math
-from trader.strategies.kucoin_grid import advance, floating_pnl, net_equity, preview
+from trader.strategies.kucoin_grid import advance, floating_pnl, net_equity, preview, effective_stop_prices
 from trader.strategies.grid_types import Position
 
 HOUR_MS = 3_600_000
@@ -64,16 +63,8 @@ def _before_close(state):
                    close_pnl=state.close_pnl-sum(event.gross_pnl for event in fills))
 
 
-@lru_cache(maxsize=256)
-def _stop_values(config):
-    values = preview(config)
-    names = ('range_exit_stop_low', 'range_exit_stop_high',
-             'effective_stop_loss_low', 'effective_stop_loss_high')
-    return tuple((name, values[name]) for name in names)
-
-
-def _stop_distances(config, price):
-    values = dict(_stop_values(config))
+def _stop_distances(state, price):
+    values = effective_stop_prices(state)
     effective = [values[key] for key in ('effective_stop_loss_low', 'effective_stop_loss_high')
                  if values[key] is not None]
     nearest = min(effective, key=lambda stop: abs(price-stop)) if effective else None
@@ -92,7 +83,7 @@ def _distances(state):
     distance = abs(price-liquidation)/liquidation*100 if liquidation else None
     return dict(distance_low_pct=(price-config.low)/config.low*100,
                 distance_high_pct=(config.high-price)/config.high*100,
-                **_stop_distances(config, price),
+                **_stop_distances(state, price),
                 distance_liquidation_pct=distance, liquidation_price=liquidation,
                 liquidation_estimate=True,
                 liquidation_scenario='current inventory; future resting fills excluded',
@@ -108,7 +99,24 @@ def _hour_risk(summary, observations):
     closest = summary['closest_liquidation_pct']
     if closest is not None and closest <= 5:
         summary['emergency'] = True
-        summary['emergency_action'] = 'stop or add reserve before liquidation'
+        summary['emergency_action'] = _emergency_action(summary['adaptive_range_stops'])
+
+
+def _emergency_action(adaptive):
+    if adaptive:
+        return 'verify tightened 1% range protection or stop; no additional margin beyond fixed reserve'
+    return 'stop or add reserve before liquidation'
+
+
+def _protection(state):
+    low = state.effective_range_exit_stop_pct_low
+    high = state.effective_range_exit_stop_pct_high
+    return dict(adaptive_range_stops=state.config.adaptive_range_stops,
+                effective_range_exit_stop_pct_low=state.config.range_exit_stop_pct if low is None else low,
+                effective_range_exit_stop_pct_high=state.config.range_exit_stop_pct if high is None else high,
+                adaptive_stop_latched_low=low is not None, adaptive_stop_latched_high=high is not None,
+                protective_reason=state.protective_reason,
+                adaptive_stop_events=list(state.adaptive_stop_events))
 
 
 def track_summary(state, start_ms, asof_ms, expected_start_gph=0):
@@ -133,8 +141,8 @@ def track_summary(state, start_ms, asof_ms, expected_start_gph=0):
                 stop_loss_hit=state.stop_reason == 'stop_loss', stop_reason=state.stop_reason,
                 stop_loss=config.stop_loss, stop_loss_high=config.stop_loss_high,
                 liquidated=state.liquidated, emergency=emergency,
-                emergency_action='stop or add reserve before liquidation' if emergency else None,
-                emergency_action_suggested_only=True, **distances,
+                emergency_action=_emergency_action(config.adaptive_range_stops) if emergency else None,
+                emergency_action_suggested_only=True, **distances, **_protection(state),
                 full_inventory_preview=preview(config))
 
 

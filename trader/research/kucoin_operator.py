@@ -8,7 +8,7 @@ import re
 from dataclasses import asdict
 from trader.research.kucoin_radar import radar, normalize_market, crossing_score
 from trader.research.kucoin_tracker import track_bars, track_summary
-from trader.research.kucoin_replacement import decide_replacement
+from trader.research.kucoin_replacement import decide_portfolio_replacement, select_funded_entries
 from trader.research.kucoin_replay import close_cost_summary
 from trader.strategies.grid_features import features
 from trader.strategies.grid_setup import build_setup
@@ -32,7 +32,8 @@ def _config(bot):
         stop_loss=bot['stop_loss'], stop_loss_high=bot.get('stop_loss_high'),
         trigger=bot.get('trigger'), quantity=bot.get('quantity'),
         multiplier=bot.get('multiplier', 1), lot_size=bot.get('lot_size', 1),
-        tick_size=bot.get('tick_size'))
+        tick_size=bot.get('tick_size'), adaptive_range_stops=True,
+        adaptive_tight_stop_pct=.01, adaptive_liquidation_clearance_pct=.01)
 
 
 def _validate_bot(bot, asof_ms):
@@ -53,23 +54,41 @@ def _validate_bot(bot, asof_ms):
         raise ValueError('offline reconstruction is bounded to 93 days per bot')
     if bot['expected_start_gph'] < 0:
         raise ValueError('expected_start_gph must be nonnegative')
-    if not 3 <= bot['leverage'] <= 6:
-        raise ValueError('running leverage must be between 3x and 6x')
-    if abs(bot['used_margin']+bot['reserved_margin']-1000) > 1e-9:
-        raise ValueError('used margin plus reserve must equal 1000 USDT')
+    if bot['leverage'] != 5:
+        raise ValueError('running leverage must be exactly 5x')
+    if bot['used_margin'] != 1000 or bot['reserved_margin'] != 200:
+        raise ValueError('running forms require 1000 USDT used margin plus 200 USDT reserve')
     create_bot(_config(bot), bot['entry'], started)
+
+
+def _capital_snapshot(document, asof_ms):
+    if 'capital' not in document:
+        return dict(known=False, available_cash_usdt=None, asof_ms=None,
+                    reason='paper available cash is unknown; funded entry and replacement forms withheld')
+    capital = document['capital']
+    if not isinstance(capital, dict) or set(capital) != {'available_cash_usdt', 'asof_ms'}:
+        raise ValueError('capital requires exactly available_cash_usdt and asof_ms')
+    cash, timestamp = capital['available_cash_usdt'], capital['asof_ms']
+    if type(cash) not in (int, float) or not math.isfinite(cash) or cash < 0:
+        raise ValueError('available cash must be finite and nonnegative')
+    if type(timestamp) is not int or timestamp != asof_ms:
+        raise ValueError('capital snapshot must match the report asof_ms exactly')
+    return dict(known=True, available_cash_usdt=cash, asof_ms=timestamp,
+                reason='user-supplied available paper cash at asof; includes already released allocations')
 
 
 def validate_running(document, asof_ms):
     """Strict public form schema; unknown fields are rejected before data access."""
     if type(asof_ms) is not int or asof_ms < 0 or asof_ms % HOUR_MS:
         raise ValueError('asof must be a UTC hour boundary in milliseconds')
-    if not isinstance(document, dict) or set(document) != {'schema_version', 'bots'}:
-        raise ValueError('running document requires only schema_version and bots')
+    if (not isinstance(document, dict) or not {'schema_version', 'bots'} <= document.keys()
+            or document.keys()-{'schema_version', 'bots', 'capital'}):
+        raise ValueError('running document requires schema_version, bots and optional capital only')
     if document['schema_version'] != 1 or not isinstance(document['bots'], list):
         raise ValueError('running document must use schema_version 1 and a bots list')
     if len(document['bots']) > 2:
         raise ValueError('at most two running bot forms are supported')
+    _capital_snapshot(document, asof_ms)
     for bot in document['bots']:
         _validate_bot(bot, asof_ms)
     for field in ('bot_id', 'pair'):
@@ -141,20 +160,16 @@ def _hour(snapshot, bot, state, at, ending, parameters):
     return result['state'], result['ledger'], summary, direction['candidate']
 
 
-def _verdict(state, summary, candidates, history, parameters, flip, quote):
-    decision = close_cost_summary(state, summary, quote) if quote else summary
-    result = decide_replacement(decision, candidates, history,
-                                 dict(parameters, direction_flip_candidate=flip))
+def _decision(state, summary, bot_id, quote):
+    decision = dict(close_cost_summary(state, summary, quote), bot_id=bot_id,
+                    capital_released=state.status in TERMINAL)
     if quote:
-        fields = ('mark_floating_pnl', 'close_spread_cost', 'close_cost_basis',
-                  'close_quote_bid', 'close_quote_ask', 'close_quote_observed_at_ms')
-        result['switch_cost'].update({key: decision[key] for key in fields})
-        result['switch_cost']['quote_observation_age_ms'] = quote['quote_observation_age_ms']
-        result['switch_cost']['quote_recording_latency_ms'] = quote['quote_recording_latency_ms']
-    return result
+        decision['quote_observation_age_ms'] = quote['quote_observation_age_ms']
+        decision['quote_recording_latency_ms'] = quote['quote_recording_latency_ms']
+    return decision
 
 
-def _track_bot(snapshot, bot, asof, candidates, pairs, parameters):
+def _track_bot(snapshot, bot, asof, pairs, parameters):
     state, at = create_bot(_config(bot), bot['entry'], bot['start_ms']), bot['start_ms']
     history, flip = [], None
     ledger = [asdict(event) for event in state.fill_events]
@@ -172,13 +187,43 @@ def _track_bot(snapshot, bot, asof, candidates, pairs, parameters):
                    track_summary(state, bot['start_ms'], asof, bot['expected_start_gph']),
                    running_pairs=pairs)
     quote = _quote(snapshot, bot['pair'], asof) if state.status not in TERMINAL else None
-    verdict = _verdict(state, summary, candidates, history[:-1], parameters, flip, quote)
+    decision = _decision(state, summary, bot['bot_id'], quote)
     modeled_close = state.stop_reason in ('stop_loss', 'liquidation')
     return dict(bot_id=bot['bot_id'], form=bot, preview=preview(_config(bot)),
-                tracker=summary, verdict=verdict, ledger=ledger, hourly_history=history,
+                tracker=summary, _decision=decision, ledger=ledger, hourly_history=history,
                 execution_cost_coverage=dict(complete=not modeled_close,
                     reason='intrabar bid/ask unavailable; modeled mark-price emergency close' if modeled_close
                     else 'hourly close estimates use historical bid/ask; no live fills asserted'))
+
+
+def _portfolio(tracked, candidates, parameters, available_cash):
+    currents = [bot.pop('_decision') for bot in tracked]
+    portfolio = decide_portfolio_replacement(currents, candidates,
+                                             dict(parameters, available_cash=available_cash))
+    verdicts = {row['bot_id']: row for row in portfolio['verdicts']}
+    fields = ('mark_floating_pnl', 'close_spread_cost', 'close_cost_basis',
+              'close_quote_bid', 'close_quote_ask', 'close_quote_observed_at_ms',
+              'quote_observation_age_ms', 'quote_recording_latency_ms')
+    for bot, current in zip(tracked, currents):
+        verdict = verdicts[bot['bot_id']]
+        verdict['switch_cost'].update({key: current[key] for key in fields if key in current})
+        bot['verdict'] = verdict
+        if portfolio['worst_bot_id'] == bot['bot_id']:
+            portfolio['switch_cost'] = dict(verdict['switch_cost'])
+    return portfolio
+
+
+def _funded_decisions(scan, tracked, parameters, capital):
+    horizon = parameters.get('replacement_horizon_hours', parameters.get('horizon_hours', 6))
+    entries = select_funded_entries(scan['radar'], [bot['form']['pair'] for bot in tracked],
+                                    capital['available_cash_usdt'], 2, horizon)
+    proposed_pairs = {row['pair'] for row in entries['selected']}
+    challengers = [row for row in scan['radar'] if row['pair'] not in proposed_pairs]
+    portfolio = _portfolio(tracked, challengers, parameters, entries['remaining_cash'])
+    forms = [row['setup'] for row in entries['selected']]
+    if portfolio['action'] == 'replace':
+        forms.append(portfolio['replacement']['setup'])
+    return entries, portfolio, forms
 
 
 def operator_report(snapshot, asof_ms, running_document, parameters=None):
@@ -187,13 +232,19 @@ def operator_report(snapshot, asof_ms, running_document, parameters=None):
     parameters = dict(parameters or {})
     pairs = [bot['pair'] for bot in bots]
     reader = getattr(snapshot, 'iter_records', snapshot.records)
-    scan = radar(reader(asof_ms), asof_ms, pairs, {'setup': parameters})
-    tracked = [_track_bot(snapshot, bot, asof_ms, scan['radar'], pairs, parameters) for bot in bots]
+    scan = radar(reader(asof_ms), asof_ms, pairs,
+                 {'setup': parameters, 'radar_size': parameters.get('radar_size', 10)})
+    tracked = [_track_bot(snapshot, bot, asof_ms, pairs, parameters) for bot in bots]
+    capital = _capital_snapshot(running_document, asof_ms)
+    entries, portfolio, forms = _funded_decisions(scan, tracked, parameters, capital)
     return dict(schema_version=1, asof_ms=asof_ms,
         interpretation='offline counterfactual OHLC research; fills are modeled, not KuCoin account trades',
         live_use=dict(actionable=False, status='blocked_calibration_and_holdout_validation',
                       reason='All four bot calibration, volatility fixture validation and two disjoint monthly holdouts must pass.'),
-        radar=scan, recommended_forms=[row['setup'] for row in scan['radar'][:2]],
+        radar=scan, recommended_forms=forms, entry_decision=entries,
+        portfolio_decision=portfolio, capital=capital,
+        capital_policy=dict(used_margin=1000, reserved_margin=200, leverage=5,
+                            total_per_bot=1200, total_for_two_bots=2400),
         running=tracked,
         coverage=dict(universe_observed=scan.get('coverage', {}).get('observed', 0),
                       minute_candles='complete reconstruction for supplied running forms',
