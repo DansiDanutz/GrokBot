@@ -266,5 +266,33 @@ class RadarTests(unittest.TestCase):
         self.assertEqual(used['price'], candles()[-1]['close'])
 
 
+    @patch('trader.research.kucoin_radar.build_setup', setup)
+    @patch('trader.research.kucoin_radar.features', return_value={})
+    def test_trusted_prepared_record_matches_raw_without_duplicate_normalization(self, unused):
+        from trader.strategies.candle_coverage import validate_history, prepare_validated
+        bars = candles()
+        record = dict(pair='T', bars=bars, market=market())
+        expected = radar([record], NOW)
+        trusted = prepare_validated(validate_history(bars), NOW)
+        with patch('trader.research.kucoin_radar.prepare', side_effect=AssertionError('duplicate normalization')):
+            actual = radar([dict(record, prepared=trusted)], NOW)
+        self.assertEqual(actual, expected)
+        self.assertEqual(json.loads(json.dumps(actual)), json.loads(json.dumps(expected)))
+
+    @patch('trader.research.kucoin_radar.build_setup', setup)
+    @patch('trader.research.kucoin_radar.features', return_value={})
+    def test_forged_or_wrong_asof_prepared_metadata_cannot_bypass_raw_validation(self, unused):
+        from trader.strategies.candle_coverage import prepare, validate_history, prepare_validated
+        bars = candles()
+        trusted_future = prepare_validated(validate_history(bars), NOW+HOUR)
+        for claimed in ({'valid': True, 'coverage': {'actual': 10080}, 'bars': bars}, trusted_future):
+            with self.subTest(claimed_type=type(claimed).__name__):
+                record = dict(pair='T', bars=bars[:1], market=market(), prepared=claimed)
+                with patch('trader.research.kucoin_radar.prepare', wraps=prepare) as normalize:
+                    result = radar([record], NOW)
+                self.assertEqual(normalize.call_count, 1)
+                self.assertEqual(result['radar'], [])
+
+
 if __name__ == '__main__':
     unittest.main()

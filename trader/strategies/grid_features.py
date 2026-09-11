@@ -10,7 +10,7 @@ candles enter the trailing window; missing leading prices require a prior seed.
 import math
 from statistics import median
 
-from trader.strategies.candle_coverage import prepare
+from trader.strategies.candle_coverage import PreparedHistory, prepare
 
 
 def _sign(value):
@@ -110,23 +110,26 @@ def features(candles, funding_rate=0., asof_ms=None, prior_seed=None):
                     'coverage':prepared.get('coverage',{})}
         if len(prepared['bars']) != 10080:
             raise ValueError('Features require a seven-day prepared window')
-        bars = []
-        for original in prepared['bars']:
-            bar = {key:float(original[key]) for key in ('open','high','low','close')}
-            if not all(math.isfinite(value) and value > 0 for value in bar.values()):
-                raise ValueError('Prepared OHLC must be finite and positive')
-            if not bar['low'] <= min(bar['open'],bar['close']) <= max(bar['open'],bar['close']) <= bar['high']:
-                raise ValueError('Invalid prepared OHLC ordering')
-            bar['synthetic'] = original.get('synthetic',False)
-            if type(bar['synthetic']) is not bool:
-                raise ValueError('Prepared synthetic flag must be boolean')
-            bars.append(bar)
-        actual = sum(not bar['synthetic'] for bar in bars)
-        coverage = prepared['coverage']
-        if (coverage['expected'] != 10080 or coverage['actual'] != actual or actual < 9576
-                or not coverage['eligible'] or not coverage['indicators_valid']
-                or not math.isclose(coverage['fraction'],actual/10080)):
-            raise ValueError('Prepared coverage does not match its observed candles')
+        if type(prepared) is PreparedHistory:
+            bars = prepared['bars']
+        else:
+            bars = []
+            for original in prepared['bars']:
+                bar = {key:float(original[key]) for key in ('open','high','low','close')}
+                if not all(math.isfinite(value) and value > 0 for value in bar.values()):
+                    raise ValueError('Prepared OHLC must be finite and positive')
+                if not bar['low'] <= min(bar['open'],bar['close']) <= max(bar['open'],bar['close']) <= bar['high']:
+                    raise ValueError('Invalid prepared OHLC ordering')
+                bar['synthetic'] = original.get('synthetic',False)
+                if type(bar['synthetic']) is not bool:
+                    raise ValueError('Prepared synthetic flag must be boolean')
+                bars.append(bar)
+            actual = sum(not bar['synthetic'] for bar in bars)
+            coverage = prepared['coverage']
+            if (coverage['expected'] != 10080 or coverage['actual'] != actual or actual < 9576
+                    or not coverage['eligible'] or not coverage['indicators_valid']
+                    or not math.isclose(coverage['fraction'],actual/10080)):
+                raise ValueError('Prepared coverage does not match its observed candles')
         funding_unknown = funding_rate is None
         if not funding_unknown:
             funding_rate = float(funding_rate)

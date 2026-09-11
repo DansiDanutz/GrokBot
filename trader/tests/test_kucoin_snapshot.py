@@ -286,5 +286,65 @@ class SnapshotTests(unittest.TestCase):
                         HistoricalSnapshot(source).history('AAAUSDTM', 8*day)
 
 
+    def test_trusted_record_path_matches_seeded_raw_radar_and_avoids_duplicate_dense_preparation(self):
+        from unittest.mock import patch
+        from trader.research.kucoin_snapshot import HistoricalSnapshot
+        from trader.research.kucoin_radar import radar
+        from trader.strategies.candle_coverage import PreparedHistory
+        from trader.tests.test_kucoin_radar import setup
+        day = 86400000
+        raw = dict(tickSize=.01, lotSize=1, multiplier=2, quoteCurrency='USDT',
+                   expireDate=None, isInverse=False, assetClass='CRYPTO')
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
+                [('AAAUSDTM', '1m', t, 100, 101, 100, 100+(t//60000)%2, 100, 20000)
+                 for t in range(0, 10*day, 60000) if t not in (day, day+60000)])
+            db.execute('INSERT INTO ticker_snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                ('AAAUSDTM', 10*day, 10*day, None, 999, 999, 999, 1, 999, 1, .1, json.dumps(raw)))
+        with Snapshot(self.path) as source:
+            data = HistoricalSnapshot(source)
+            for asof in (8*day, 8*day+3600000, 9*day):
+                bars, coverage = data.history('AAAUSDTM', asof)
+                reference = dict(pair='AAAUSDTM', bars=bars, prior_seed=data.prior_seed('AAAUSDTM', asof),
+                                 market=data._scanner_market('AAAUSDTM', asof, bars, coverage))
+                data._history.clear()
+                with patch('trader.research.kucoin_snapshot._indicator_history', side_effect=AssertionError('duplicate dense construction')):
+                    record = data.records(asof)[0]
+                self.assertIs(type(record['prepared']), PreparedHistory)
+                with patch('trader.research.kucoin_radar.build_setup', setup), patch('trader.research.kucoin_radar.features', return_value={}):
+                    self.assertEqual(radar([record], asof), radar([reference], asof))
+
+
+    def test_optimized_and_reference_replays_are_identical_except_timing(self):
+        from trader.research.kucoin_snapshot import HistoricalSnapshot
+        from trader.research.kucoin_replay import run_window
+        class ReferenceHistory(HistoricalSnapshot):
+            def iter_records(self, at_ms, pairs=None):
+                for pair in self.symbols(at_ms):
+                    if pairs is not None and pair not in pairs:
+                        continue
+                    bars, coverage = self.history(pair, at_ms)
+                    yield dict(pair=pair, bars=bars, prior_seed=self.prior_seed(pair, at_ms),
+                               market=self._scanner_market(pair, at_ms, bars, coverage))
+        day = 86400000
+        raw = dict(tickSize=.01, lotSize=1, multiplier=.01, quoteCurrency='USDT',
+                   expireDate=None, isInverse=False, assetClass='CRYPTO')
+        with closing(sqlite3.connect(self.path)) as db, db:
+            for pair in ('AAAUSDTM', 'BBBUSDTM'):
+                db.executemany('INSERT INTO klines VALUES (?,?,?,?,?,?,?,?,?)',
+                    [(pair, '1m', t, 100, 102, 99, 100+(t//60000)%2, 100, 10000)
+                     for t in range(0, 9*day, 60000) if t not in (day, day+60000)])
+                db.execute('INSERT INTO ticker_snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                    (pair, 10*day, 10*day, None, 999, 999, 999, 1, 999, 1, .1, json.dumps(raw)))
+        with Snapshot(self.path) as source:
+            options = {'historical_candle_only': True}
+            actual = run_window(HistoricalSnapshot(source), 8*day, 8*day+7200000, options)
+            reference = run_window(ReferenceHistory(source), 8*day, 8*day+7200000, options)
+        actual['performance'].pop('elapsed_seconds')
+        reference['performance'].pop('elapsed_seconds')
+        self.assertEqual(actual, reference)
+        self.assertEqual(json.loads(json.dumps(actual)), json.loads(json.dumps(reference)))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -8,6 +8,7 @@ import sqlite3
 import stat
 from pathlib import Path
 from urllib.parse import quote
+from trader.strategies.candle_coverage import validate_history, combine_histories, prepare_validated
 
 
 class SnapshotError(ValueError):
@@ -236,6 +237,13 @@ def _consistent_rows(rows):
     return list(observed.values())
 
 
+def _validated_unique(rows):
+    validated = validate_history(rows)
+    if validated.validated and len(validated) != len(rows):
+        return validate_history(validated.rows)
+    return validated
+
+
 def _indicator_history(rows, start, end):
     """Carry only already observed closes; placeholders are never executions."""
     rows = _consistent_rows(rows)
@@ -292,6 +300,7 @@ class HistoricalSnapshot:
         self.manifest = dict(source.manifest, replay_filter_mode='candle-only filters')
         self.connection = source.connection
         self._cache, self._history, self._metadata_cache = {}, {}, {}
+        self._prepared_cache, self._record_cache = {}, {}
         self._index = {row[0]: (row[1], row[2]+MINUTE_MS) for row in self.connection.execute(
             "SELECT symbol,MIN(time_ms),MAX(time_ms) FROM klines WHERE interval='1m' GROUP BY symbol")}
         self._market_bounds = source.market_bounds()
@@ -324,7 +333,12 @@ class HistoricalSnapshot:
         fresh = self.source.candles(pair, read_start, end)
         self.stats['history_block_reads'] += 1
         rows = retained+fresh if read_start > start else fresh
-        block = dict(start=start, end=end, rows=rows, times=[_observed_time(row) for row in rows])
+        fresh_validated = _validated_unique(fresh)
+        if previous and read_start > start:
+            validated = combine_histories([previous['validated'].window(start, read_start), fresh_validated])
+        else:
+            validated = fresh_validated
+        block = dict(start=start, end=end, rows=rows, times=[_observed_time(row) for row in rows], validated=validated)
         self._cache[pair] = block
         return block
 
@@ -375,19 +389,20 @@ class HistoricalSnapshot:
                 metadata_basis='retrospective copied contract specifications')
         return self._metadata_cache[pair]
 
-    def _scanner_market(self, pair, at_ms, bars, coverage):
+    def _scanner_market(self, pair, at_ms, bars, coverage, sparse=False, seed=None):
         specs = self.metadata(pair)
         daily = [row for row in bars if row['timestamp_ms'] >= at_ms-DAY_MS]
         turnover, basis = _quote_turnover(daily, specs, self.volume_unit)
-        ratios = [coverage['ratio']] + [sum(not row['indicator_only'] for row in bars[-n:])/n
-                                       for n in (1440, 240)]
+        ratios = [coverage['ratio']] + [
+            sum(row['timestamp_ms'] >= at_ms-n*MINUTE_MS for row in bars)/n if sparse else
+            sum(not row['indicator_only'] for row in bars[-n:])/n for n in (1440, 240)]
         perpetual = specs['expireDate'] in (None, 0) and specs['isInverse'] is False
         asset = specs.get('assetClass')
         return dict(specs, filter_mode='candle-only filters', active=True, perpetual=perpetual,
             quote_currency=specs.get('quoteCurrency'), asset_class=asset.lower() if isinstance(asset, str) else None,
             membership_basis='observed_candles',
             listed_at_ms=self._index[pair][0], observed_at_ms=at_ms,
-            price=bars[-1]['close'] if bars else None, quote_turnover_24h=turnover,
+            price=bars[-1]['close'] if bars else seed['close'] if seed else None, quote_turnover_24h=turnover,
             turnover_basis=basis, candle_volume_unit=self.volume_unit,
             candle_coverage_ratio=min(ratios), candle_coverage=coverage,
             tick_size=specs.get('tickSize'), lot_size=specs.get('lotSize'),
@@ -396,14 +411,31 @@ class HistoricalSnapshot:
             filter_assumptions=['spread, book depth and funding filters unavailable',
                                 'copied contract metadata is retrospective, not historical observation'])
 
+    def _prepared_record(self, pair, at_ms):
+        previous = self._record_cache.get(pair)
+        if previous is not None and previous[0] == at_ms:
+            return previous[1]
+        block = self._block(pair, at_ms)
+        view = block['validated'].window(at_ms-WEEK_MS, at_ms)
+        seed = self.prior_seed(pair, at_ms)
+        if not view.validated:
+            bars, coverage = self.history(pair, at_ms)
+            return dict(pair=pair, bars=bars, prior_seed=seed,
+                        market=self._scanner_market(pair, at_ms, bars, coverage))
+        prepared = prepare_validated(view, at_ms, prior_seed=seed, previous=self._prepared_cache.get(pair))
+        coverage = dict(observed=len(view), expected=10080, ratio=len(view)/10080)
+        record = dict(pair=pair, bars=view.rows, prior_seed=seed, prepared=prepared,
+                      market=self._scanner_market(pair, at_ms, view.rows, coverage, sparse=True, seed=seed))
+        self._prepared_cache[pair] = prepared
+        self._record_cache[pair] = at_ms, record
+        return record
+
     def iter_records(self, at_ms, pairs=None):
         wanted = None if pairs is None else set(pairs)
         for pair in self.symbols(at_ms):
             if wanted is not None and pair not in wanted:
                 continue
-            bars, coverage = self.history(pair, at_ms)
-            yield dict(pair=pair, bars=bars, prior_seed=self.prior_seed(pair, at_ms),
-                       market=self._scanner_market(pair, at_ms, bars, coverage))
+            yield self._prepared_record(pair, at_ms)
 
     def records(self, at_ms, pairs=None):
         return list(self.iter_records(at_ms, pairs))

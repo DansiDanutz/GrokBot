@@ -13,6 +13,9 @@ This is conservative: it also omits the first observed minute after the gap from
 crossing estimates. Flags never turn a supplied synthetic row into an observation.
 """
 import math
+from bisect import bisect_left
+from copy import deepcopy
+from itertools import accumulate
 
 
 MINUTE_MS = 60000
@@ -144,3 +147,278 @@ def prepare(bars, asof_ms, window_minutes=MAX_WINDOW_MINUTES, prior_seed=None):
             result['coverage']['fraction'] = len(observed)/window_minutes
         result['reason'] = str(exc)
     return result
+
+
+# These immutable values are created only by the validating factories below.
+# Plain caller-provided dictionaries never qualify for the indicator fast path.
+_VALIDATED_TOKEN = object()
+
+
+def _immutable(*args, **kwargs):
+    raise TypeError('Validated candle values are immutable')
+
+
+def _immutable_copy(self, memo=None):
+    return self
+
+
+class _FrozenDict(dict):
+    __slots__ = ('_sealed',)
+
+    def __init__(self, value=()):
+        if hasattr(self,'_sealed'):
+            _immutable()
+        dict.__init__(self,value)
+        object.__setattr__(self,'_sealed',True)
+
+    __copy__ = __deepcopy__ = _immutable_copy
+    __setattr__ = _immutable
+    __setitem__ = __delitem__ = clear = pop = popitem = setdefault = update = __ior__ = _immutable
+
+
+class _FrozenList(list):
+    __slots__ = ('_sealed',)
+
+    def __init__(self, value=()):
+        if hasattr(self,'_sealed'):
+            _immutable()
+        list.__init__(self,value)
+        object.__setattr__(self,'_sealed',True)
+
+    __copy__ = __deepcopy__ = _immutable_copy
+    __setattr__ = _immutable
+    __setitem__ = __delitem__ = append = clear = extend = insert = pop = remove = reverse = sort = __iadd__ = __imul__ = _immutable
+
+
+def _freeze(value):
+    if isinstance(value,(_FrozenDict,_FrozenList)):
+        return value
+    if isinstance(value,dict):
+        return _FrozenDict({key:_freeze(item) for key,item in value.items()})
+    if isinstance(value,list):
+        return _FrozenList(_freeze(item) for item in value)
+    return value
+
+
+def _snapshot(value):
+    # Error fallbacks can themselves be combined; copy frozen containers by value.
+    if isinstance(value,dict):
+        return {key:_snapshot(item) for key,item in value.items()}
+    if isinstance(value,list):
+        return [_snapshot(item) for item in value]
+    if isinstance(value,tuple):
+        return tuple(_snapshot(item) for item in value)
+    return deepcopy(value)
+
+
+class PreparedHistory(_FrozenDict):
+    """Immutable, JSON-compatible output authenticated by prepare_validated."""
+    __slots__ = ('_identity','_observed_rows')
+
+    def __init__(self, value, identity=None, observed_rows=(), *, _token=None):
+        if _token is not _VALIDATED_TOKEN:
+            raise TypeError('Use prepare_validated to construct PreparedHistory')
+        dict.__init__(self,_freeze(value))
+        object.__setattr__(self,'_identity',identity)
+        object.__setattr__(self,'_observed_rows',tuple(observed_rows))
+        object.__setattr__(self,'_sealed',True)
+
+    @property
+    def observed_bars(self):
+        return self._observed_rows
+
+    __setattr__ = _immutable
+
+
+class ValidatedHistory:
+    """Immutable canonical rows; window() shares validation and excludes older rows.
+
+    Invalid histories retain an isolated raw copy for exact reference preparation,
+    including error ordering and the rule that malformed future OHLC is ignored.
+    """
+    __slots__ = ('_records','_times','_prefix','_begin','_end','_identity','_raw','_original')
+
+    def __init__(self, records=(), counts=(), raw=None, original=None, *, _token=None):
+        if _token is not _VALIDATED_TOKEN:
+            raise TypeError('Use validate_history or combine_histories')
+        object.__setattr__(self,'_records',tuple(records))
+        object.__setattr__(self,'_times',tuple(row['timestamp_ms'] for row in records))
+        object.__setattr__(self,'_prefix',(0,*accumulate(counts)))
+        object.__setattr__(self,'_begin',0)
+        object.__setattr__(self,'_end',len(records))
+        object.__setattr__(self,'_identity',object())
+        object.__setattr__(self,'_raw',raw)
+        object.__setattr__(self,'_original',tuple(records) if original is None else tuple(original))
+
+    __copy__ = __deepcopy__ = _immutable_copy
+    __setattr__ = _immutable
+
+    @property
+    def validated(self):
+        return self._raw is None
+
+    @property
+    def rows(self):
+        return self._records[self._begin:self._end] if self.validated else self._raw
+
+    def __iter__(self):
+        return iter(self.rows)
+
+    def __len__(self):
+        return len(self.rows)
+
+    def window(self, start_ms, end_ms):
+        if type(start_ms) is not int or type(end_ms) is not int or start_ms > end_ms:
+            raise ValueError('Window bounds must be ordered integer milliseconds')
+        if not self.validated:
+            selected = []
+            for row in self._raw:
+                try:
+                    timestamp = _timestamp(row)
+                except (KeyError,TypeError,ValueError,OverflowError):
+                    selected.append(row)
+                    continue
+                if start_ms <= timestamp < end_ms:
+                    selected.append(row)
+            return validate_history(selected)
+        view = object.__new__(ValidatedHistory)
+        for key in self.__slots__:
+            object.__setattr__(view,key,getattr(self,key))
+        object.__setattr__(view,'_begin',bisect_left(self._times,start_ms,self._begin,self._end))
+        object.__setattr__(view,'_end',bisect_left(self._times,end_ms,view._begin,self._end))
+        return view
+
+    def _expanded(self):
+        if not self.validated:
+            return self._raw
+        if self._begin == self._end:
+            return ()
+        low,high = self._times[self._begin],self._times[self._end-1]
+        return tuple(row for row in self._original if low <= row['timestamp_ms'] <= high)
+
+
+def validate_history(bars):
+    """Validate/canonicalize one immutable block once, retaining duplicate counts."""
+    raw = tuple(bars)
+    observed, duplicates, original = {}, {}, []
+    try:
+        for row in raw:
+            timestamp = _timestamp(row)
+            if type(row.get('synthetic',False)) is not bool:
+                raise ValueError('synthetic flag must be boolean')
+            if row.get('synthetic',False):
+                continue
+            canonical = _FrozenDict(_actual_bar(row,timestamp))
+            if timestamp in observed:
+                if observed[timestamp] != canonical:
+                    raise ValueError('Conflicting duplicate')
+                duplicates[timestamp] = duplicates.get(timestamp,0)+1
+            observed[timestamp] = canonical
+            original.append(canonical)
+    except (KeyError,TypeError,ValueError,OverflowError):
+        return ValidatedHistory(raw=tuple(_freeze(_snapshot(row)) for row in raw),_token=_VALIDATED_TOKEN)
+    times = sorted(observed)
+    return ValidatedHistory(tuple(observed[time] for time in times),
+                            tuple(duplicates.get(time,0) for time in times),original=original,_token=_VALIDATED_TOKEN)
+
+
+def combine_histories(histories):
+    """Combine validated day blocks without repeating numeric/schema validation."""
+    blocks = tuple(histories)
+    if any(type(block) is not ValidatedHistory for block in blocks):
+        raise TypeError('combine_histories requires validated history objects')
+    if any(not block.validated for block in blocks):
+        return validate_history(row for block in blocks for row in block._expanded())
+    rows, counts = {}, {}
+    for block in blocks:
+        for index in range(block._begin,block._end):
+            row = block._records[index]
+            time = row['timestamp_ms']
+            count = block._prefix[index+1]-block._prefix[index]
+            if time in rows:
+                if rows[time] != row:
+                    return validate_history(value for part in blocks for value in part._expanded())
+                count += counts[time]+1
+            rows[time], counts[time] = row, count
+    times = sorted(rows)
+    return ValidatedHistory(tuple(rows[time] for time in times),tuple(counts[time] for time in times),
+                            original=tuple(row for block in blocks for row in block._expanded()),
+                            _token=_VALIDATED_TOKEN)
+
+
+def prepare_validated(history, asof_ms, window_minutes=MAX_WINDOW_MINUTES, prior_seed=None, previous=None):
+    """Exact prepare output with cached validation and safe forward-window reuse.
+
+    Reuse requires the same immutable underlying history. Leading candles are
+    rebuilt until an actual observation establishes the current window's seed;
+    an older prepared window can never backfill a newly unseeded leading gap.
+    """
+    if type(history) is not ValidatedHistory:
+        raise TypeError('prepare_validated requires ValidatedHistory')
+    def reference():
+        result = prepare(history._expanded(),asof_ms,window_minutes,prior_seed)
+        observed = tuple(_freeze(row) for row in result['bars'] if not row.get('synthetic'))
+        return PreparedHistory(result,observed_rows=observed,_token=_VALIDATED_TOKEN)
+    if (not history.validated or type(window_minutes) is not int or not 1 <= window_minutes <= MAX_WINDOW_MINUTES
+            or type(asof_ms) is not int or asof_ms < 0):
+        return reference()
+    end = asof_ms//MINUTE_MS*MINUTE_MS
+    start = end-window_minutes*MINUTE_MS
+    records, times = history._records, history._times
+    first = bisect_left(times,start,history._begin,history._end)
+    stop = bisect_left(times,end,first,history._end)
+    seed = records[first-1] if first > history._begin else None
+    try:
+        if prior_seed is not None:
+            seed_time = _timestamp(prior_seed)
+            if seed_time >= start or prior_seed.get('synthetic',False):
+                return reference()
+            if seed is None or seed_time >= seed['timestamp_ms']:
+                candidate = _actual_bar(prior_seed,seed_time)
+                if seed is not None and seed_time == seed['timestamp_ms'] and candidate != seed:
+                    return reference()
+                seed = candidate
+    except (KeyError,TypeError,ValueError,OverflowError):
+        return reference()
+    previous_close = seed['close'] if seed is not None else None
+    previous_actual = seed['timestamp_ms'] if seed is not None else None
+    reuse = (type(previous) is PreparedHistory and previous._identity is history._identity
+             and previous['coverage']['window_start_ms'] <= start
+             and previous['coverage']['window_end_ms'] <= end)
+    prior_start = previous['coverage']['window_start_ms'] if reuse else 0
+    prior_end = previous['coverage']['window_end_ms'] if reuse else 0
+    dense, missing_seed, established, cursor = [], False, False, first
+    for timestamp in range(start,end,MINUTE_MS):
+        observed = cursor < stop and times[cursor] == timestamp
+        cached = (reuse and established and prior_start <= timestamp < prior_end)
+        if observed:
+            record = records[cursor]
+            value = (previous['bars'][(timestamp-prior_start)//MINUTE_MS] if cached else
+                     _FrozenDict(dict(record,synthetic=False,crossing_eligible=previous_actual == timestamp-MINUTE_MS)))
+            previous_close, previous_actual = record['close'], timestamp
+            cursor += 1
+            established = True
+        else:
+            if cached:
+                value = previous['bars'][(timestamp-prior_start)//MINUTE_MS]
+            else:
+                value = dict(timestamp_ms=timestamp,open=previous_close,high=previous_close,
+                             low=previous_close,close=previous_close,volume=0.,turnover=0.,
+                             synthetic=True,crossing_eligible=False)
+                if previous_close is None:
+                    value['unfillable'] = True
+                value = _FrozenDict(value)
+            missing_seed |= previous_close is None
+            previous_actual = None
+        dense.append(value)
+    actual = stop-first
+    eligible = actual*100 >= window_minutes*95
+    coverage = dict(actual=actual,expected=window_minutes,fraction=actual/window_minutes,
+                    eligible=eligible,indicators_valid=not missing_seed,
+                    duplicates=history._prefix[stop]-history._prefix[first],
+                    window_start_ms=start,window_end_ms=end,threshold=.95,
+                    synthetic=window_minutes-actual,seed_timestamp_ms=seed['timestamp_ms'] if seed else None)
+    reason = ('Leading gap has no earlier actual seed; indicators cannot use future backfill' if missing_seed else
+              f'Observed candle coverage {actual}/{window_minutes} is below 95%' if not eligible else '')
+    return PreparedHistory(dict(bars=dense,coverage=coverage,valid=eligible and not missing_seed,reason=reason),
+                           history._identity,records[first:stop],_token=_VALIDATED_TOKEN)

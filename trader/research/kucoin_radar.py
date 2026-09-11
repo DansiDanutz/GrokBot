@@ -2,7 +2,7 @@
 import math
 from trader.strategies.grid_features import features
 from trader.strategies.grid_setup import build_setup
-from trader.strategies.candle_coverage import prepare
+from trader.strategies.candle_coverage import prepare, PreparedHistory
 
 HOUR_MS = 3_600_000
 DAY_MS = 24 * HOUR_MS
@@ -100,10 +100,10 @@ def _market_context(record, asof_ms, prepared):
         market.pop(field, None)
     turnover = _number(market.get('quote_turnover_24h'))
     if turnover is None or not market.get('turnover_basis'):
-        turnover, basis = _turnover_from_bars(market, prepared['bars'], asof_ms)
+        turnover, basis = _turnover_from_bars(market, _observed_prepared(prepared), asof_ms)
         market.update(quote_turnover_24h=turnover, turnover_basis=basis)
     if market.get('membership_basis') == 'observed_candles':
-        observed = [row['timestamp_ms'] for row in prepared['bars'] if not row.get('synthetic')]
+        observed = [row['timestamp_ms'] for row in _observed_prepared(prepared)]
         seed = record.get('prior_seed')
         if seed and not seed.get('synthetic'):
             observed.append(seed.get('timestamp_ms', seed.get('time_ms')))
@@ -257,8 +257,29 @@ def _rejection_coverage(record, asof_ms, reason, market):
                               'seven-day candle', 'missing one-minute'))
 
 
+def _observed_prepared(prepared):
+    if type(prepared) is PreparedHistory:
+        return prepared.observed_bars
+    return [row for row in prepared['bars'] if not row.get('synthetic')]
+
+
+def _prepared_record(record, asof_ms):
+    candidate = record.get('prepared')
+    end = asof_ms//MINUTE_MS*MINUTE_MS
+    if type(candidate) is PreparedHistory:
+        coverage = candidate['coverage']
+        if (coverage.get('expected') == 10080 and coverage.get('window_end_ms') == end
+                and coverage.get('window_start_ms') == end-7*DAY_MS):
+            return candidate
+    return prepare(record['bars'], asof_ms, prior_seed=record.get('prior_seed'))
+
+
 def _volatility_context(record, asof_ms):
-    bars = [row for row in completed_bars(record['bars'], asof_ms, 24) if not row.get('synthetic')]
+    prepared = record.get('prepared')
+    if type(prepared) is PreparedHistory:
+        bars = [row for row in prepared.observed_bars if row['timestamp_ms'] >= asof_ms-DAY_MS]
+    else:
+        bars = [row for row in completed_bars(record['bars'], asof_ms, 24) if not row.get('synthetic')]
     value = None
     if len(bars) == 1440:
         high, low = max(row['high'] for row in bars), min(row['low'] for row in bars)
@@ -280,9 +301,9 @@ def radar(records, asof_ms, running_pairs=(), parameters=None):
         if pair in seen:
             raise ValueError('duplicate market pair')
         seen.add(pair)
-        prepared = prepare(record['bars'], asof_ms, prior_seed=record.get('prior_seed'))
+        prepared = _prepared_record(record, asof_ms)
         market = _market_context(record, asof_ms, prepared)
-        context = dict(_volatility_context(dict(record, bars=prepared['bars']), asof_ms),
+        context = dict(_volatility_context(dict(record, bars=_observed_prepared(prepared), prepared=prepared), asof_ms),
                        candle_coverage=prepared['coverage'])
         universe.append(context)
         if pair in running:

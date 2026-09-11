@@ -113,3 +113,15 @@ class FeatureTests(unittest.TestCase):
         prepared = prepare(bars,10080*60000)
         prepared['bars'][-1]['close'] = float('nan')
         self.assertFalse(features(prepared)['valid'])
+
+    def test_authenticated_fast_path_matches_reference_indicator_output(self):
+        from trader.strategies.candle_coverage import prepare,prepare_validated,validate_history
+        bars = candles(slope=.01)
+        for index,bar in enumerate(bars):
+            bar['timestamp_ms'] = index*60000
+        bars = bars[:1000]+bars[1504:]
+        raw = prepare(bars,10080*60000)
+        trusted = prepare_validated(validate_history(bars),10080*60000)
+        self.assertEqual(features(trusted,funding_rate=None),features(raw,funding_rate=None))
+        forged = dict(raw,coverage=dict(raw['coverage'],actual=10080))
+        self.assertFalse(features(forged)['valid'])
