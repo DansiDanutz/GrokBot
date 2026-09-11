@@ -71,7 +71,9 @@ manual runs (one tick pass + one decision pass, then exit).
 
 Constants (one module, `trader/autopilot/constants.py`):
 `PAPER_EQUITY_USDT = 10_000`, `MAX_BOTS = 6`, `NOTIONAL_PER_BOT_USDT = 1_000`,
-`LEVERAGE = 3`, `MAJORS_MAX = 1`, `MOVERS_MAX = 1`,
+`SLOTS = {NEUTRAL: 2, LONG: 2, SHORT: 2}`, `DIRECTION_CAP = 4`,
+`LEVERAGE_TREND = 3`, `LEVERAGE_NEUTRAL = 5`, `STEP_NEUTRAL_PCT = 0.45`,
+`NEUTRAL_RESERVE_USDT = 200`, `MAJORS_MAX = 1`, `MOVERS_MAX = 1`,
 `MIN_EXPECTED_GRIDS_PER_HOUR = 2.0`, `COOLDOWN_HOURS = 6`, `MAX_AGE_HOURS = 72`,
 `TICK_INTERVAL_S = 10`, `DECISION_INTERVAL_S = 300`, `SNAPSHOT_MAX_INTERVAL_S = 30`,
 `TICK_STALE_ALERT_S = 180`, `KUCOIN_DOWN_ALERT_S = 300`.
@@ -88,11 +90,39 @@ Decision pass (every 5 min, and whenever `radar.json` mtime changes):
   label LONG or TURNING-UP; NEUTRAL bot and label LONG or SHORT); when the symbol
   is absent from the radar for 2 consecutive scans (`DROPPED`); after
   `MAX_AGE_HOURS` (`MAX_AGE`). Closed symbol enters cooldown.
-- Then open: candidates by `rank_score` from sections in the order turning_up,
-  long, turning_down, short, neutral, movers; skip open symbols, cooldowns, rows
-  with `expected_grids_per_hour < MIN_EXPECTED_GRIDS_PER_HOUR`; respect
-  `MAJORS_MAX` and `MOVERS_MAX`; open until `MAX_BOTS`. Bot spec comes straight
-  from the radar row.
+- Then open: allocate `MAX_BOTS = 6` across LONG, SHORT and NEUTRAL slots, two
+  each. LONG takes turning_up then long rows; SHORT takes turning_down then short;
+  NEUTRAL takes neutral then movers rows, movers ordered by highest atr_1h_pct.
+  Rank candidates by rank_score within each non-mover section. Skip open symbols,
+  cooldowns and candidates below MIN_EXPECTED_GRIDS_PER_HOUR; keep MAJORS_MAX and
+  MOVERS_MAX. If a direction has no qualifying candidate, its free slot goes to
+  NEUTRAL first, then to the other trend side, never exceeding four of one direction.
+  Rebalance only when a slot frees up; never close a bot merely to rebalance.
+
+### Phase B direction mix and profiles (Dan's amendment)
+
+- TREND (LONG/SHORT): radar range and step unchanged (0.8%, or 0.52% for majors),
+  leverage 3, notional 1,000 USDT.
+- NEUTRAL: `ATR4h = price * atr_4h_pct / 100`,
+  `range_low = min(low_7d, price - ATR4h)`,
+  `range_high = max(high_7d, price + ATR4h)`, step 0.45%, leverage 5,
+  notional 1,000 USDT plus 200 reserve counted in bot equity but not deployed.
+  Grid count is `round(ln(high/low) / ln(1 + step_pct/100))`, capped at 200.
+  The profile is modeled on Dan's RAY Neutral 5x bot (1.10–2.00, 140 grids,
+  18.6 observed grids/hour). STOP_LOSS stays 12% of notional; RANGE_BREAK remains
+  three consecutive updates beyond the range by more than one step.
+- Share k(step) between radar and autopilot: standard coins use
+  `1.9 * sqrt(step_pct / 0.8)`, majors (turnover >=50M USDT) use
+  `0.45 * sqrt(step_pct / 0.52)`. Expected grids/hour is k(step)*ATR1h%/step%.
+  Assert RAY with step 0.43% and ATR1h 6.2% is within **17–21 grids/hour**.
+- Open and closed bots are grouped by direction, with per-direction totals:
+  bots, completed grids, grid profit, unrealized, fees, funding and true net.
+  Every bot row includes grids/hour since opening. Daily 08:00 Europe/Bucharest
+  Telegram summary puts LONG, SHORT and NEUTRAL on separate lines with grids/hour
+  and net PnL. Phase C uses the same grouped data on the paper page.
+- Tests: balanced eligible radar opens 2/2/2; only-long trend candidates open at
+  most four LONG and fill remaining slots with NEUTRAL from movers; freed SHORT
+  slot refills with SHORT when available.
 
 Restart backfill: on start, replay 1m candles from the market DB from each bot's
 `last_ts_ms` to now (add 1m klines ingestion to the data layer for open symbols,
