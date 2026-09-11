@@ -93,11 +93,16 @@ def _open(report, candidate, at, cash, price=None, config=None):
 
 
 def _scan(snapshot, report, at, options, allowed=None):
-    records = snapshot.records(at, pairs=allowed)
-    records = [dict(row, bars=row.get('bars', row.get('bars7days', []))) for row in records]
-    result = radar(records, at, _pairs(report['bots']), {'setup': options})
+    running = _pairs(report['bots'])
+    if hasattr(snapshot, 'iter_records'):
+        result = radar(snapshot.iter_records(at, pairs=allowed), at, running, {'setup': options})
+        records = snapshot.records(at, pairs=running)
+    else:
+        records = snapshot.records(at, pairs=allowed)
+        records = [dict(row, bars=row.get('bars', row.get('bars7days', []))) for row in records]
+        result = radar(records, at, running, {'setup': options})
     report['hourly_radar'].append(result)
-    if not records:
+    if not result.get('coverage', {}).get('observed', len(records)):
         _gap(report, 'no historical market membership observations at ' + str(at))
     for row in result.get('rejected', []):
         reason = row['reason']

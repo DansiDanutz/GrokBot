@@ -133,18 +133,20 @@ class Snapshot:
         return max(row[0] for row in ranges), max(row[1] for row in ranges)
 
     def records(self, at_ms, pairs=None):
-        """As-of universe and seven days of closed candles from this copy only."""
+        """Materialize a bounded requested set; full scanners use iter_records."""
+        return list(self.iter_records(at_ms, pairs))
+
+    def iter_records(self, at_ms, pairs=None):
+        """Stream one coin's seven-day history at a time, preserving as-of checks."""
         universe = self.symbols(at_ms)
         if pairs is not None:
             requested = set(pairs)
             universe = [pair for pair in universe if pair in requested]
-        result = []
         for pair in universe:
             row = self.market(pair, at_ms)
             market = _scanner_market(row)
-            result.append(dict(pair=pair, market=market,
-                               bars=self.candles(pair, at_ms - 604800000, at_ms)))
-        return result
+            yield dict(pair=pair, market=market,
+                       bars=self.candles(pair, at_ms - 604800000, at_ms))
 
     def symbols(self, at_ms):
         return [row[0] for row in self.connection.execute(

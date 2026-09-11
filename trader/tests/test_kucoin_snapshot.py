@@ -144,6 +144,21 @@ class SnapshotTests(unittest.TestCase):
         with self.assertRaisesRegex(SnapshotError, 'schema'):
             Snapshot(self.path)
 
+    def test_universe_iterator_materializes_only_the_next_coins_history(self):
+        from unittest.mock import patch
+        with closing(sqlite3.connect(self.path)) as db, db:
+            for pair in ('A', 'B'):
+                db.execute('INSERT INTO ticker_snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                           (pair, 100, 100, None, 10, 10, 10, 1, 100, 1, 0, '{}'))
+        with Snapshot(self.path) as data, patch.object(data, 'candles', return_value=[]) as read:
+            stream = data.iter_records(200)
+            self.assertEqual(read.call_count, 0)
+            self.assertEqual(next(stream)['pair'], 'A')
+            self.assertEqual(read.call_count, 1)
+            self.assertEqual(next(stream)['pair'], 'B')
+            self.assertEqual(read.call_count, 2)
+            self.assertEqual(list(stream), [])
+
     def test_funding_uses_settlements_and_exclusive_start(self):
         with closing(sqlite3.connect(self.path)) as db, db:
             db.executemany('INSERT INTO funding VALUES (?,?,?,?)', [

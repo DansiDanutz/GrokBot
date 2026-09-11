@@ -186,7 +186,8 @@ def operator_report(snapshot, asof_ms, running_document, parameters=None):
     bots = validate_running(running_document, asof_ms)
     parameters = dict(parameters or {})
     pairs = [bot['pair'] for bot in bots]
-    scan = radar(snapshot.records(asof_ms), asof_ms, pairs, {'setup': parameters})
+    reader = getattr(snapshot, 'iter_records', snapshot.records)
+    scan = radar(reader(asof_ms), asof_ms, pairs, {'setup': parameters})
     tracked = [_track_bot(snapshot, bot, asof_ms, scan['radar'], pairs, parameters) for bot in bots]
     return dict(schema_version=1, asof_ms=asof_ms,
         interpretation='offline counterfactual OHLC research; fills are modeled, not KuCoin account trades',
