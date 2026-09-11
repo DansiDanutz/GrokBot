@@ -106,6 +106,31 @@ def _regime_evidence(report, enabled):
     return result
 
 
+def _chart_preflight_reason(record, asof_ms, parameters):
+    """Skip only when the downstream replay radar's trusted preflight rejects.
+
+    Replay puts strategy parameters inside radar's setup options. Use that same
+    option shape and its existing checks; do not introduce another filter rule.
+    Raw, unauthenticated, or differently timed preparations keep the eager path.
+    """
+    from trader.research.kucoin_radar import _market_context, _market_reason, _chart_funding
+    prepared = record.get('prepared')
+    end = _at(asof_ms)
+    if not is_prepared_history(prepared):
+        return None
+    coverage = prepared['coverage']
+    if (coverage.get('expected') != 10080 or coverage.get('window_end_ms') != end
+            or coverage.get('window_start_ms') != end-WEEK_MS):
+        return None
+    market = _market_context(record, asof_ms, prepared)
+    reason = _market_reason(market, asof_ms, {'setup': parameters}, funding_check=False)
+    if reason:
+        return reason
+    if not prepared['valid']:
+        return prepared['reason']
+    return _chart_funding(record, asof_ms, market['filter_mode'] == 'candle-only filters')[1]
+
+
 def _append_frames(cached, rows, asof_ms, prior_seed, stats):
     times = [row['timestamp_ms'] for row in rows]
     for name, minutes in TIMEFRAME_MINUTES.items():
@@ -162,7 +187,8 @@ class ChartSnapshot:
         self._regime_enabled = self.parameters.get('regime_gate', True)
         if type(self._regime_enabled) is not bool:
             raise ValueError('regime_gate must be boolean')
-        self.stats = dict(warmup_reads=0, incremental_reads=0, aggregation_calls=0, cache_evictions=0)
+        self.stats = dict(warmup_reads=0, incremental_reads=0, aggregation_calls=0,
+                          cache_evictions=0, preflight_skips=0)
 
     def __getattr__(self, name):
         return getattr(self.source, name)
@@ -246,14 +272,18 @@ class ChartSnapshot:
             bars = _actual_crossing_bars(source_record['bars'], at_ms)
             coverage = _coverage(source_record, bars, at_ms)
             terms, diagnostics = self._terms(pair, at_ms)
+            record = dict(source_record, bars=bars, funding_terms=terms, funding_diagnostics=diagnostics)
+            preflight = _chart_preflight_reason(record, at_ms, self.parameters) if coverage['eligible'] else None
             frames, regime = {name: [] for name in TIMEFRAME_MINUTES}, None
-            if coverage['eligible']:
+            if preflight is not None:
+                self.stats['preflight_skips'] += 1
+            if coverage['eligible'] and preflight is None:
                 frames = self.frames(pair, at_ms)
                 regime = gate_entry(pair, self.chart_reads(at_ms), at_ms, membership=self.membership,
                                      minimum_confidence=self._chart_options.get('minimum_confidence', .75))
                 regime = _regime_evidence(regime, self._regime_enabled)
-            yield dict(source_record, bars=bars, frames=frames, funding_terms=terms,
-                       funding_diagnostics=diagnostics, regime=regime, chart_data_status=coverage)
+            yield dict(record, frames=frames, regime=regime, chart_data_status=coverage,
+                       chart_preflight_reason=preflight)
 
     def records(self, at_ms, pairs=None):
         return list(self.iter_records(at_ms, pairs))

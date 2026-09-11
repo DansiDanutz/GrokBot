@@ -6,6 +6,8 @@ from unittest.mock import patch
 from trader.features.timeframes import TIMEFRAME_MINUTES, aggregate_candles
 from trader.research.chart_snapshot import ChartSnapshot
 from trader.research.kucoin_snapshot import HistoricalSnapshot
+from trader.research.kucoin_radar import radar
+from trader.strategies.candle_coverage import prepare_validated, validate_history
 
 
 MINUTE, HOUR, DAY = 60000, 3600000, 86400000
@@ -347,6 +349,100 @@ class ChartFundingTests(unittest.TestCase):
         missing = [row for row in history if row['timestamp_ms'] != BASE]
         incomplete = ChartSnapshot(FakeSnapshot(), funding_histories={PAIR:missing})
         self.assertFalse(incomplete.funding_coverage(PAIR, BASE-3*HOUR, BASE+HOUR)['modeled_complete'])
+
+
+class ChartPreflightTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.bars = [bar(timestamp) for timestamp in range(BASE-7*DAY, BASE, MINUTE)]
+        cls.prepared = prepare_validated(validate_history(cls.bars), BASE)
+        cls.unseeded = prepare_validated(validate_history(cls.bars[1:]), BASE)
+
+    def record(self, changes=None, prepared=None):
+        market = dict(active=True, perpetual=True, quote_currency='USDT', asset_class='crypto',
+                      quote_turnover_24h=500000, bid=999.5, ask=1000.5,
+                      observed_at_ms=BASE, listed_at_ms=BASE-7*DAY,
+                      bid_depth_usdt=10000, ask_depth_usdt=10000,
+                      funding_rate=.0001, funding_interval_hours=8)
+        market.update(changes or {})
+        return dict(pair=PAIR, bars=self.bars, prepared=prepared or self.prepared, market=market)
+
+    def run_radar(self, record, *, eager=False, rate=.0005):
+        source = FakeSnapshot()
+        adapter = ChartSnapshot(source)
+        terms = dict(rate=rate, interval_ms=4*HOUR, observed_at_ms=BASE-MINUTE)
+        frames = {name: [{'example': True}] for name in TIMEFRAME_MINUTES}
+
+        def setup(pair, bars, market, chart_frames, *args, **kwargs):
+            return {'offered': False, 'reason': 'chart setup exercised',
+                    'test_frame_keys': sorted(chart_frames)}
+
+        with patch.object(source, 'iter_records', side_effect=lambda *args: iter([record])), \
+                patch.object(adapter, 'frames', return_value=frames) as frame_reader, \
+                patch.object(adapter, 'chart_reads', return_value={}) as reference_reader, \
+                patch.object(adapter, '_terms', return_value=(terms, {'coverage': 'inferred_regular'})), \
+                patch('trader.research.chart_snapshot.gate_entry', return_value={'allowed_directions': ['neutral']}), \
+                patch('trader.research.kucoin_radar.build_recommender_setup', side_effect=setup):
+            if eager:
+                with patch('trader.research.chart_snapshot._chart_preflight_reason', return_value=None, create=True):
+                    enriched = adapter.records(BASE, [PAIR])
+            else:
+                enriched = adapter.records(BASE, [PAIR])
+            result = radar(enriched, BASE, parameters={'strategy': 'income_chart_v3'})
+        return result, frame_reader.call_count, reference_reader.call_count, enriched[0]
+
+    def test_known_filter_rejections_skip_warmup_with_identical_entire_radar_output(self):
+        cases = [({'quote_turnover_24h': 499999}, .0005),
+                 ({'ask': 1000.5001}, .0005),
+                 ({'listed_at_ms': BASE-7*DAY+1}, .0005),
+                 ({}, .0005001), ({}, -.0005001),
+                 ({'observed_at_ms': BASE-2*HOUR}, .0005),
+                 ({'asset_class': 'stock'}, .0005)]
+        for changes, rate in cases:
+            with self.subTest(changes=changes, rate=rate):
+                record = self.record(changes)
+                eager = self.run_radar(record, eager=True, rate=rate)
+                lazy = self.run_radar(record, rate=rate)
+                self.assertEqual(eager[0], lazy[0])
+                self.assertEqual(lazy[1:3], (0, 0))
+                self.assertEqual(eager[1:3], (1, 1))
+                self.assertEqual(lazy[3]['chart_preflight_reason'], lazy[0]['rejected'][0]['reason'])
+
+    def test_exact_threshold_passes_still_warm_charts_and_preserve_output(self):
+        for rate in (.0005, -.0005):
+            with self.subTest(rate=rate):
+                eager = self.run_radar(self.record(), eager=True, rate=rate)
+                lazy = self.run_radar(self.record(), rate=rate)
+                self.assertEqual(eager[0], lazy[0])
+                self.assertEqual(lazy[1:3], (1, 1))
+                self.assertEqual(lazy[0]['rejected'][0]['reason'], 'chart setup exercised')
+
+    def test_unseeded_prepared_history_and_market_reasons_keep_radar_order(self):
+        for changes in ({}, {'quote_turnover_24h': 1}):
+            with self.subTest(changes=changes):
+                record = self.record(changes, prepared=self.unseeded)
+                lazy = self.run_radar(record)
+                self.assertEqual(lazy[0], self.run_radar(record, eager=True)[0])
+                self.assertEqual(lazy[1:3], (0, 0))
+
+    def test_raw_untrusted_and_wrong_time_prepared_keep_eager_path(self):
+        for prepared in (dict(self.prepared),
+                         prepare_validated(validate_history(self.bars), BASE+MINUTE)):
+            with self.subTest(kind=type(prepared)):
+                result = self.run_radar(self.record({'quote_turnover_24h': 1}, prepared=prepared))
+                self.assertEqual(result[1:3], (1, 1))
+
+    def test_candle_only_normalization_and_skipped_filters_are_preserved(self):
+        for turnover, expected_reads in ((499999, 0), (500000, 1)):
+            with self.subTest(turnover=turnover):
+                record = self.record({'filter_mode': 'candle-only filters',
+                    'turnover_basis': 'recorded quote turnover', 'quote_turnover_24h': turnover,
+                    'membership_basis': 'observed_candles', 'listed_at_ms': BASE-HOUR,
+                    'ask': 2000})
+                eager = self.run_radar(record, eager=True, rate=.1)
+                lazy = self.run_radar(record, rate=.1)
+                self.assertEqual(eager[0], lazy[0])
+                self.assertEqual(lazy[1:3], (expected_reads, expected_reads))
 
 
 if __name__ == '__main__':
