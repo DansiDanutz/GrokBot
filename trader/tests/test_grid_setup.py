@@ -40,6 +40,18 @@ class SetupTests(unittest.TestCase):
         self.assertTrue(all(abs(price/.01-round(price/.01)) < 1e-7 for price in result['levels']))
         self.assertLessEqual(result['quantity'] * result['multiplier'] * result['grids'] * result['entry'], result['used_margin'] * result['leverage'])
 
+    def test_preview_reports_tick_valid_stops_on_both_sides(self):
+        long = feature_set(price=100.13)
+        short = feature_set(price=100.13, position_24h=.8, position_7d=.8,
+                            ema_slope_4h=-.5, ema_slope_24h=-.5,
+                            structure_4h=-1., structure_24h=-1., funding_sign=1.)
+        for data in (long, short):
+            result = build_setup('TESTUSDT', data, dict(MARKET, price=100.13), PARAMS)
+            self.assertTrue(result['eligible'], result['reason'])
+            for side in ('low', 'high'):
+                self.assertEqual(result['preview']['effective_stop_loss_'+side],
+                                 result['hard_stop_'+side])
+
     def test_unsafe_setup_narrows_without_changing_budget_or_leverage(self):
         def needs_narrower(config):
             safe = config.low >= 88.

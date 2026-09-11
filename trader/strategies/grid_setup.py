@@ -303,8 +303,8 @@ def build_setup(pair, data, market, parameters=None):
                                 quantity=quantity, order_count=estimate.get('order_count',legs*n),
                                 range_exit_stop_low=analytic_low,range_exit_stop_high=analytic_high,
                                 app_stop_low=stops['long'],app_stop_high=stops['short'],
-                                effective_stop_loss_low=stops['long'] if direction in ('long','neutral') else analytic_low,
-                                effective_stop_loss_high=stops['short'] if direction in ('short','neutral') else analytic_high,
+                                effective_stop_loss_low=stops['long'],
+                                effective_stop_loss_high=stops['short'],
                                 liquidation_price_long=liq_long,liquidation_price_short=liq_short,
                                 buffer_range_percent={side:values['range_fraction']*100 for side,values in buffers.items()},
                                 buffer_edge_percent={side:values['edge_fraction']*100 for side,values in buffers.items()})
