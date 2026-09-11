@@ -13,6 +13,8 @@ reporting, but is not added again to equity. Supplied funding rates are applied
 at crossed UTC 8-hour boundaries using the latest supplied mark; callers must
 split paths at every funding boundary. At a boundary, price-path fills precede
 funding settlement; only inventory still held then is charged or credited.
+Opt-in recorded settlement replay disables that clock and applies explicit
+settlements before same-timestamp orders; rate periods are never inferred for cash.
 There is no take-profit. Both sides hard-stop at 5% beyond the configured range
 by default, independent of direction; a nearer custom stop wins. Explicit
 range_exit_stop_pct=0 closes at either exact edge, with stop-market priority
@@ -243,6 +245,29 @@ def _fund(state, price, timestamp_ms, rate):
     return replace(state, funding=state.funding + cash, last_funding_ms=latest)
 
 
+def settle_recorded_funding(state, price, timestamp_ms, rate):
+    """Apply one explicit settlement to held inventory before same-time orders.
+
+    The caller supplies the settlement mark and labels any carried mark estimate.
+    Call subsequent advance with auto_funding=False to avoid an invented 8h clock.
+    """
+    _validate_tick(price, timestamp_ms)
+    _finite(rate, 'funding_rate')
+    if state.status in ('stopped', 'liquidated') or timestamp_ms <= state.last_funding_ms:
+        return state
+    if timestamp_ms < state.timestamp_ms:
+        raise ValueError('recorded settlement predates state; replay from an earlier state')
+    state = replace(state, fill_events=(), equity_marks=(), floating_pnl_marks=())
+    state = _track_floating_loss(state, price)
+    cash = -sum(position.side*position.quantity*price for position in state.positions)*rate
+    state = replace(state, funding=state.funding+cash, last_funding_ms=timestamp_ms,
+                    timestamp_ms=timestamp_ms)
+    state = _track_floating_loss(state, price)
+    if _liquidation_due(state, price):
+        return stop(state, price, timestamp_ms, reason='liquidation', _preserve_events=True)
+    return state
+
+
 def _crossed(order, old, new):
     if new > old:
         return order.side == -1 and old <= order.price <= new
@@ -286,7 +311,7 @@ def _liquidation_due(state, price):
     return bool(state.positions) and net_equity(state, price) <= gross * state.config.maintenance_rate
 
 
-def advance(state, price, timestamp_ms, funding_rate=0, bid=None, ask=None, gap=False):
+def advance(state, price, timestamp_ms, funding_rate=0, bid=None, ask=None, gap=False, *, auto_funding=True):
     """Process a monotonic price segment; caller chooses the intrabar path.
 
     equity_marks contains only this call's chronological critical-price marks,
@@ -299,11 +324,14 @@ def advance(state, price, timestamp_ms, funding_rate=0, bid=None, ask=None, gap=
     _finite(funding_rate, 'funding_rate')
     if state.status in ('stopped', 'liquidated'):
         return replace(state, fill_events=(), equity_marks=(), floating_pnl_marks=())
-    _validate_funding_path(state, price, timestamp_ms, funding_rate)
+    if type(auto_funding) is not bool:
+        raise ValueError('auto_funding must be boolean')
+    if auto_funding:
+        _validate_funding_path(state, price, timestamp_ms, funding_rate)
     state = replace(state, equity_marks=(), floating_pnl_marks=(), fill_events=())
     state = _track_floating_loss(state, state.price)
     if state.status == 'waiting':
-        return _advance_waiting(state, price, timestamp_ms, funding_rate, bid, ask, gap)
+        return _advance_waiting(state, price, timestamp_ms, funding_rate, bid, ask, gap, auto_funding)
     checked = _check_before_move(state, price, timestamp_ms, bid, ask, gap)
     if checked.status in ('stopped', 'liquidated'):
         return checked
@@ -323,20 +351,20 @@ def advance(state, price, timestamp_ms, funding_rate=0, bid=None, ask=None, gap=
                     'stop_loss', _preserve_events=True)
     if moved.liquidated:
         return moved
-    funded = _fund(moved, price, timestamp_ms, funding_rate)
+    funded = _fund(moved, price, timestamp_ms, funding_rate) if auto_funding else moved
     funded = _track_floating_loss(funded, price)
     if _liquidation_due(funded, price):
         return _liquidate_at(funded, price, price, timestamp_ms, bid, ask)
     return _apply_protection(funded, price, timestamp_ms, bid, ask)
 
 
-def _advance_waiting(state, price, timestamp_ms, funding_rate, bid, ask, gap):
+def _advance_waiting(state, price, timestamp_ms, funding_rate, bid, ask, gap, auto_funding=True):
     trigger = state.config.trigger
     if trigger is None or not min(state.price, price) <= trigger <= max(state.price, price):
         return replace(state, price=price, timestamp_ms=timestamp_ms)
     activated = _start(replace(state, price=trigger, timestamp_ms=timestamp_ms,
-                             last_funding_ms=timestamp_ms // FUNDING_MS * FUNDING_MS))
-    advanced = advance(activated, price, timestamp_ms, funding_rate, bid, ask, gap)
+                             last_funding_ms=timestamp_ms // FUNDING_MS * FUNDING_MS if auto_funding else state.last_funding_ms))
+    advanced = advance(activated, price, timestamp_ms, funding_rate, bid, ask, gap, auto_funding=auto_funding)
     return replace(advanced, equity_marks=state.equity_marks + advanced.equity_marks,
                    fill_events=activated.fill_events + advanced.fill_events,
                    floating_pnl_marks=state.floating_pnl_marks + advanced.floating_pnl_marks)

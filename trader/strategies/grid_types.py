@@ -92,3 +92,4 @@ class GridState:
     effective_range_exit_stop_pct_high: float | None = None
     protective_reason: str | None = None
     adaptive_stop_events: tuple[tuple[int, str, float, str], ...] = ()
+    recorded_funding_estimated_ms: tuple[int, ...] = ()

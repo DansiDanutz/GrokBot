@@ -3,10 +3,20 @@
 The intrabar convention visits the adverse extreme first for directional bots;
 neutral uses its net inventory direction. OHLC cannot establish the true trade
 sequence, so this is a conservative execution convention, not a guaranteed bound.
+
+Opt-in funding_mode='recorded_events' consumes symbol/timestamp_ms/rate records
+before same-timestamp fills. No settlement period is inferred. funding_coverage
+must provide coverage_verified=True (or verified=True) and start_ms/end_ms spanning the
+original bot lifetime; absent/empty evidence or carried marks keeps funding=None.
+Numeric funding_modeled_cash remains available; modeled_complete never verifies it. Use historical_candle_only=True
+for sparse execution bars. Recorded estimate timestamps persist across chunks.
 """
 from dataclasses import asdict, replace
+from bisect import bisect_right
+from functools import partial
+from copy import deepcopy
 import math
-from trader.strategies.kucoin_grid import advance, floating_pnl, net_equity, preview, effective_stop_prices, stop
+from trader.strategies.kucoin_grid import advance, floating_pnl, net_equity, preview, effective_stop_prices, stop, settle_recorded_funding
 from trader.strategies.grid_types import Position
 from trader.research.grid_cycle_metrics import completed_cycle_metrics
 
@@ -248,7 +258,7 @@ def _bridge_funding(state, end_ms, funding, ledger):
     return state
 
 
-def _observed_gap(state, price, timestamp, rate):
+def _observed_gap(state, price, timestamp, rate, *, auto_funding=True):
     """No interpolation of resting grid fills between separate observed bars."""
     gross = sum(p.quantity for p in state.positions) * price
     if state.positions and net_equity(state, price) <= gross * state.config.maintenance_rate:
@@ -256,7 +266,91 @@ def _observed_gap(state, price, timestamp, rate):
     # Adopt the observed mark without traversing the unobserved price segment.
     # Keep resting orders available to adaptive inventory stress, but no movement
     # means no crossed grid orders can execute at this opening observation.
-    return advance(replace(state, price=price), price, timestamp, funding_rate=rate, gap=True)
+    return advance(replace(state, price=price), price, timestamp, funding_rate=rate, gap=True, auto_funding=auto_funding)
+
+
+def _recorded_funding_map(events, state, start_ms):
+    rates = {}
+    for event in events:
+        if not isinstance(event, dict) or event.get('symbol') != state.config.pair:
+            raise ValueError('recorded funding requires the matching contract symbol')
+        timestamp, rate = event.get('timestamp_ms'), event.get('rate')
+        if type(timestamp) is not int or timestamp < 0:
+            raise ValueError('recorded funding timestamp must be a nonnegative integer')
+        if type(rate) not in (int, float) or not math.isfinite(rate):
+            raise ValueError('recorded funding rate must be finite')
+        if timestamp in rates and rates[timestamp] != rate:
+            raise ValueError('conflicting recorded funding settlement')
+        rates[timestamp] = rate
+    floor = max(start_ms, state.last_funding_ms)
+    if any(floor < timestamp <= state.timestamp_ms for timestamp in rates):
+        raise ValueError('recorded settlement predates supplied state; replay from an earlier state')
+    return dict(times=tuple(sorted(rates)), rates=rates)
+
+
+def _recorded_fills(state, ledger, seen):
+    for event in state.fill_events:
+        if event.event_id not in seen:
+            ledger.append(asdict(event))
+            seen.add(event.event_id)
+
+
+def _recorded_tick(state, price, timestamp, gap, funding, ledger, seen, *, start_ms,
+                   historical=False, observed=True, observations=None):
+    times = funding['times']
+    left = bisect_right(times, max(start_ms, state.last_funding_ms))
+    right = bisect_right(times, timestamp)
+    for settlement in times[left:right]:
+        if state.status in TERMINAL:
+            break
+        carried = not observed or settlement != timestamp
+        mark, prior = state.price if carried else price, state.funding
+        state = settle_recorded_funding(state, mark, settlement, funding['rates'][settlement])
+        if carried:
+            state = replace(state, recorded_funding_estimated_ms=state.recorded_funding_estimated_ms+(settlement,))
+        ledger.append(_funding_row(settlement, funding['rates'][settlement], state.funding-prior, mark, carried))
+        _recorded_fills(state, ledger, seen)
+        _collect_risk(replace(state, price=mark), settlement, observations, carried)
+    if state.status not in TERMINAL and observed:
+        state = (_observed_gap(state, price, timestamp, 0, auto_funding=False) if historical and gap else
+                 advance(state, price, timestamp, gap=gap, auto_funding=False))
+        _recorded_fills(state, ledger, seen)
+        return state
+    return replace(state, equity_marks=(), floating_pnl_marks=())
+
+
+def _recorded_summary(summary, state, funding, proof, start_ms, ending):
+    proof = proof if isinstance(proof, dict) else {}
+    bounds = proof.get('start_ms'), proof.get('end_ms')
+    flags = [proof[key] for key in ('coverage_verified', 'verified') if key in proof]
+    verified = (bool(flags) and all(flag is True for flag in flags) and proof.get('known') is not False
+                and all(type(value) is int for value in bounds) and bounds[0] <= start_ms and ending <= bounds[1])
+    reasons = []
+    if not verified:
+        reasons.append('recorded funding history coverage is unverified for the full bot lifetime')
+    if not any(start_ms < timestamp <= ending for timestamp in funding['times']):
+        reasons.append('empty funding history in the elapsed lifetime does not establish zero settlements')
+    if state.recorded_funding_estimated_ms:
+        reasons.append('one or more settlement marks are carried estimates')
+    summary.update(funding_mode='recorded_events', funding_coverage_complete=not reasons,
+        funding_modeled_complete=proof.get('modeled_complete') is True, funding_history_known=proof.get('known') is True,
+        funding_unknown_reasons=reasons, funding_coverage=deepcopy(proof),
+        funding_estimated_settlements=list(state.recorded_funding_estimated_ms),
+        funding=None if reasons else state.funding, funding_modeled_cash=state.funding,
+        net_modeled=net_equity(state, state.price)-state.config.total_margin,
+        funding_cash_basis='explicit settlement timestamps and held signed notional; no inferred period',
+        unknown_funding_settlements=[])
+
+
+def _finish_clock(state, end_ms, funding, ledger, seen, historical, recorded, start_ms, observations):
+    if recorded:
+        state = _recorded_tick(state, state.price, end_ms, True, funding, ledger, seen,
+                               start_ms=start_ms, historical=historical, observed=False, observations=observations)
+    elif historical:
+        state = _bridge_funding(state, end_ms, funding, ledger)
+    if historical and state.status not in TERMINAL:
+        state = replace(state, timestamp_ms=end_ms)
+    return state
 
 
 def _historical_tick(state, price, timestamp, gap, funding, ledger, seen):
@@ -286,22 +380,43 @@ def _historical_summary(summary, state, ledger, beginning, ending, observed_coun
             'Elapsed missing time remains in completed-grid rate denominators.'])
 
 
+def _risk_observations(state, start_ms):
+    equity = list(state.equity_marks) if state.timestamp_ms == start_ms else []
+    timeline = [dict(timestamp_ms=state.timestamp_ms, equity=value, floating_pnl=floating)
+                for value, floating in zip(equity, state.floating_pnl_marks)]
+    return dict(distances=[_distances(state)], equity_path=equity, equity_timeline=timeline)
+
+
+def _collect_risk(state, timestamp, observations, funding_estimated=None):
+    if observations is None:
+        return
+    observations['distances'].append(_distances(state))
+    observations['equity_path'].extend(state.equity_marks)
+    for value, floating in zip(state.equity_marks, state.floating_pnl_marks):
+        row = dict(timestamp_ms=timestamp, equity=value, floating_pnl=floating)
+        if funding_estimated is not None:
+            row['funding_mark_estimated'] = funding_estimated
+        observations['equity_timeline'].append(row)
+
+
 def track_bars(state, bars, funding_events=(), start_ms=None, asof_ms=None, expected_start_gph=0,
-               historical_candle_only=False):
+               historical_candle_only=False, funding_mode='legacy_8h', funding_coverage=None):
     """Return a new state and every fill; parent persists ledger keyed by bot/event ID.
 
-    Initial seed events are included. The caller should pass original start_ms
-    across hourly calls. Strict mode requires contiguous candles and observed funding.
+    Initial seed events are included; pass original start_ms across hourly calls.
+    Default legacy_8h requires UTC 8h events. Recorded mode uses only supplied times.
     Historical mode skips missing execution time and labels funding/spread assumptions.
     """
     start_ms = state.timestamp_ms if start_ms is None else start_ms
     beginning = state.timestamp_ms
     validated = _validated_bars(state, bars, asof_ms, historical_candle_only)
-    funding, ledger, seen = _funding_map(funding_events), [], set()
-    distances = [_distances(state)]
-    equity_path = list(state.equity_marks) if state.timestamp_ms == start_ms else []
-    equity_timeline = [dict(timestamp_ms=state.timestamp_ms, equity=value, floating_pnl=floating)
-                       for value, floating in zip(equity_path, state.floating_pnl_marks)]
+    if funding_mode not in ('legacy_8h', 'recorded_events'):
+        raise ValueError('unknown funding mode')
+    recorded = funding_mode == 'recorded_events'
+    funding = _recorded_funding_map(funding_events, state, start_ms) if recorded else _funding_map(funding_events)
+    ledger, seen, observations = [], set(), _risk_observations(state, start_ms)
+    step = (partial(_recorded_tick, start_ms=start_ms, historical=historical_candle_only,
+                    observations=observations) if recorded else _historical_tick if historical_candle_only else _advance_tick)
     if state.timestamp_ms == start_ms:
         ledger = [asdict(event) for event in state.fill_events]
         seen = {event.event_id for event in state.fill_events}
@@ -311,27 +426,23 @@ def track_bars(state, bars, funding_events=(), start_ms=None, asof_ms=None, expe
         for price, timestamp, gap in _path(state, bar):
             if state.status in TERMINAL:
                 break
-            step = _historical_tick if historical_candle_only else _advance_tick
             state = step(state, price, timestamp, gap, funding, ledger, seen)
-            distances.append(_distances(state))
-            equity_path.extend(state.equity_marks)
-            equity_timeline.extend(dict(timestamp_ms=timestamp, equity=value, floating_pnl=floating)
-                                   for value, floating in zip(state.equity_marks, state.floating_pnl_marks))
+            _collect_risk(state, timestamp, observations)
     last_observed_ms = end_ms if validated else None
     if historical_candle_only:
         end_ms = max(end_ms, asof_ms if asof_ms is not None else end_ms)
-        state = _bridge_funding(state, end_ms, funding, ledger)
-        if state.status not in TERMINAL:
-            state = replace(state, timestamp_ms=end_ms)
+    state = _finish_clock(state, end_ms, funding, ledger, seen, historical_candle_only, recorded, start_ms, observations)
     summary = track_summary(state, start_ms, end_ms, expected_start_gph)
     if historical_candle_only:
         _historical_summary(summary, state, ledger, beginning, end_ms, len(validated))
+    if recorded:
+        _recorded_summary(summary, state, funding, funding_coverage, start_ms, end_ms)
     summary['completed_cycle_window'] = dict(start_ms=beginning, end_ms=end_ms,
         scope='supplied tracking call ledger',
         **completed_cycle_metrics(ledger, beginning, end_ms))
-    _hour_risk(summary, distances)
-    return dict(state=state, ledger=ledger, summary=summary, equity_path=equity_path,
+    _hour_risk(summary, observations['distances'])
+    return dict(state=state, ledger=ledger, summary=summary, equity_path=observations['equity_path'],
                 last_observed_ms=last_observed_ms,
-                equity_timeline=equity_timeline,
+                equity_timeline=observations['equity_timeline'],
                 equity_timeline_time_basis='modeled OHLC vertex time; preserve mark order within timestamp',
                 path_convention='adverse extreme first; deterministic OHLC approximation')
