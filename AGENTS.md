@@ -5,7 +5,7 @@ the separate continuous paper research system for Dan's Lab.
 Machine rules: `~/AGENTS.md`, `~/CLAUDE.md`, `~/ZCodeProject/AGENTS.md`.
 Issue: https://github.com/DansiDanutz/GrokBot/issues/1
 
-- Own code lives in scripts/, tests/, config/, docs/ and paper_grid/. Never edit the upstream runtime.
+- Own code lives in scripts/, tests/, config/, docs/ paper_grid/ and trader/. Never edit the upstream runtime.
 - Pin upstream revisions in upstream.lock.json. Exclude enterprise/ when exporting OSS.
 - Runtime, credentials, logs and machine snapshots stay in ignored .runtime/.
 - Default engine is the project-local Codex CLI using its existing ChatGPT sign-in.
@@ -25,3 +25,14 @@ _Last verified: 2026-09-11_
 - Do not edit sealed source files in the active checkout or reset a running experiment during repository work.
 - Keep paper-only execution, deterministic controls and separate publication. No live exchange orders.
 - `npm run verify` includes the offline Python test suite; no provider requests or live credentials are needed.
+
+## KuCoin grid source research
+
+- `trader/` contains pure paper models and explicit offline research commands.
+- Tests use temporary directories and recorded fixtures; no network or real data writes.
+- Open only an explicitly attested detached market-data copy, never the acceptance DB.
+- KuCoin app forms and ledger outputs are unvalidated research until calibration and
+  the preregistered holdout gates pass; there is no order or account API here.
+- Any scheduler file is an `.example` template only. Do not install it or operate
+  protected checkouts, LaunchAgents, processes, credentials or Telegram bots.
+- Stage each task separately; both verify gates must pass on its exact staged tree.
