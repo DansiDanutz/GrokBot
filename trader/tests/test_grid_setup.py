@@ -28,9 +28,11 @@ class SetupTests(unittest.TestCase):
         result = build_setup('TESTUSDT', feature_set(), MARKET, PARAMS)
         self.assertTrue(result['eligible'], result)
         self.assertEqual(result['direction'], 'long')
-        self.assertEqual(result['total_margin'], 1000)
-        self.assertEqual(result['used_margin'] + result['reserved_margin'], 1000)
-        self.assertEqual(result['leverage'], 6)
+        self.assertEqual(result['total_margin'], 1200)
+        self.assertEqual(result['used_margin'], 1000)
+        self.assertEqual(result['reserved_margin'], 200)
+        self.assertEqual(result['used_margin'] + result['reserved_margin'], 1200)
+        self.assertEqual(result['leverage'], 5)
         self.assertGreaterEqual(result['preview']['profit_per_grid_min'], 1.)
         self.assertGreater(result['stop_loss'], 10)
         self.assertLess(result['stop_loss'], result['low'])
@@ -38,18 +40,17 @@ class SetupTests(unittest.TestCase):
         self.assertTrue(all(abs(price/.01-round(price/.01)) < 1e-7 for price in result['levels']))
         self.assertLessEqual(result['quantity'] * result['multiplier'] * result['grids'] * result['entry'], result['used_margin'] * result['leverage'])
 
-    def test_reserve_exhausted_before_lowering_then_narrowing(self):
-        def needs_lower(config):
-            safe = config.leverage <= 5
+    def test_unsafe_setup_narrows_without_changing_budget_or_leverage(self):
+        def needs_narrower(config):
+            safe = config.low >= 88.
             return dict(estimated_liquidation_price=10. if safe else 99.)
-        result = build_setup('TESTUSDT', feature_set(), MARKET, dict(preview_fn=needs_lower))
-        self.assertTrue(result['eligible'], result)
-        attempts = result['attempts']
-        at_six = [row for row in attempts if row['leverage'] == 6]
-        self.assertEqual([row['reserved_margin'] for row in at_six], list(range(0,1000,100)))
-        self.assertEqual(result['leverage'], 5)
-        self.assertEqual(attempts[len(at_six)]['reserved_margin'], 0)
-        self.assertTrue(all(row['range_stage'] == 0 for row in attempts))
+        result = build_setup('TESTUSDT', feature_set(), MARKET, dict(preview_fn=needs_narrower))
+        self.assertTrue(result['eligible'],result['reason'])
+        self.assertEqual([row['range_stage'] for row in result['attempts']],[0,1])
+        for row in result['attempts']:
+            self.assertEqual(row['leverage'],5)
+            self.assertEqual(row['used_margin'],1000)
+            self.assertEqual(row['reserved_margin'],200)
 
     def test_trigger_for_fresh_high_and_neutral_middle(self):
         result = build_setup('TESTUSDT', feature_set(fresh_high=True), MARKET, PARAMS)
@@ -86,9 +87,10 @@ class SetupTests(unittest.TestCase):
         self.assertFalse(result['eligible'])
         attempts = result['attempts']
         first_narrow = next(i for i,row in enumerate(attempts) if row['range_stage'] == 1)
-        self.assertEqual(first_narrow, 40)
-        self.assertEqual(attempts[39]['leverage'], 3)
-        self.assertEqual(attempts[40]['leverage'], 6)
+        self.assertEqual(first_narrow,1)
+        self.assertEqual(len(attempts),4)
+        for row in attempts:
+            self.assertEqual((row['leverage'],row['used_margin'],row['reserved_margin']),(5,1000,200))
 
     def test_wrapper_and_invalid_market(self):
         self.assertFalse(setup('BADUSDT', candles(10), MARKET, PARAMS)['eligible'])
@@ -103,12 +105,13 @@ class SetupTests(unittest.TestCase):
             self.assertAlmostEqual(step_pct, .87, delta=.02)
             self.assertAlmostEqual(bot['grid_profit']/bot['arbitrage_total'], .89, delta=.01)
 
-    def test_default_replica_adds_reserve_and_checks_both_buffers(self):
+    def test_default_replica_uses_fixed_reserve_and_checks_both_buffers(self):
         result = build_setup('TESTUSDT', feature_set(), MARKET)
         self.assertTrue(result['eligible'], result)
-        self.assertEqual(result['leverage'], 6)
-        self.assertGreater(result['reserved_margin'], 0)
-        self.assertTrue(all(row['leverage'] == 6 for row in result['attempts']))
+        self.assertEqual(result['leverage'], 5)
+        self.assertEqual(result['reserved_margin'],200)
+        self.assertEqual(result['used_margin'],1000)
+        self.assertTrue(all(row['leverage'] == 5 for row in result['attempts']))
         self.assertGreaterEqual(result['preview']['buffer_range_percent']['long'], 10.)
         self.assertGreaterEqual(result['preview']['buffer_edge_percent']['long'], 10.)
         fees = .0006
@@ -123,7 +126,7 @@ class SetupTests(unittest.TestCase):
         self.assertAlmostEqual(result['contracts_per_grid']/3,round(result['contracts_per_grid']/3))
         neutral = build_setup('TESTUSDT',feature_set(),MARKET,dict(PARAMS,direction_threshold=.99))
         self.assertEqual(neutral['direction'],'neutral')
-        self.assertAlmostEqual(neutral['entry']-neutral['low'],neutral['high']-neutral['entry'],delta=MARKET['tick_size'])
+        self.assertAlmostEqual(neutral['entry']-neutral['low'],neutral['high']-neutral['entry'],delta=MARKET['tick_size']+1e-9)
 
     def test_invalid_direction_weight_or_nonfinite_feature_rejected(self):
         for params in (dict(PARAMS,direction_weights={'typo':2}), dict(PARAMS,direction_weights={'ema_slope_4h':-1})):
@@ -158,8 +161,8 @@ class SetupTests(unittest.TestCase):
         for key in ('kucoin_profit_pct_min','kucoin_profit_pct_max','kucoin_profit_usdt_min','kucoin_profit_usdt_max'):
             self.assertAlmostEqual(preview[key], expected[key])
         self.assertEqual(result['interval'],result['step'])
-        self.assertEqual(result['total_margin'],1000)
-        self.assertEqual(result['used_margin']+result['reserved_margin'],1000)
+        self.assertEqual(result['total_margin'],1200)
+        self.assertEqual(result['used_margin']+result['reserved_margin'],1200)
 
     def test_neutral_default_preview_accounts_for_both_order_legs(self):
         neutral = feature_set(position_24h=.5,position_7d=.5,ema_slope_4h=0.,ema_slope_24h=0.,structure_4h=0.,structure_24h=0.,funding_sign=0.)
@@ -210,3 +213,30 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(result['range_evidence']['confirmation_bars'],2)
         fallback = build_setup('TESTUSDT',feature_set(),MARKET,PARAMS)
         self.assertEqual(fallback['range_evidence']['support_source'],'7d low fallback; no confirmed eligible pivot')
+
+    def test_conflicting_policy_overrides_rejected_instead_of_silent_resizing(self):
+        for key,value in (('leverage_cap',6),('leverage',4),('used_margin',800),
+                          ('reserved_margin',300),('total_margin',1000)):
+            with self.subTest(parameter=key):
+                result = build_setup('TESTUSDT',feature_set(),MARKET,dict(PARAMS,**{key:value}))
+                self.assertFalse(result['eligible'])
+                self.assertIn('fixed policy',result['reason'])
+                self.assertEqual(result['total_margin'],1200)
+        result = build_setup('TESTUSDT',feature_set(),MARKET,dict(PARAMS,leverage_cap=5,used_margin=1000,reserved_margin=200,total_margin=1200))
+        self.assertTrue(result['eligible'],result['reason'])
+
+    def test_new_setup_enables_adaptive_stops_without_changing_historical_defaults(self):
+        observed = []
+        def record_config(config):
+            observed.append(config)
+            return safe_preview(config)
+        result = build_setup('TESTUSDT',feature_set(),MARKET,dict(preview_fn=record_config))
+        self.assertTrue(result['eligible'],result['reason'])
+        self.assertTrue(result['adaptive_range_stops'])
+        self.assertEqual(result['adaptive_tight_stop_pct'],.01)
+        self.assertEqual(result['adaptive_liquidation_clearance_pct'],.01)
+        self.assertTrue(observed[-1].adaptive_range_stops)
+        self.assertEqual(observed[-1].adaptive_tight_stop_pct,.01)
+        self.assertEqual(observed[-1].adaptive_liquidation_clearance_pct,.01)
+        from trader.strategies.kucoin_grid import GridConfig
+        self.assertFalse(GridConfig(pair='HISTORICAL',low=80.,high=120.).adaptive_range_stops)

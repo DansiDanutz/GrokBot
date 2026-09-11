@@ -8,9 +8,10 @@ right-hand candles. Choose the eligible pivot nearest each nominal edge.
 Universal stops are 5% of EDGE PRICE outside both sides, with app prices rounded
 inward by less than one tick; the losing stop must still precede liquidation.
 
-Search priority: at the unchanged range try 6x reserves 0..900 in steps of 100,
-then 5x, 4x, 3x with the same reserve schedule; only then repeat at losing-side
-width factors .75, .5, .25. Both neutral sides narrow. First feasible wins.
+Production policy is fixed at 5x, 1000 USDT used plus 200 USDT reserve
+(1200 total per bot). Capital and leverage never change during safety search.
+Try the unchanged range, then losing-side width factors .75, .5, .25. Both
+neutral sides narrow. First feasible wins; otherwise reject the setup.
 Every grid level is tick aligned: round step DOWN to ticks, then keep entry's
 position in the proposed range and contract the range to N integer steps.
 
@@ -29,6 +30,11 @@ from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 from types import SimpleNamespace
 
 from trader.strategies.grid_features import features
+
+
+FIXED_LEVERAGE = 5
+FIXED_USED_MARGIN = 1000.
+FIXED_RESERVED_MARGIN = 200.
 
 
 DEFAULT_WEIGHTS = {'ema_slope_4h': 2., 'ema_slope_24h': 2.,
@@ -149,7 +155,10 @@ def _range_structure(data, entry, nominal_low, nominal_high):
 def build_setup(pair, data, market, parameters=None):
     """Build exact form from cached ``features`` and normalized market metadata."""
     params = dict(parameters or {})
-    result = {'pair': pair, 'eligible': False, 'reason': '', 'total_margin': 1000., 'attempts': [], 'warnings': []}
+    leverage, used, reserve = FIXED_LEVERAGE, FIXED_USED_MARGIN, FIXED_RESERVED_MARGIN
+    result = {'pair':pair,'eligible':False,'reason':'','leverage':leverage,
+              'used_margin':used,'reserved_margin':reserve,'total_margin':used+reserve,
+              'attempts':[],'warnings':[]}
     if not data.get('valid', False):
         result['reason'] = data.get('reason', 'Invalid feature history')
         return result
@@ -173,10 +182,11 @@ def build_setup(pair, data, market, parameters=None):
             raise ValueError('Typical movement must be finite and nonnegative')
         if data['high_7d'] <= data['low_7d'] or data['high_24h'] <= data['low_24h']:
             raise ValueError('Structure range must have positive width')
-        cap = params.get('leverage_cap', 6)
-        if isinstance(cap, bool) or int(cap) != cap or not 3 <= cap <= 6:
-            raise ValueError('Leverage cap must be an integer from 3 to 6')
-        cap = int(cap)
+        fixed_parameters = {'leverage_cap':leverage,'leverage':leverage,
+                            'used_margin':used,'reserved_margin':reserve,'total_margin':used+reserve}
+        for key,expected in fixed_parameters.items():
+            if key in params and (isinstance(params[key],bool) or params[key] != expected):
+                raise ValueError(f'{key} conflicts with fixed policy: 5x, 1000 used + 200 reserve = 1200 USDT')
         atr_multiple = float(params.get('atr_multiple', 20.))
         if not math.isfinite(atr_multiple) or atr_multiple <= 0:
             raise ValueError('ATR multiple must be finite and positive')
@@ -221,105 +231,101 @@ def build_setup(pair, data, market, parameters=None):
             lower = _round(entry-(entry-low)*(factor if direction in ('long','neutral') else 1),tick,up=True)
             upper = _round(entry+(high-entry)*(factor if direction in ('short','neutral') else 1),tick)
             level_cache = {n:_levels(lower,upper,entry,n,tick) for n in range(min_n,max_n+1)}
-            profit_cache = {}
-            for leverage in range(cap,2,-1):
-                for reserve in range(0,1000,100):
-                    used = 1000-reserve
-                    attempt = {'range_stage':stage,'losing_width_factor':factor,'leverage':leverage,
-                               'used_margin':used,'reserved_margin':reserve,'low':lower,'high':upper,
-                               'eligible':False,'reason':'No valid lot/tick grid reaches +1 USDT net'}
-                    result['attempts'].append(attempt)
-                    for n in range(max_n,min_n-1,-1):
-                        prices = level_cache[n]
-                        if prices is None:
-                            continue
-                        centre = (prices[0]+prices[-1])/2
-                        if (direction == 'long' and entry > centre+tick*1e-6 or
-                                direction == 'short' and entry < centre-tick*1e-6):
-                            attempt['reason'] = 'Clipped range entry is outside the required half'
-                            continue
-                        if n not in profit_cache:
-                            profit_cache[n] = grid_profit_preview(prices[0], prices[-1], n, cap, 1000., entry, tick)
-                        # Formula is linear in leverage and used margin; cache its price lattice.
-                        margin_preview = {key: value*(leverage/cap)*(used/1000 if 'usdt' in key else 1)
-                                          for key,value in profit_cache[n].items() if key.startswith('kucoin_profit_')}
-                        if margin_preview['kucoin_profit_usdt_min'] < 1.:
-                            continue
-                        # Opening taker fees remain within used margin rather than silently exceeding $1000.
-                        quantity = _round(used*leverage/(legs*n*entry*(1+leverage*fee)),quantity_unit)
-                        if quantity <= 0:
-                            continue
-                        min_profit = quantity*((prices[-1]-prices[-2])-fee*(prices[-1]+prices[-2]))
-                        if min_profit < 1.:
-                            continue
-                        step = prices[1]-prices[0]
-                        config = dict(pair=pair,low=prices[0],high=prices[-1],grids=n,leverage=leverage,
-                                      investment=used,reserved_margin=reserve,entry_price=entry,direction=direction,
-                                      quantity=quantity,multiplier=multiplier,lot_size=lot,tick_size=tick,trigger=trigger)
-                        estimate = dict(_preview(config,params.get('preview_fn')))
-                        step = estimate.get('grid_step',step)
-                        min_profit = min(min_profit, estimate.get('profit_per_grid_min', min_profit))
-                        if min_profit < 1.:
-                            attempt['reason'] = 'Actual per-order net PnL is below +1 USDT'
-                            continue
-                        liq_long = estimate.get('liquidation_price_long',estimate.get('estimated_liquidation_price'))
-                        liq_short = estimate.get('liquidation_price_short',estimate.get('estimated_liquidation_price_high',estimate.get('estimated_liquidation_price')))
-                        width = prices[-1]-prices[0]
-                        buffers = {}
-                        safe = True
-                        for side, edge, liq in (('long',prices[0],liq_long),('short',prices[-1],liq_short)):
-                            if direction not in (side,'neutral'):
-                                continue
-                            if liq is None or not math.isfinite(float(liq)) or liq <= 0:
-                                safe = False
-                                buffers[side] = {'range_fraction':None,'edge_fraction':None}
-                            else:
-                                distance = edge-liq if side == 'long' else liq-edge
-                                buffers[side] = {'range_fraction':distance/width,'edge_fraction':distance/edge}
-                                safe = safe and distance >= .1*width and distance >= .1*edge
-                        attempt.update(grids=n,quantity=quantity,low=prices[0],high=prices[-1],buffers=buffers,
-                                       reason='Safe liquidation buffer' if safe else 'Liquidation fails 10% edge and range buffers')
-                        if not safe:
-                            # Lower N can alter full inventory loading, so continue testing it.
-                            continue
-                        analytic_low = float(Decimal(str(prices[0]))*Decimal('.95'))
-                        analytic_high = float(Decimal(str(prices[-1]))*Decimal('1.05'))
-                        stops = {'long':_round(analytic_low,tick,up=True),
-                                 'short':_round(analytic_high,tick)}
-                        if not 0 < stops['long'] < prices[0] < prices[-1] < stops['short']:
-                            attempt['reason'] = 'No valid tick-aligned stops within the 5% edge limits'
-                            continue
-                        if ((direction in ('long','neutral') and not liq_long < stops['long']) or
-                                (direction in ('short','neutral') and not stops['short'] < liq_short)):
-                            attempt['reason'] = '5% range exit stop must precede losing-side liquidation'
-                            continue
-                        estimate.update({key:value for key,value in margin_preview.items() if key.startswith('kucoin_profit_')})
-                        estimate.update(profit_per_grid_min=min_profit,
-                                        profit_per_grid_max=quantity*(step-fee*(prices[0]+prices[1])),
-                                        quantity=quantity, order_count=estimate.get('order_count',legs*n),
-                                        range_exit_stop_low=analytic_low,range_exit_stop_high=analytic_high,
-                                        app_stop_low=stops['long'],app_stop_high=stops['short'],
-                                        effective_stop_loss_low=stops['long'] if direction in ('long','neutral') else analytic_low,
-                                        effective_stop_loss_high=stops['short'] if direction in ('short','neutral') else analytic_high,
-                                        liquidation_price_long=liq_long,liquidation_price_short=liq_short,
-                                        buffer_range_percent={side:values['range_fraction']*100 for side,values in buffers.items()},
-                                        buffer_edge_percent={side:values['edge_fraction']*100 for side,values in buffers.items()})
-                        attempt['eligible'] = True
-                        if step > movement + tick*1e-6:
-                            result['warnings'].append('Step exceeds typical 1m movement; reducing grid count widens the step. Highest feasible count minimizes step; use actual crossings to rank.')
-                        range_evidence.update(final_low=prices[0],final_high=prices[-1])
-                        result.update(eligible=True,reason=f'{result["direction_reason"]}; safe {leverage}x, {n} grids, net floor {min_profit:.4f} USDT',
-                                      low=prices[0],high=prices[-1],levels=prices,step=step,interval=step,grids=n,leverage=leverage,
-                                      used_margin=used,reserved_margin=reserve,quantity=quantity,contracts_per_grid=quantity/multiplier,
-                                      per_grid_notional=quantity*entry,stop_loss=stops.get(direction,stops.get('long')),
-                                      stop_loss_high=stops.get('short') if direction == 'neutral' else None,preview=estimate,
-                                      range_exit_stop_pct=.05,range_exit_stop_low=analytic_low,range_exit_stop_high=analytic_high,
-                                      hard_stop_low=stops['long'],hard_stop_high=stops['short'],
-                                      stop_tick_adjustment='App stops round inward by less than one tick, closing no later than 5% outside each edge',
-                                      target_profit_per_grid=1.,target_semantics='both margin-per-grid estimate and actual per-order PnL >=1 after two 0.06% fees; exact equality limited by tick/lot sizes',
-                                      opening_fee_budget=legs*quantity*n*entry*fee,typical_movement_1m=movement)
-                        return result
-        result['reason'] = 'No safe positive-lot setup reaches +1 USDT after fees within $1000 total margin'
+            attempt = {'range_stage':stage,'losing_width_factor':factor,'leverage':leverage,
+                       'used_margin':used,'reserved_margin':reserve,'low':lower,'high':upper,
+                       'eligible':False,'reason':'No valid lot/tick grid reaches +1 USDT net'}
+            result['attempts'].append(attempt)
+            for n in range(max_n,min_n-1,-1):
+                prices = level_cache[n]
+                if prices is None:
+                    continue
+                centre = (prices[0]+prices[-1])/2
+                if (direction == 'long' and entry > centre+tick*1e-6 or
+                        direction == 'short' and entry < centre-tick*1e-6):
+                    attempt['reason'] = 'Clipped range entry is outside the required half'
+                    continue
+                margin_preview = grid_profit_preview(prices[0],prices[-1],n,leverage,used,entry,tick)
+                if margin_preview['kucoin_profit_usdt_min'] < 1.:
+                    continue
+                # Opening taker fees remain within used margin rather than silently exceeding $1000.
+                quantity = _round(used*leverage/(legs*n*entry*(1+leverage*fee)),quantity_unit)
+                if quantity <= 0:
+                    continue
+                min_profit = quantity*((prices[-1]-prices[-2])-fee*(prices[-1]+prices[-2]))
+                if min_profit < 1.:
+                    continue
+                step = prices[1]-prices[0]
+                config = dict(pair=pair,low=prices[0],high=prices[-1],grids=n,leverage=leverage,
+                              investment=used,reserved_margin=reserve,entry_price=entry,direction=direction,
+                              quantity=quantity,multiplier=multiplier,lot_size=lot,tick_size=tick,trigger=trigger,
+                              adaptive_range_stops=True,adaptive_tight_stop_pct=.01,
+                              adaptive_liquidation_clearance_pct=.01)
+                estimate = dict(_preview(config,params.get('preview_fn')))
+                step = estimate.get('grid_step',step)
+                min_profit = min(min_profit, estimate.get('profit_per_grid_min', min_profit))
+                if min_profit < 1.:
+                    attempt['reason'] = 'Actual per-order net PnL is below +1 USDT'
+                    continue
+                liq_long = estimate.get('liquidation_price_long',estimate.get('estimated_liquidation_price'))
+                liq_short = estimate.get('liquidation_price_short',estimate.get('estimated_liquidation_price_high',estimate.get('estimated_liquidation_price')))
+                width = prices[-1]-prices[0]
+                buffers = {}
+                safe = True
+                for side, edge, liq in (('long',prices[0],liq_long),('short',prices[-1],liq_short)):
+                    if direction not in (side,'neutral'):
+                        continue
+                    if liq is None or not math.isfinite(float(liq)) or liq <= 0:
+                        safe = False
+                        buffers[side] = {'range_fraction':None,'edge_fraction':None}
+                    else:
+                        distance = edge-liq if side == 'long' else liq-edge
+                        buffers[side] = {'range_fraction':distance/width,'edge_fraction':distance/edge}
+                        safe = safe and distance >= .1*width and distance >= .1*edge
+                attempt.update(grids=n,quantity=quantity,low=prices[0],high=prices[-1],buffers=buffers,
+                               reason='Safe liquidation buffer' if safe else 'Liquidation fails 10% edge and range buffers')
+                if not safe:
+                    # Lower N can alter full inventory loading, so continue testing it.
+                    continue
+                analytic_low = float(Decimal(str(prices[0]))*Decimal('.95'))
+                analytic_high = float(Decimal(str(prices[-1]))*Decimal('1.05'))
+                stops = {'long':_round(analytic_low,tick,up=True),
+                         'short':_round(analytic_high,tick)}
+                if not 0 < stops['long'] < prices[0] < prices[-1] < stops['short']:
+                    attempt['reason'] = 'No valid tick-aligned stops within the 5% edge limits'
+                    continue
+                if ((direction in ('long','neutral') and not liq_long < stops['long']) or
+                        (direction in ('short','neutral') and not stops['short'] < liq_short)):
+                    attempt['reason'] = '5% range exit stop must precede losing-side liquidation'
+                    continue
+                estimate.update({key:value for key,value in margin_preview.items() if key.startswith('kucoin_profit_')})
+                estimate.update(profit_per_grid_min=min_profit,
+                                profit_per_grid_max=quantity*(step-fee*(prices[0]+prices[1])),
+                                quantity=quantity, order_count=estimate.get('order_count',legs*n),
+                                range_exit_stop_low=analytic_low,range_exit_stop_high=analytic_high,
+                                app_stop_low=stops['long'],app_stop_high=stops['short'],
+                                effective_stop_loss_low=stops['long'] if direction in ('long','neutral') else analytic_low,
+                                effective_stop_loss_high=stops['short'] if direction in ('short','neutral') else analytic_high,
+                                liquidation_price_long=liq_long,liquidation_price_short=liq_short,
+                                buffer_range_percent={side:values['range_fraction']*100 for side,values in buffers.items()},
+                                buffer_edge_percent={side:values['edge_fraction']*100 for side,values in buffers.items()})
+                attempt['eligible'] = True
+                if step > movement + tick*1e-6:
+                    result['warnings'].append('Step exceeds typical 1m movement; reducing grid count widens the step. Highest feasible count minimizes step; use actual crossings to rank.')
+                range_evidence.update(final_low=prices[0],final_high=prices[-1])
+                result.update(eligible=True,reason=f'{result["direction_reason"]}; safe {leverage}x, {n} grids, net floor {min_profit:.4f} USDT',
+                              low=prices[0],high=prices[-1],levels=prices,step=step,interval=step,grids=n,leverage=leverage,
+                              used_margin=used,reserved_margin=reserve,quantity=quantity,contracts_per_grid=quantity/multiplier,
+                              per_grid_notional=quantity*entry,stop_loss=stops.get(direction,stops.get('long')),
+                              stop_loss_high=stops.get('short') if direction == 'neutral' else None,preview=estimate,
+                              range_exit_stop_pct=.05,range_exit_stop_low=analytic_low,range_exit_stop_high=analytic_high,
+                              adaptive_range_stops=True,adaptive_tight_stop_pct=.01,
+                              adaptive_liquidation_clearance_pct=.01,
+                              hard_stop_low=stops['long'],hard_stop_high=stops['short'],
+                              stop_tick_adjustment='App stops round inward by less than one tick, closing no later than 5% outside each edge',
+                              target_profit_per_grid=1.,target_semantics='both margin-per-grid estimate and actual per-order PnL >=1 after two 0.06% fees; exact equality limited by tick/lot sizes',
+                              opening_fee_budget=legs*quantity*n*entry*fee,typical_movement_1m=movement)
+                return result
+        result['reason'] = 'No safe positive-lot setup reaches +1 USDT after fees at fixed 5x with 1000 used + 200 reserve (1200 total)'
     except (KeyError, TypeError, ValueError, OverflowError) as exc:
         result['reason'] = str(exc)
     return result
