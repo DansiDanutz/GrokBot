@@ -46,6 +46,39 @@ class ReplayTests(unittest.TestCase):
         self.assertIsNone(result['metrics']['net'])
         self.assertEqual(result['ledger'], [])
 
+    def test_replay_range_edges_close_all_modes_and_preserve_explicit_legacy_buffer(self):
+        from trader.research.kucoin_replay import _config
+        for direction in ('long', 'short', 'neutral'):
+            for edge in (90, 110):
+                for buffer in (0, .05):
+                    with self.subTest(direction=direction, edge=edge, buffer=buffer):
+                        row = candidate('A', direction)
+                        row['setup'].update(stop_loss=None, range_exit_stop_pct=buffer,
+                                            adaptive_range_stops=False)
+                        snapshot = MemorySnapshot()
+                        snapshot.candles = lambda pair, start, end: [dict(timestamp_ms=t,
+                            open=100, high=max(100, edge), low=min(100, edge), close=100)
+                            for t in range(start, end, 60000)]
+                        with patch('trader.research.kucoin_replay.radar', return_value=
+                                dict(radar=[row], rejected=[], coverage={'observed': 1})):
+                            result = run_window(snapshot, START, START+HOUR)
+                        self.assertEqual(result['bots'][0]['status'], 'stopped' if buffer == 0 else 'running')
+                        stops = [event for event in result['ledger'] if event['kind'] == 'stop_loss']
+                        self.assertEqual(bool(stops), buffer == 0)
+                        self.assertTrue(all(event['price'] == edge for event in stops))
+                        self.assertEqual(_config(row['setup']).range_exit_stop_pct, buffer)
+        default = _config(candidate()['setup'])
+        self.assertEqual(default.range_exit_stop_pct, 0)
+        self.assertFalse(default.adaptive_range_stops)
+
+    def test_flat_range_policy_reaches_radar_setup(self):
+        for options, expected in (({}, 0), ({'range_exit_stop_pct': .05}, .05)):
+            with patch('trader.research.kucoin_replay.radar', return_value=
+                    dict(radar=[], rejected=[], coverage={'observed': 1})) as mocked:
+                run_window(MemorySnapshot(), START, START+HOUR, options)
+            self.assertEqual(mocked.call_args.args[3]['setup']['range_exit_stop_pct'], expected)
+            self.assertEqual(mocked.call_args.args[3]['setup']['adaptive_range_stops'], expected >= .01)
+
     def test_flat_cash_floor_reaches_radar_and_funded_entries_in_both_reader_paths(self):
         for streamed in (False, True):
             for minimum, expected in ((0, 1), (1, 0)):

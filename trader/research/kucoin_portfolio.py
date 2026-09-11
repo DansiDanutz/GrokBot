@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 import itertools
 import json
+import math
 from pathlib import Path
 import subprocess
 
@@ -214,6 +215,21 @@ def _minimum_grid_net(registration):
     return minimum
 
 
+def _registered_range_exit(document):
+    """Keep archived barriers while preserving an explicitly registered zero."""
+    name = 'range_exit_stop_pct'
+    fixed = document.get('fixed_parameters', {})
+    declared = [source[name] for source in (document, fixed) if name in source]
+    for value in declared:
+        if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value < 1:
+            raise ValueError('registered range_exit_stop_pct must be finite in [0, 1)')
+    if len(declared) == 2 and declared[0] != declared[1]:
+        raise ValueError('conflicting registered range_exit_stop_pct')
+    if declared:
+        return declared[0]
+    return 0 if document.get('id') == 'grid-kucoin-v3-positive' else .05
+
+
 def _cycle_gate(metrics, minimum):
     positive, nonpositive = ('completed_positive_net', 'completed_nonpositive_net') if minimum == 0 else (
         'completed_at_target', 'completed_below_target')
@@ -334,6 +350,7 @@ def _single_registered(snapshot, document, calibration, volatility, runner):
         raise ValueError('fixed v3 parameters required')
     parameters = dict(document['fixed_parameters'], historical_candle_only=True)
     parameters['minimum_grid_net_usdt'] = _minimum_grid_net(document)
+    parameters['range_exit_stop_pct'] = _registered_range_exit(document)
     windows = []
     for span in document['holdouts']:
         start, end = _time(span['start']), _time(span['end'])

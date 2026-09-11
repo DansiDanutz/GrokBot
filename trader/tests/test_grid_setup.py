@@ -20,7 +20,7 @@ def safe_preview(config):
 
 
 MARKET = dict(price=100., tick_size=.01, lot_size=.001, multiplier=1., funding_rate=0.)
-PARAMS = dict(preview_fn=safe_preview, minimum_grid_net_usdt=1.)
+PARAMS = dict(preview_fn=safe_preview, minimum_grid_net_usdt=1., range_exit_stop_pct=.05)
 
 
 class SetupTests(unittest.TestCase):
@@ -194,7 +194,7 @@ class SetupTests(unittest.TestCase):
         self.assertAlmostEqual(result['kucoin_profit_usdt_min'],1000/70*result['kucoin_profit_pct_min']/100)
         self.assertLess(result['kucoin_profit_usdt_max'],1.)
 
-    def test_five_percent_both_edge_stops_are_price_based_for_all_modes(self):
+    def test_explicit_legacy_five_percent_stops_are_price_based_for_all_modes(self):
         for threshold,trend in ((0.,1),(.99,0),(0.,-1)):
             data = feature_set(ema_slope_4h=.5*trend,ema_slope_24h=.5*trend,
                                structure_4h=trend,structure_24h=trend,
@@ -237,12 +237,12 @@ class SetupTests(unittest.TestCase):
         result = build_setup('TESTUSDT',feature_set(),MARKET,dict(PARAMS,leverage_cap=5,used_margin=1000,reserved_margin=200,total_margin=1200))
         self.assertTrue(result['eligible'],result['reason'])
 
-    def test_new_setup_enables_adaptive_stops_without_changing_historical_defaults(self):
+    def test_explicit_legacy_setup_enables_adaptive_stops_without_changing_core_defaults(self):
         observed = []
         def record_config(config):
             observed.append(config)
             return safe_preview(config)
-        result = build_setup('TESTUSDT',feature_set(),MARKET,dict(preview_fn=record_config))
+        result = build_setup('TESTUSDT',feature_set(),MARKET,dict(preview_fn=record_config,range_exit_stop_pct=.05))
         self.assertTrue(result['eligible'],result['reason'])
         self.assertTrue(result['adaptive_range_stops'])
         self.assertEqual(result['adaptive_tight_stop_pct'],.01)
@@ -251,7 +251,9 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(observed[-1].adaptive_tight_stop_pct,.01)
         self.assertEqual(observed[-1].adaptive_liquidation_clearance_pct,.01)
         from trader.strategies.kucoin_grid import GridConfig
-        self.assertFalse(GridConfig(pair='HISTORICAL',low=80.,high=120.).adaptive_range_stops)
+        historical = GridConfig(pair='HISTORICAL',low=80.,high=120.)
+        self.assertFalse(historical.adaptive_range_stops)
+        self.assertEqual(historical.range_exit_stop_pct,.05)
 
     def test_default_accepts_positive_sub_dollar_cash_grids_and_reports_floor(self):
         result = build_setup('TESTUSDT',feature_set(),MARKET,dict(preview_fn=safe_preview))
@@ -290,3 +292,71 @@ class SetupTests(unittest.TestCase):
                 result = build_setup('TESTUSDT',feature_set(),MARKET,dict(preview_fn=safe_preview,minimum_grid_net_usdt=value))
                 self.assertFalse(result['eligible'])
                 self.assertIn('minimum_grid_net_usdt',result['reason'])
+
+    def test_default_boundary_forms_close_on_both_edges_without_take_profit(self):
+        from trader.strategies.kucoin_grid import GridConfig,preview,create_bot,advance
+        for trend in (1,0,-1):
+            data = feature_set(ema_slope_4h=.5*trend,ema_slope_24h=.5*trend,
+                               structure_4h=trend,structure_24h=trend,
+                               position_24h=.5-.3*trend,position_7d=.5-.3*trend,
+                               funding_sign=-trend)
+            observed = []
+            def record(config):
+                observed.append(vars(config))
+                return preview(GridConfig(**vars(config)))
+            result = build_setup('TESTUSDT',data,MARKET,dict(preview_fn=record))
+            self.assertTrue(result['eligible'],result['reason'])
+            self.assertEqual(result['range_exit_stop_pct'],0.)
+            self.assertFalse(result['adaptive_range_stops'])
+            self.assertEqual(result['exit_policy'],'exit_on_either_range_boundary_touch')
+            self.assertEqual(observed[-1]['range_exit_stop_pct'],0.)
+            self.assertFalse(observed[-1]['adaptive_range_stops'])
+            self.assertNotIn('take_profit',observed[-1])
+            for side in ('low','high'):
+                edge = result[side]
+                for prefix in ('range_exit_stop_','hard_stop_'):
+                    self.assertEqual(result[prefix+side],edge)
+                self.assertEqual(result['preview']['app_stop_'+side],edge)
+                self.assertEqual(result['preview']['effective_stop_loss_'+side],edge)
+                config = GridConfig(**dict(observed[-1],stop_loss=result['stop_loss'],stop_loss_high=result['stop_loss_high']))
+                running = create_bot(config,result['entry'],0)
+                inside = advance(running,(edge+result['entry'])/2,60000)
+                self.assertEqual(inside.status,'running')
+                stopped = advance(inside,edge,120000)
+                self.assertEqual(stopped.status,'stopped')
+                self.assertEqual(stopped.stop_reason,'stop_loss')
+                self.assertFalse(stopped.liquidated)
+                self.assertEqual(stopped.price,edge)
+
+    def test_stop_policy_parameter_validation_and_compatible_legacy_adaptation(self):
+        for value in (-.01,1.,float('nan'),float('inf'),None,True,'0.05'):
+            with self.subTest(value=value):
+                result = build_setup('TESTUSDT',feature_set(),MARKET,dict(preview_fn=safe_preview,range_exit_stop_pct=value))
+                self.assertFalse(result['eligible'])
+                self.assertIn('range_exit_stop_pct',result['reason'])
+        for pct,explicit,expected in ((.05,None,True),(.05,False,False),(.005,None,False)):
+            params = dict(preview_fn=safe_preview,range_exit_stop_pct=pct)
+            if explicit is not None:
+                params['adaptive_range_stops'] = explicit
+            result = build_setup('TESTUSDT',feature_set(),MARKET,params)
+            self.assertTrue(result['eligible'],result['reason'])
+            self.assertEqual(result['adaptive_range_stops'],expected)
+        for pct in (0.,.005):
+            result = build_setup('TESTUSDT',feature_set(),MARKET,dict(preview_fn=safe_preview,range_exit_stop_pct=pct,adaptive_range_stops=True))
+            self.assertFalse(result['eligible'])
+        result = build_setup('TESTUSDT',feature_set(),MARKET,dict(preview_fn=safe_preview,adaptive_range_stops='false'))
+        self.assertFalse(result['eligible'])
+
+    def test_boundary_policy_keeps_entry_range_and_budget_and_trigger_inside(self):
+        data = feature_set(fresh_high=True)
+        boundary = build_setup('TESTUSDT',data,MARKET,dict(preview_fn=safe_preview))
+        legacy = build_setup('TESTUSDT',data,MARKET,dict(preview_fn=safe_preview,range_exit_stop_pct=.05))
+        self.assertTrue(boundary['eligible'],boundary['reason'])
+        self.assertTrue(legacy['eligible'],legacy['reason'])
+        for key in ('entry','trigger','low','high','grids','quantity','leverage','used_margin','reserved_margin'):
+            self.assertEqual(boundary[key],legacy[key])
+        self.assertIsNotNone(boundary['trigger'])
+        self.assertLess(boundary['low'],boundary['entry'])
+        self.assertLess(boundary['entry'],boundary['high'])
+        self.assertLess(boundary['low'],boundary['trigger'])
+        self.assertLess(boundary['trigger'],boundary['high'])

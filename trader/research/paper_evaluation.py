@@ -26,15 +26,25 @@ def _run_id(value):
     return value
 
 
-def arm_evaluation(policy, previous_run_id=None, source_revision=None):
-    """Prepare a separate 2400-USDT experiment without inventing a start time."""
-    if not isinstance(policy, dict) or set(policy) != {'strategy', *REQUIRED_POLICY}:
+def _validate_policy(policy):
+    if not isinstance(policy, dict):
         raise ValueError('exact public policy fields are required')
-    if policy['strategy'] != 'grid-kucoin-policy-v2':
-        raise ValueError('strategy must identify the revised paper policy')
+    strategy = policy.get('strategy')
+    if strategy not in ('grid-kucoin-policy-v2', 'grid-kucoin-v3-positive'):
+        raise ValueError('strategy must identify an explicitly supported paper policy')
+    zeros = {'minimum_grid_net_usdt', 'range_exit_stop_pct'} if strategy == 'grid-kucoin-v3-positive' else set()
+    if set(policy) != {'strategy', *REQUIRED_POLICY, *zeros}:
+        raise ValueError('exact public policy fields are required')
     if any(type(policy[key]) is not int or policy[key] != value
            for key, value in REQUIRED_POLICY.items()):
         raise ValueError('policy requires two 1000+200 USDT bots at fixed 5x')
+    if any(type(policy[key]) not in (int, float) or policy[key] != 0 for key in zeros):
+        raise ValueError('positive paper policy requires explicit zero minimum net and range-hit exit')
+
+
+def arm_evaluation(policy, previous_run_id=None, source_revision=None):
+    """Prepare a separate 2400-USDT experiment without inventing a start time."""
+    _validate_policy(policy)
     if previous_run_id is not None:
         _run_id(previous_run_id)
     if not isinstance(source_revision, str) or not re.fullmatch(r'[0-9a-f]{40}', source_revision):

@@ -249,3 +249,61 @@ class PositiveCyclePolicyTests(unittest.TestCase):
                 path.write_bytes(raw+b' ')
                 with self.assertRaisesRegex(ValueError, 'differs from committed'):
                     _registered(path)
+
+
+class RegisteredRangeExitTests(unittest.TestCase):
+    def document(self, identifier='grid-kucoin-v3-positive', **changes):
+        return dict(id=identifier, fixed_parameters={'historical_spread_bps': 10},
+            holdouts=[dict(start='2026-07-01T00:00:00Z', end='2026-08-01T00:00:00Z'),
+                      dict(start='2026-08-01T00:00:00Z', end='2026-09-01T00:00:00Z')], **changes)
+
+    @patch('trader.research.kucoin_portfolio._registered')
+    def test_old_and_new_registration_defaults_are_explicit_in_every_month(self, registered):
+        for identifier, expected in [('grid-kucoin-v3', .05), ('grid-kucoin-v3-positive', 0)]:
+            registered.return_value = self.document(identifier)
+            runner = unittest.mock.Mock(side_effect=lambda *args, **kwargs: dict(
+                coverage={'complete': False}, metrics={}))
+            result = sweep(object(), 'ignored', {}, {}, runner=runner)
+            self.assertEqual(runner.call_count, 2)
+            self.assertTrue(all(call.kwargs['parameters']['range_exit_stop_pct'] == expected
+                                for call in runner.call_args_list))
+            self.assertTrue(all(row['selected_parameters']['range_exit_stop_pct'] == expected
+                                for row in result['holdouts']))
+            self.assertNotIn('range_exit_stop_pct', registered.return_value['fixed_parameters'])
+
+    @patch('trader.research.kucoin_portfolio._registered')
+    def test_top_level_and_fixed_range_settings_propagate_including_zero(self, registered):
+        for placement in ('top', 'fixed', 'both'):
+            for value in (0, .05):
+                with self.subTest(placement=placement, value=value):
+                    document = self.document()
+                    if placement in ('top', 'both'):
+                        document['range_exit_stop_pct'] = value
+                    if placement in ('fixed', 'both'):
+                        document['fixed_parameters']['range_exit_stop_pct'] = value
+                    registered.return_value = document
+                    runner = unittest.mock.Mock(side_effect=lambda *args, **kwargs: dict(
+                        coverage={'complete': False}, metrics={}))
+                    sweep(object(), 'ignored', {}, {}, runner=runner)
+                    self.assertTrue(all(call.kwargs['parameters']['range_exit_stop_pct'] == value
+                                        for call in runner.call_args_list))
+
+    @patch('trader.research.kucoin_portfolio._registered')
+    def test_conflicting_or_invalid_range_settings_fail_before_running(self, registered):
+        documents = []
+        for value in (None, True, '0', -1, 1, float('nan'), float('inf')):
+            for placement in ('top', 'fixed'):
+                document = self.document()
+                target = document if placement == 'top' else document['fixed_parameters']
+                target['range_exit_stop_pct'] = value
+                documents.append(document)
+        conflict = self.document(range_exit_stop_pct=0)
+        conflict['fixed_parameters']['range_exit_stop_pct'] = .05
+        documents.append(conflict)
+        for document in documents:
+            with self.subTest(document=document):
+                registered.return_value = document
+                runner = unittest.mock.Mock()
+                with self.assertRaisesRegex(ValueError, 'range_exit_stop_pct'):
+                    sweep(object(), 'ignored', {}, {}, runner=runner)
+                runner.assert_not_called()

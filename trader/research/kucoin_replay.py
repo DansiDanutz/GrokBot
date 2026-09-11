@@ -53,6 +53,20 @@ def _report(snapshot, start, end, mode, parameters):
                              'Outside-range duration uses minute-close sampling, not reconstructed intraminute residence.'])
 
 
+def range_policy_parameters(parameters=None):
+    """Make the operational edge policy explicit; preserve requested research buffers."""
+    options = dict(parameters or {})
+    fraction = options.setdefault('range_exit_stop_pct', 0.)
+    if type(fraction) not in (int, float) or not math.isfinite(fraction) or not 0 <= fraction < 1:
+        raise ValueError('range_exit_stop_pct must be finite, at least zero and less than one')
+    adaptive = options.setdefault('adaptive_range_stops', fraction >= .01)
+    if type(adaptive) is not bool:
+        raise ValueError('adaptive_range_stops must be boolean')
+    if adaptive and fraction < .01:
+        raise ValueError('adaptive stops require an enabled wider initial range stop')
+    return options
+
+
 def _config(form):
     return GridConfig(pair=form['pair'], low=form['low'], high=form['high'],
         grids=form['grids'], leverage=form['leverage'], direction=form['direction'],
@@ -61,6 +75,7 @@ def _config(form):
         multiplier=form.get('multiplier', 1), lot_size=form.get('lot_size', 1),
         trigger=form.get('trigger'), stop_loss=form.get('stop_loss'),
         stop_loss_high=form.get('stop_loss_high'), tick_size=form.get('tick_size'),
+        range_exit_stop_pct=form.get('range_exit_stop_pct', 0.),
         adaptive_range_stops=form.get('adaptive_range_stops', False),
         adaptive_tight_stop_pct=form.get('adaptive_tight_stop_pct', .01),
         adaptive_liquidation_clearance_pct=form.get('adaptive_liquidation_clearance_pct', .01))
@@ -478,7 +493,7 @@ def run_window(snapshot, start_ms, end_ms, parameters=None, mode='system', fixtu
         raise ValueError('unknown replay mode')
     if any(type(t) is not int or t < 0 or t % HOUR_MS for t in (start_ms, end_ms)) or start_ms >= end_ms:
         raise ValueError('window must use increasing UTC hour boundaries')
-    options = dict(parameters or {})
+    options = range_policy_parameters(parameters)
     began = perf_counter()
     if options.get('historical_candle_only') and getattr(snapshot, 'historical_candle_only', False) is not True:
         from trader.research.kucoin_snapshot import HistoricalSnapshot

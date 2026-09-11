@@ -9,7 +9,7 @@ from dataclasses import asdict
 from trader.research.kucoin_radar import radar, normalize_market, crossing_score
 from trader.research.kucoin_tracker import track_bars, track_summary
 from trader.research.kucoin_replacement import decide_portfolio_replacement, select_funded_entries
-from trader.research.kucoin_replay import close_cost_summary
+from trader.research.kucoin_replay import close_cost_summary, range_policy_parameters
 from trader.strategies.grid_features import features
 from trader.strategies.grid_setup import build_setup
 from trader.strategies.grid_types import GridConfig
@@ -24,7 +24,8 @@ OPTIONAL = {'stop_loss_high', 'trigger', 'quantity', 'multiplier', 'lot_size', '
 TERMINAL = ('stopped', 'liquidated')
 
 
-def _config(bot):
+def _config(bot, parameters=None):
+    options = range_policy_parameters(parameters)
     return GridConfig(pair=bot['pair'], direction=bot['direction'],
         leverage=bot['leverage'], investment=bot['used_margin'],
         reserved_margin=bot['reserved_margin'], entry_price=bot['entry'],
@@ -32,11 +33,12 @@ def _config(bot):
         stop_loss=bot['stop_loss'], stop_loss_high=bot.get('stop_loss_high'),
         trigger=bot.get('trigger'), quantity=bot.get('quantity'),
         multiplier=bot.get('multiplier', 1), lot_size=bot.get('lot_size', 1),
-        tick_size=bot.get('tick_size'), adaptive_range_stops=True,
+        tick_size=bot.get('tick_size'), range_exit_stop_pct=options['range_exit_stop_pct'],
+        adaptive_range_stops=options['adaptive_range_stops'],
         adaptive_tight_stop_pct=.01, adaptive_liquidation_clearance_pct=.01)
 
 
-def _validate_bot(bot, asof_ms):
+def _validate_bot(bot, asof_ms, parameters=None):
     if not isinstance(bot, dict) or not REQUIRED <= bot.keys() or bot.keys()-REQUIRED-OPTIONAL:
         raise ValueError('running bot has missing or unknown form fields; credentials are not accepted')
     for key in ('bot_id', 'pair'):
@@ -58,7 +60,7 @@ def _validate_bot(bot, asof_ms):
         raise ValueError('running leverage must be exactly 5x')
     if bot['used_margin'] != 1000 or bot['reserved_margin'] != 200:
         raise ValueError('running forms require 1000 USDT used margin plus 200 USDT reserve')
-    create_bot(_config(bot), bot['entry'], started)
+    create_bot(_config(bot, parameters), bot['entry'], started)
 
 
 def _capital_snapshot(document, asof_ms):
@@ -77,7 +79,7 @@ def _capital_snapshot(document, asof_ms):
                 reason='user-supplied available paper cash at asof; includes already released allocations')
 
 
-def validate_running(document, asof_ms):
+def validate_running(document, asof_ms, parameters=None):
     """Strict public form schema; unknown fields are rejected before data access."""
     if type(asof_ms) is not int or asof_ms < 0 or asof_ms % HOUR_MS:
         raise ValueError('asof must be a UTC hour boundary in milliseconds')
@@ -90,7 +92,7 @@ def validate_running(document, asof_ms):
         raise ValueError('at most two running bot forms are supported')
     _capital_snapshot(document, asof_ms)
     for bot in document['bots']:
-        _validate_bot(bot, asof_ms)
+        _validate_bot(bot, asof_ms, parameters)
     for field in ('bot_id', 'pair'):
         if len({bot[field] for bot in document['bots']}) != len(document['bots']):
             raise ValueError('duplicate running ' + field)
@@ -170,7 +172,7 @@ def _decision(state, summary, bot_id, quote):
 
 
 def _track_bot(snapshot, bot, asof, pairs, parameters):
-    state, at = create_bot(_config(bot), bot['entry'], bot['start_ms']), bot['start_ms']
+    state, at = create_bot(_config(bot, parameters), bot['entry'], bot['start_ms']), bot['start_ms']
     history, flip = [], None
     ledger = [asdict(event) for event in state.fill_events]
     seen = {event.event_id for event in state.fill_events}
@@ -232,8 +234,8 @@ def _funded_decisions(scan, tracked, parameters, capital):
 
 def operator_report(snapshot, asof_ms, running_document, parameters=None):
     """Rebuild each running bot from its declared start, preserving hourly history."""
-    bots = validate_running(running_document, asof_ms)
-    parameters = dict(parameters or {})
+    parameters = range_policy_parameters(parameters)
+    bots = validate_running(running_document, asof_ms, parameters)
     pairs = [bot['pair'] for bot in bots]
     reader = getattr(snapshot, 'iter_records', snapshot.records)
     scan = radar(reader(asof_ms), asof_ms, pairs,
@@ -247,6 +249,7 @@ def operator_report(snapshot, asof_ms, running_document, parameters=None):
                       reason='All four bot calibration, volatility fixture validation and two disjoint monthly holdouts must pass.'),
         radar=scan, recommended_forms=forms, entry_decision=entries,
         portfolio_decision=portfolio, capital=capital,
+        range_policy={key: parameters[key] for key in ('range_exit_stop_pct', 'adaptive_range_stops')},
         capital_policy=dict(used_margin=1000, reserved_margin=200, leverage=5,
                             total_per_bot=1200, total_for_two_bots=2400),
         running=tracked,

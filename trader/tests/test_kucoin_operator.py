@@ -43,6 +43,63 @@ def candidate(pair='NEW', score=10):
 
 
 class OperatorTests(unittest.TestCase):
+    def test_operator_range_edges_close_all_modes_and_explicit_legacy_buffer_survives(self):
+        for direction in ('long', 'short', 'neutral'):
+            for edge in (90, 110):
+                for buffer in (0, .05):
+                    with self.subTest(direction=direction, edge=edge, buffer=buffer):
+                        snapshot = MemorySnapshot()
+                        snapshot.candles = lambda pair, start, end: [dict(time_ms=t,
+                            open=100, high=max(100, edge), low=min(100, edge), close=100)
+                            for t in range(start, end, 60000)]
+                        document = running(direction=direction, stop_loss=85 if direction != 'short' else 115)
+                        if direction == 'neutral':
+                            document['bots'][0]['stop_loss_high'] = 115
+                        with patch('trader.research.kucoin_operator.radar', return_value=
+                                dict(radar=[], rejected=[], coverage={'observed': 1})) as mocked:
+                            result = operator_report(snapshot, HOUR, document, {'range_exit_stop_pct': buffer, 'adaptive_range_stops': False})
+                        bot = result['running'][0]
+                        self.assertEqual(bot['tracker']['status'], 'stopped' if buffer == 0 else 'running')
+                        stops = [event for event in bot['ledger'] if event['kind'] == 'stop_loss']
+                        self.assertEqual(bool(stops), buffer == 0)
+                        self.assertTrue(all(event['price'] == edge for event in stops))
+                        self.assertEqual(mocked.call_args.args[3]['setup']['range_exit_stop_pct'], buffer)
+                        self.assertFalse(mocked.call_args.args[3]['setup']['adaptive_range_stops'])
+
+    def test_operator_validation_and_preview_share_declared_range_policy(self):
+        from trader.research.kucoin_operator import _config
+        document = running(entry=90)
+        with self.assertRaisesRegex(ValueError, 'strictly inside'):
+            validate_running(document, HOUR)
+        validate_running(document, HOUR, {'range_exit_stop_pct': .05})
+        default = _config(running()['bots'][0])
+        self.assertEqual(default.range_exit_stop_pct, 0)
+        self.assertFalse(default.adaptive_range_stops)
+        legacy = _config(running()['bots'][0], {'range_exit_stop_pct': .05, 'adaptive_range_stops': True})
+        self.assertEqual(legacy.range_exit_stop_pct, .05)
+        self.assertTrue(legacy.adaptive_range_stops)
+
+    def test_direction_setup_and_reported_preview_use_same_range_policy(self):
+        snapshot = MemorySnapshot()
+        snapshot.records = lambda at, pairs=None: [dict(pair='TESTUSDTM',
+            bars=[{'close': 100}]*10080, market={})]
+        for options, fraction, adaptive in (({}, 0, False), ({'range_exit_stop_pct': .05}, .05, True)):
+            with self.subTest(options=options), \
+                    patch('trader.research.kucoin_operator.radar', return_value=dict(radar=[], coverage={})), \
+                    patch('trader.research.kucoin_operator.normalize_market', return_value=
+                          dict(observed_at_ms=HOUR, funding_rate_8h=0)), \
+                    patch('trader.research.kucoin_operator.features', return_value={}), \
+                    patch('trader.research.kucoin_operator.build_setup', return_value=
+                          dict(direction='long', eligible=False)) as builder:
+                report = operator_report(snapshot, HOUR, running(), options)
+                self.assertEqual(builder.call_args.args[3]['range_exit_stop_pct'], fraction)
+                self.assertEqual(builder.call_args.args[3]['adaptive_range_stops'], adaptive)
+                estimate = report['running'][0]['preview']
+                self.assertAlmostEqual(estimate['range_exit_stop_low'], 90*(1-fraction))
+                self.assertAlmostEqual(estimate['range_exit_stop_high'], 110*(1+fraction))
+                self.assertEqual(report['range_policy'], dict(range_exit_stop_pct=fraction,
+                                                            adaptive_range_stops=adaptive))
+
     def test_flat_cash_floor_reaches_radar_and_funded_entries(self):
         for minimum, expected in ((0, 1), (1, 0)):
             with self.subTest(minimum=minimum):
@@ -181,10 +238,10 @@ class OperatorTests(unittest.TestCase):
         self.assertEqual(len(report['recommended_forms']), 1)
         self.assertEqual(report['capital_policy']['total_for_two_bots'], 2400)
 
-    def test_operator_enables_adaptive_safety_for_new_forms(self):
+    def test_operator_disables_adaptive_safety_under_boundary_policy(self):
         from trader.research.kucoin_operator import _config
         config = _config(running()['bots'][0])
-        self.assertTrue(config.adaptive_range_stops)
+        self.assertFalse(config.adaptive_range_stops)
         self.assertEqual(config.adaptive_tight_stop_pct, .01)
         self.assertEqual(config.adaptive_liquidation_clearance_pct, .01)
 

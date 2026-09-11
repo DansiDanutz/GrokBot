@@ -5,8 +5,9 @@ contrarian short component. Range starts at long -15/+40%, short -40/+15%,
 neutral +/-20%, then intersects confirmed 7d swing support/resistance, observed
 7d extremes and entry +/-20 minute ATRs. Five-bar swings require two closed
 right-hand candles. Choose the eligible pivot nearest each nominal edge.
-Universal stops are 5% of EDGE PRICE outside both sides, with app prices rounded
-inward by less than one tick; the losing stop must still precede liquidation.
+New setups exit on either exact range boundary, with no adaptive outside-range
+fallback. Explicit legacy range_exit_stop_pct values place stops beyond each
+edge, rounded inward by less than one tick. Losing stops precede liquidation.
 
 Production policy is fixed at 5x, 1000 USDT used plus 200 USDT reserve
 (1200 total per bot). Capital and leverage never change during safety search.
@@ -192,6 +193,17 @@ def build_setup(pair, data, market, parameters=None):
     try:
         minimum = minimum_grid_net_usdt(params)
         cash_floor = Decimal(str(minimum))
+        stop_pct = params.get('range_exit_stop_pct',0.)
+        if isinstance(stop_pct,bool) or not isinstance(stop_pct,(int,float)) or not math.isfinite(stop_pct) or not 0 <= stop_pct < 1:
+            raise ValueError('range_exit_stop_pct must be a finite number from zero inclusive to one exclusive')
+        stop_pct = float(stop_pct)
+        adaptive = params.get('adaptive_range_stops',stop_pct >= .01)
+        if type(adaptive) is not bool:
+            raise ValueError('adaptive_range_stops must be boolean')
+        if adaptive and stop_pct < .01:
+            raise ValueError('adaptive_range_stops requires range_exit_stop_pct of at least 0.01')
+        result.update(range_exit_stop_pct=stop_pct,adaptive_range_stops=adaptive,
+                      exit_policy='exit_on_either_range_boundary_touch' if stop_pct == 0 else 'legacy_outside_range_stop')
         requirement = ('strictly positive actual per-order cash net' if minimum == 0 else
                        f'at least {minimum:g} USDT actual per-order cash net')
         result.update(minimum_grid_net_usdt=minimum,target_profit_per_grid=minimum,
@@ -288,7 +300,7 @@ def build_setup(pair, data, market, parameters=None):
                 config = dict(pair=pair,low=prices[0],high=prices[-1],grids=n,leverage=leverage,
                               investment=used,reserved_margin=reserve,entry_price=entry,direction=direction,
                               quantity=quantity,multiplier=multiplier,lot_size=lot,tick_size=tick,trigger=trigger,
-                              adaptive_range_stops=True,adaptive_tight_stop_pct=.01,
+                              range_exit_stop_pct=stop_pct,adaptive_range_stops=adaptive,adaptive_tight_stop_pct=.01,
                               adaptive_liquidation_clearance_pct=.01)
                 estimate = dict(_preview(config,params.get('preview_fn')))
                 step = estimate.get('grid_step',step)
@@ -324,16 +336,22 @@ def build_setup(pair, data, market, parameters=None):
                 if not safe:
                     # Lower N can alter full inventory loading, so continue testing it.
                     continue
-                analytic_low = float(Decimal(str(prices[0]))*Decimal('.95'))
-                analytic_high = float(Decimal(str(prices[-1]))*Decimal('1.05'))
-                stops = {'long':_round(analytic_low,tick,up=True),
-                         'short':_round(analytic_high,tick)}
-                if not 0 < stops['long'] < prices[0] < prices[-1] < stops['short']:
-                    attempt['reason'] = 'No valid tick-aligned stops within the 5% edge limits'
+                fraction = Decimal(str(stop_pct))
+                analytic_low = float(Decimal(str(prices[0]))*(1-fraction))
+                analytic_high = float(Decimal(str(prices[-1]))*(1+fraction))
+                if stop_pct == 0:
+                    stops = {'long':prices[0],'short':prices[-1]}
+                    ordered_stops = 0 < stops['long'] == prices[0] < prices[-1] == stops['short']
+                else:
+                    stops = {'long':_round(analytic_low,tick,up=True),
+                             'short':_round(analytic_high,tick)}
+                    ordered_stops = 0 < stops['long'] < prices[0] < prices[-1] < stops['short']
+                if not ordered_stops:
+                    attempt['reason'] = 'No valid tick-aligned stops within the configured range-exit limits'
                     continue
                 if ((direction in ('long','neutral') and not liq_long < stops['long']) or
                         (direction in ('short','neutral') and not stops['short'] < liq_short)):
-                    attempt['reason'] = '5% range exit stop must precede losing-side liquidation'
+                    attempt['reason'] = 'Range exit stop must precede losing-side liquidation'
                     continue
                 margin_preview = grid_profit_preview(prices[0],prices[-1],n,leverage,used,entry,tick)
                 estimate.update({key:value for key,value in margin_preview.items() if key.startswith('kucoin_profit_')})
@@ -358,11 +376,12 @@ def build_setup(pair, data, market, parameters=None):
                               used_margin=used,reserved_margin=reserve,quantity=quantity,contracts_per_grid=quantity/multiplier,
                               per_grid_notional=quantity*entry,stop_loss=stops.get(direction,stops.get('long')),
                               stop_loss_high=stops.get('short') if direction == 'neutral' else None,preview=estimate,
-                              range_exit_stop_pct=.05,range_exit_stop_low=analytic_low,range_exit_stop_high=analytic_high,
-                              adaptive_range_stops=True,adaptive_tight_stop_pct=.01,
+                              range_exit_stop_pct=stop_pct,range_exit_stop_low=analytic_low,range_exit_stop_high=analytic_high,
+                              adaptive_range_stops=adaptive,adaptive_tight_stop_pct=.01,
                               adaptive_liquidation_clearance_pct=.01,
                               hard_stop_low=stops['long'],hard_stop_high=stops['short'],
-                              stop_tick_adjustment='App stops round inward by less than one tick, closing no later than 5% outside each edge',
+                              stop_tick_adjustment=('Exact tick-aligned low/high range boundaries' if stop_pct == 0 else
+                                                    'App stops round inward by less than one tick within the configured outside-range percentage'),
                               opening_fee_budget=legs*quantity*n*entry*fee,typical_movement_1m=movement)
                 return result
         result['reason'] = 'No safe positive-lot setup produces '+requirement+' after fees at fixed 5x with 1000 used + 200 reserve (1200 total)'
