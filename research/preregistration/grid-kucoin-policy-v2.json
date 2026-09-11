@@ -1,0 +1,100 @@
+{
+  "id": "grid-kucoin-policy-v2",
+  "registered_at": "2026-09-11",
+  "author": "Dan; implementation by Codex",
+  "base_commit": "165296ccb744626ca0a18756903a913e8cfbe2eb",
+  "mode": "source_only_offline_research",
+  "primary_metric": "completed_grids_per_hour_at_net_1_usdt",
+  "secondary_metric": "net_after_funding_and_switch_costs",
+  "margin_per_bot": 1200,
+  "maximum_running_bots": 2,
+  "scan_interval_ms": 3600000,
+  "fee_per_fill": 0.0006,
+  "funding_interval_ms": 28800000,
+  "minimum_grid_net_usdt": 1,
+  "holdouts": [
+    {
+      "start": "2026-07-01T00:00:00Z",
+      "end": "2026-08-01T00:00:00Z"
+    },
+    {
+      "start": "2026-08-01T00:00:00Z",
+      "end": "2026-09-01T00:00:00Z"
+    }
+  ],
+  "training_days": 7,
+  "sweep": {
+    "replacement_horizon_hours": [
+      4,
+      6,
+      12
+    ],
+    "direction_threshold": [
+      0.12,
+      0.24
+    ],
+    "radar_size": [
+      5,
+      10
+    ]
+  },
+  "selection": "Use only prior training data. Among safe eligible setups with >=1 USDT after fees, rank estimated grid rates. Replace at most the worst incumbent per hour only if a higher-rate challenger has positive projected grid-income advantage after opening and executable closing costs over the configured horizon. Fixed capital/leverage are never swept.",
+  "baselines": [
+    "four_observed_long_forms_unchanged",
+    "same_four_symbols_system_setup",
+    "random_radar_identical_rules"
+  ],
+  "random_seed": 20260911,
+  "volatility_candidate": "100*(24h_high-24h_low)/24h_low; NOT verified as KuCoin UI definition",
+  "volatility_tolerance_percentage_points": 1,
+  "profit_calibration_relative_tolerance": 0.15,
+  "liquidation_calibration_relative_tolerance": 0.1,
+  "hard_constraints": {
+    "liquidations": 0,
+    "closest_approach_fraction_of_range_min": 0.1,
+    "complete_causal_coverage": true,
+    "calibration_passes_all_four": true,
+    "volatility_definition_and_fixture_validation": true,
+    "neutral_fixture_calibration": true
+  },
+  "decision_rule": {
+    "two_disjoint_full_months": true,
+    "net_each_month_strictly_positive": true,
+    "max_drawdown_fraction_of_margin_strictly_below": 0.15,
+    "pass": "eligible_for_separate_hourly_recommender_review",
+    "otherwise": "shelve"
+  },
+  "execution_limits": [
+    "No runtime, installed scheduler, account login, order API or live recommendations.",
+    "OHLC-generated fill ledgers are simulations, not observed KuCoin trades.",
+    "Snapshot calibration cannot recover unknown original quantities or margin amendments; never fit each symbol to its target.",
+    "Both continuous and gap-aware price paths are disclosed; any liquidation fails the trial.",
+    "Missing historical books, funding, membership or candles stays explicit coverage failure.",
+    "Stop-loss closes automatically; no qualifying replacement means remain closed, not resurrect a stopped bot.",
+    "Baseline actual margins plus reserve are reported separately from the 2400-USDT two-bot portfolio."
+  ],
+  "neutral_preview_tolerance_percentage_points": 0.3,
+  "neutral_evidence": "RAY: 70 grids, 140 orders, long 544 lots and short 629 lots, 17 lots per order, used 1000 plus 200 reserve; preview and post-creation states remain separate.",
+  "minimum_grid_rule": "Minimum >=1 USDT over the whole range after both fill fees and contract rounding. Also report margin-per-grid leveraged return percentages. The approximate RAY 50-grid centre result does not prove a full-range floor.",
+  "range_exit_stop_pct": 0.05,
+  "range_exit_policy": "Default 5% outside each edge. Latch the affected side to 1% if current inventory or monotonic fill projection cannot cover maintenance plus modeled closing fees at the stop plus a 1%-of-edge clearance. If 1% is also unsafe, close immediately. Never loosen. Gaps can still cause liquidation and fail the run.",
+  "range_selection": "Causal seven-day structure, confirmed five-bar swing pivots (two closed bars on each side), ATR clipping; show supporting levels, touch counts and fallback evidence.",
+  "amendment": "Dan confirmed 2400 USDT total: two bots, each 1000 used plus 200 reserve, fixed5x; radar5\u201310; replace worse incumbent for a better cost-adjusted grid setup; adaptive1% risk exit; restart48h evaluation only when revised paper execution actually starts.",
+  "margin_used_per_bot": 1000,
+  "reserved_margin_per_bot": 200,
+  "total_bankroll_usdt": 2400,
+  "fixed_leverage": 5,
+  "radar_size": 10,
+  "adaptive_tight_stop_pct": 0.01,
+  "adaptive_liquidation_clearance_pct": 0.01,
+  "evaluation": {
+    "mode": "paper",
+    "duration_hours": 48,
+    "status": "awaiting_paper_start",
+    "started_at_ms": null,
+    "first_audit_at_ms": null,
+    "start_event": "paper_run_started with fresh first observation and matching sealed source/policy",
+    "audit_boundary_stops_trading": false,
+    "previous_results": "preserved separately; never relabeled as this strategy"
+  }
+}
