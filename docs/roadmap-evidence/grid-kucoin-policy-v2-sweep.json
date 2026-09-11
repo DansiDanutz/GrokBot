@@ -1,0 +1,1936 @@
+{
+  "registration": {
+    "id": "grid-kucoin-policy-v2",
+    "registered_at": "2026-09-11",
+    "author": "Dan; implementation by Codex",
+    "base_commit": "165296ccb744626ca0a18756903a913e8cfbe2eb",
+    "mode": "source_only_offline_research",
+    "primary_metric": "completed_grids_per_hour_at_net_1_usdt",
+    "secondary_metric": "net_after_funding_and_switch_costs",
+    "margin_per_bot": 1200,
+    "maximum_running_bots": 2,
+    "scan_interval_ms": 3600000,
+    "fee_per_fill": 0.0006,
+    "funding_interval_ms": 28800000,
+    "minimum_grid_net_usdt": 1,
+    "holdouts": [
+      {
+        "start": "2026-07-01T00:00:00Z",
+        "end": "2026-08-01T00:00:00Z"
+      },
+      {
+        "start": "2026-08-01T00:00:00Z",
+        "end": "2026-09-01T00:00:00Z"
+      }
+    ],
+    "training_days": 7,
+    "sweep": {
+      "replacement_horizon_hours": [
+        4,
+        6,
+        12
+      ],
+      "direction_threshold": [
+        0.12,
+        0.24
+      ],
+      "radar_size": [
+        5,
+        10
+      ]
+    },
+    "selection": "Use only prior training data. Among safe eligible setups with >=1 USDT after fees, rank estimated grid rates. Replace at most the worst incumbent per hour only if a higher-rate challenger has positive projected grid-income advantage after opening and executable closing costs over the configured horizon. Fixed capital/leverage are never swept.",
+    "baselines": [
+      "four_observed_long_forms_unchanged",
+      "same_four_symbols_system_setup",
+      "random_radar_identical_rules"
+    ],
+    "random_seed": 20260911,
+    "volatility_candidate": "100*(24h_high-24h_low)/24h_low; NOT verified as KuCoin UI definition",
+    "volatility_tolerance_percentage_points": 1,
+    "profit_calibration_relative_tolerance": 0.15,
+    "liquidation_calibration_relative_tolerance": 0.1,
+    "hard_constraints": {
+      "liquidations": 0,
+      "closest_approach_fraction_of_range_min": 0.1,
+      "complete_causal_coverage": true,
+      "calibration_passes_all_four": true,
+      "volatility_definition_and_fixture_validation": true,
+      "neutral_fixture_calibration": true
+    },
+    "decision_rule": {
+      "two_disjoint_full_months": true,
+      "net_each_month_strictly_positive": true,
+      "max_drawdown_fraction_of_margin_strictly_below": 0.15,
+      "pass": "eligible_for_separate_hourly_recommender_review",
+      "otherwise": "shelve"
+    },
+    "execution_limits": [
+      "No runtime, installed scheduler, account login, order API or live recommendations.",
+      "OHLC-generated fill ledgers are simulations, not observed KuCoin trades.",
+      "Snapshot calibration cannot recover unknown original quantities or margin amendments; never fit each symbol to its target.",
+      "Both continuous and gap-aware price paths are disclosed; any liquidation fails the trial.",
+      "Missing historical books, funding, membership or candles stays explicit coverage failure.",
+      "Stop-loss closes automatically; no qualifying replacement means remain closed, not resurrect a stopped bot.",
+      "Baseline actual margins plus reserve are reported separately from the 2400-USDT two-bot portfolio."
+    ],
+    "neutral_preview_tolerance_percentage_points": 0.3,
+    "neutral_evidence": "RAY: 70 grids, 140 orders, long 544 lots and short 629 lots, 17 lots per order, used 1000 plus 200 reserve; preview and post-creation states remain separate.",
+    "minimum_grid_rule": "Minimum >=1 USDT over the whole range after both fill fees and contract rounding. Also report margin-per-grid leveraged return percentages. The approximate RAY 50-grid centre result does not prove a full-range floor.",
+    "range_exit_stop_pct": 0.05,
+    "range_exit_policy": "Default 5% outside each edge. Latch the affected side to 1% if current inventory or monotonic fill projection cannot cover maintenance plus modeled closing fees at the stop plus a 1%-of-edge clearance. If 1% is also unsafe, close immediately. Never loosen. Gaps can still cause liquidation and fail the run.",
+    "range_selection": "Causal seven-day structure, confirmed five-bar swing pivots (two closed bars on each side), ATR clipping; show supporting levels, touch counts and fallback evidence.",
+    "amendment": "Dan confirmed 2400 USDT total: two bots, each 1000 used plus 200 reserve, fixed5x; radar5\u201310; replace worse incumbent for a better cost-adjusted grid setup; adaptive1% risk exit; restart48h evaluation only when revised paper execution actually starts.",
+    "margin_used_per_bot": 1000,
+    "reserved_margin_per_bot": 200,
+    "total_bankroll_usdt": 2400,
+    "fixed_leverage": 5,
+    "radar_size": 10,
+    "adaptive_tight_stop_pct": 0.01,
+    "adaptive_liquidation_clearance_pct": 0.01,
+    "evaluation": {
+      "mode": "paper",
+      "duration_hours": 48,
+      "status": "awaiting_paper_start",
+      "started_at_ms": null,
+      "first_audit_at_ms": null,
+      "start_event": "paper_run_started with fresh first observation and matching sealed source/policy",
+      "audit_boundary_stops_trading": false,
+      "previous_results": "preserved separately; never relabeled as this strategy"
+    }
+  },
+  "training_trials": [
+    {
+      "holdout_start_ms": 1782864000000,
+      "parameters": {
+        "direction_threshold": 0.12,
+        "radar_size": 5,
+        "replacement_horizon_hours": 4
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1782864000000,
+      "parameters": {
+        "direction_threshold": 0.12,
+        "radar_size": 5,
+        "replacement_horizon_hours": 6
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1782864000000,
+      "parameters": {
+        "direction_threshold": 0.12,
+        "radar_size": 5,
+        "replacement_horizon_hours": 12
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1782864000000,
+      "parameters": {
+        "direction_threshold": 0.12,
+        "radar_size": 10,
+        "replacement_horizon_hours": 4
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1782864000000,
+      "parameters": {
+        "direction_threshold": 0.12,
+        "radar_size": 10,
+        "replacement_horizon_hours": 6
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1782864000000,
+      "parameters": {
+        "direction_threshold": 0.12,
+        "radar_size": 10,
+        "replacement_horizon_hours": 12
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1782864000000,
+      "parameters": {
+        "direction_threshold": 0.24,
+        "radar_size": 5,
+        "replacement_horizon_hours": 4
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1782864000000,
+      "parameters": {
+        "direction_threshold": 0.24,
+        "radar_size": 5,
+        "replacement_horizon_hours": 6
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1782864000000,
+      "parameters": {
+        "direction_threshold": 0.24,
+        "radar_size": 5,
+        "replacement_horizon_hours": 12
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1782864000000,
+      "parameters": {
+        "direction_threshold": 0.24,
+        "radar_size": 10,
+        "replacement_horizon_hours": 4
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1782864000000,
+      "parameters": {
+        "direction_threshold": 0.24,
+        "radar_size": 10,
+        "replacement_horizon_hours": 6
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1782864000000,
+      "parameters": {
+        "direction_threshold": 0.24,
+        "radar_size": 10,
+        "replacement_horizon_hours": 12
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1785542400000,
+      "parameters": {
+        "direction_threshold": 0.12,
+        "radar_size": 5,
+        "replacement_horizon_hours": 4
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1785542400000,
+      "parameters": {
+        "direction_threshold": 0.12,
+        "radar_size": 5,
+        "replacement_horizon_hours": 6
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1785542400000,
+      "parameters": {
+        "direction_threshold": 0.12,
+        "radar_size": 5,
+        "replacement_horizon_hours": 12
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1785542400000,
+      "parameters": {
+        "direction_threshold": 0.12,
+        "radar_size": 10,
+        "replacement_horizon_hours": 4
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1785542400000,
+      "parameters": {
+        "direction_threshold": 0.12,
+        "radar_size": 10,
+        "replacement_horizon_hours": 6
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1785542400000,
+      "parameters": {
+        "direction_threshold": 0.12,
+        "radar_size": 10,
+        "replacement_horizon_hours": 12
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1785542400000,
+      "parameters": {
+        "direction_threshold": 0.24,
+        "radar_size": 5,
+        "replacement_horizon_hours": 4
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1785542400000,
+      "parameters": {
+        "direction_threshold": 0.24,
+        "radar_size": 5,
+        "replacement_horizon_hours": 6
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1785542400000,
+      "parameters": {
+        "direction_threshold": 0.24,
+        "radar_size": 5,
+        "replacement_horizon_hours": 12
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1785542400000,
+      "parameters": {
+        "direction_threshold": 0.24,
+        "radar_size": 10,
+        "replacement_horizon_hours": 4
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1785542400000,
+      "parameters": {
+        "direction_threshold": 0.24,
+        "radar_size": 10,
+        "replacement_horizon_hours": 6
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    },
+    {
+      "holdout_start_ms": 1785542400000,
+      "parameters": {
+        "direction_threshold": 0.24,
+        "radar_size": 10,
+        "replacement_horizon_hours": 12
+      },
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "preceding seven-day training window lacks historical ticker/book coverage"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      }
+    }
+  ],
+  "holdouts": [
+    {
+      "start_ms": 1782864000000,
+      "end_ms": 1785542400000,
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "no fully covered training selection or holdout quote history"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      },
+      "baselines": {
+        "four_observed_long_forms_unchanged": {
+          "start_ms": 1782864000000,
+          "end_ms": 1785542400000,
+          "status": "not_run_coverage",
+          "coverage": {
+            "complete": false,
+            "reasons": [
+              "historical coverage unavailable"
+            ]
+          },
+          "metrics": {
+            "completed_grids": null,
+            "completed_grids_per_hour": null,
+            "completed_grids_per_day": null,
+            "completed_grids_per_hour_at_net_1_usdt": null,
+            "completed_at_target": null,
+            "completed_below_target": null,
+            "grid_profit": null,
+            "grid_net_profit": null,
+            "seed_pnl": null,
+            "floating_pnl": null,
+            "realized_switch_pnl": null,
+            "realized_close_pnl": null,
+            "funding": null,
+            "fees": null,
+            "net": null,
+            "max_drawdown": null,
+            "max_drawdown_fraction_of_margin": null,
+            "max_unrealized_loss": null,
+            "max_unrealized_loss_conservative_bound": null,
+            "max_drawdown_conservative_bound": null,
+            "max_drawdown_conservative_fraction_of_margin": null,
+            "closest_liquidation_range_pct": null,
+            "stop_loss_hits": null,
+            "switches_per_day": null,
+            "time_outside_range_hours": null,
+            "liquidations": null
+          }
+        },
+        "same_four_symbols_system_setup": {
+          "start_ms": 1782864000000,
+          "end_ms": 1785542400000,
+          "status": "not_run_coverage",
+          "coverage": {
+            "complete": false,
+            "reasons": [
+              "historical coverage unavailable"
+            ]
+          },
+          "metrics": {
+            "completed_grids": null,
+            "completed_grids_per_hour": null,
+            "completed_grids_per_day": null,
+            "completed_grids_per_hour_at_net_1_usdt": null,
+            "completed_at_target": null,
+            "completed_below_target": null,
+            "grid_profit": null,
+            "grid_net_profit": null,
+            "seed_pnl": null,
+            "floating_pnl": null,
+            "realized_switch_pnl": null,
+            "realized_close_pnl": null,
+            "funding": null,
+            "fees": null,
+            "net": null,
+            "max_drawdown": null,
+            "max_drawdown_fraction_of_margin": null,
+            "max_unrealized_loss": null,
+            "max_unrealized_loss_conservative_bound": null,
+            "max_drawdown_conservative_bound": null,
+            "max_drawdown_conservative_fraction_of_margin": null,
+            "closest_liquidation_range_pct": null,
+            "stop_loss_hits": null,
+            "switches_per_day": null,
+            "time_outside_range_hours": null,
+            "liquidations": null
+          }
+        },
+        "random_radar_identical_rules": {
+          "start_ms": 1782864000000,
+          "end_ms": 1785542400000,
+          "status": "not_run_coverage",
+          "coverage": {
+            "complete": false,
+            "reasons": [
+              "historical coverage unavailable"
+            ]
+          },
+          "metrics": {
+            "completed_grids": null,
+            "completed_grids_per_hour": null,
+            "completed_grids_per_day": null,
+            "completed_grids_per_hour_at_net_1_usdt": null,
+            "completed_at_target": null,
+            "completed_below_target": null,
+            "grid_profit": null,
+            "grid_net_profit": null,
+            "seed_pnl": null,
+            "floating_pnl": null,
+            "realized_switch_pnl": null,
+            "realized_close_pnl": null,
+            "funding": null,
+            "fees": null,
+            "net": null,
+            "max_drawdown": null,
+            "max_drawdown_fraction_of_margin": null,
+            "max_unrealized_loss": null,
+            "max_unrealized_loss_conservative_bound": null,
+            "max_drawdown_conservative_bound": null,
+            "max_drawdown_conservative_fraction_of_margin": null,
+            "closest_liquidation_range_pct": null,
+            "stop_loss_hits": null,
+            "switches_per_day": null,
+            "time_outside_range_hours": null,
+            "liquidations": null
+          }
+        }
+      }
+    },
+    {
+      "start_ms": 1785542400000,
+      "end_ms": 1788220800000,
+      "status": "not_run_coverage",
+      "coverage": {
+        "complete": false,
+        "reasons": [
+          "no fully covered training selection or holdout quote history"
+        ]
+      },
+      "metrics": {
+        "completed_grids": null,
+        "completed_grids_per_hour": null,
+        "completed_grids_per_day": null,
+        "completed_grids_per_hour_at_net_1_usdt": null,
+        "completed_at_target": null,
+        "completed_below_target": null,
+        "grid_profit": null,
+        "grid_net_profit": null,
+        "seed_pnl": null,
+        "floating_pnl": null,
+        "realized_switch_pnl": null,
+        "realized_close_pnl": null,
+        "funding": null,
+        "fees": null,
+        "net": null,
+        "max_drawdown": null,
+        "max_drawdown_fraction_of_margin": null,
+        "max_unrealized_loss": null,
+        "max_unrealized_loss_conservative_bound": null,
+        "max_drawdown_conservative_bound": null,
+        "max_drawdown_conservative_fraction_of_margin": null,
+        "closest_liquidation_range_pct": null,
+        "stop_loss_hits": null,
+        "switches_per_day": null,
+        "time_outside_range_hours": null,
+        "liquidations": null
+      },
+      "baselines": {
+        "four_observed_long_forms_unchanged": {
+          "start_ms": 1785542400000,
+          "end_ms": 1788220800000,
+          "status": "not_run_coverage",
+          "coverage": {
+            "complete": false,
+            "reasons": [
+              "historical coverage unavailable"
+            ]
+          },
+          "metrics": {
+            "completed_grids": null,
+            "completed_grids_per_hour": null,
+            "completed_grids_per_day": null,
+            "completed_grids_per_hour_at_net_1_usdt": null,
+            "completed_at_target": null,
+            "completed_below_target": null,
+            "grid_profit": null,
+            "grid_net_profit": null,
+            "seed_pnl": null,
+            "floating_pnl": null,
+            "realized_switch_pnl": null,
+            "realized_close_pnl": null,
+            "funding": null,
+            "fees": null,
+            "net": null,
+            "max_drawdown": null,
+            "max_drawdown_fraction_of_margin": null,
+            "max_unrealized_loss": null,
+            "max_unrealized_loss_conservative_bound": null,
+            "max_drawdown_conservative_bound": null,
+            "max_drawdown_conservative_fraction_of_margin": null,
+            "closest_liquidation_range_pct": null,
+            "stop_loss_hits": null,
+            "switches_per_day": null,
+            "time_outside_range_hours": null,
+            "liquidations": null
+          }
+        },
+        "same_four_symbols_system_setup": {
+          "start_ms": 1785542400000,
+          "end_ms": 1788220800000,
+          "status": "not_run_coverage",
+          "coverage": {
+            "complete": false,
+            "reasons": [
+              "historical coverage unavailable"
+            ]
+          },
+          "metrics": {
+            "completed_grids": null,
+            "completed_grids_per_hour": null,
+            "completed_grids_per_day": null,
+            "completed_grids_per_hour_at_net_1_usdt": null,
+            "completed_at_target": null,
+            "completed_below_target": null,
+            "grid_profit": null,
+            "grid_net_profit": null,
+            "seed_pnl": null,
+            "floating_pnl": null,
+            "realized_switch_pnl": null,
+            "realized_close_pnl": null,
+            "funding": null,
+            "fees": null,
+            "net": null,
+            "max_drawdown": null,
+            "max_drawdown_fraction_of_margin": null,
+            "max_unrealized_loss": null,
+            "max_unrealized_loss_conservative_bound": null,
+            "max_drawdown_conservative_bound": null,
+            "max_drawdown_conservative_fraction_of_margin": null,
+            "closest_liquidation_range_pct": null,
+            "stop_loss_hits": null,
+            "switches_per_day": null,
+            "time_outside_range_hours": null,
+            "liquidations": null
+          }
+        },
+        "random_radar_identical_rules": {
+          "start_ms": 1785542400000,
+          "end_ms": 1788220800000,
+          "status": "not_run_coverage",
+          "coverage": {
+            "complete": false,
+            "reasons": [
+              "historical coverage unavailable"
+            ]
+          },
+          "metrics": {
+            "completed_grids": null,
+            "completed_grids_per_hour": null,
+            "completed_grids_per_day": null,
+            "completed_grids_per_hour_at_net_1_usdt": null,
+            "completed_at_target": null,
+            "completed_below_target": null,
+            "grid_profit": null,
+            "grid_net_profit": null,
+            "seed_pnl": null,
+            "floating_pnl": null,
+            "realized_switch_pnl": null,
+            "realized_close_pnl": null,
+            "funding": null,
+            "fees": null,
+            "net": null,
+            "max_drawdown": null,
+            "max_drawdown_fraction_of_margin": null,
+            "max_unrealized_loss": null,
+            "max_unrealized_loss_conservative_bound": null,
+            "max_drawdown_conservative_bound": null,
+            "max_drawdown_conservative_fraction_of_margin": null,
+            "closest_liquidation_range_pct": null,
+            "stop_loss_hits": null,
+            "switches_per_day": null,
+            "time_outside_range_hours": null,
+            "liquidations": null
+          }
+        }
+      }
+    }
+  ],
+  "calibration": {
+    "calibrated": false,
+    "status": "blocked",
+    "profit_tolerance": 0.15,
+    "liquidation_tolerance": 0.1,
+    "bots": [
+      {
+        "symbol": "HEMIUSDT",
+        "quantity": 13413.816230717,
+        "margin_formula_profit_per_grid": 1.074140078566637,
+        "margin_formula_relative_error": 0.20746834925906316,
+        "margin_formula_pass": false,
+        "computed_profit_per_grid": 1.0564338411420402,
+        "observed_profit_per_grid": 0.8895803183791607,
+        "profit_relative_error": 0.18756431467244133,
+        "profit_pass": false,
+        "computed_liquidation_price": 0.007661156968515922,
+        "observed_liquidation_price": 0.006928,
+        "liquidation_relative_error": 0.10582519753405334,
+        "liquidation_pass": false,
+        "profit_per_grid_min": 1.0048672990322403,
+        "profit_per_grid_max": 1.1080003832518386
+      },
+      {
+        "symbol": "BTRUSDT",
+        "quantity": 980.9371219300001,
+        "margin_formula_profit_per_grid": 1.293718172093746,
+        "margin_formula_relative_error": 0.45662476626990356,
+        "margin_formula_pass": false,
+        "computed_profit_per_grid": 1.268127484456192,
+        "observed_profit_per_grid": 0.8881615925058548,
+        "profit_relative_error": 0.42781166755736794,
+        "profit_pass": false,
+        "computed_liquidation_price": 0.1268809996923176,
+        "observed_liquidation_price": 0.10039,
+        "liquidation_relative_error": 0.26388086156307994,
+        "liquidation_pass": false,
+        "profit_per_grid_min": 1.2060509807029762,
+        "profit_per_grid_max": 1.3302039882094194
+      },
+      {
+        "symbol": "MOVRUSDT",
+        "quantity": 504.54086781,
+        "margin_formula_profit_per_grid": 4.613588967373009,
+        "margin_formula_relative_error": 2.0761005414805123,
+        "margin_formula_pass": false,
+        "computed_profit_per_grid": 4.40531449713838,
+        "observed_profit_per_grid": 1.4998173515981734,
+        "profit_relative_error": 1.9372339854877467,
+        "profit_pass": false,
+        "computed_liquidation_price": 0.8220590701655467,
+        "observed_liquidation_price": 0.495,
+        "liquidation_relative_error": 0.6607253942738317,
+        "liquidation_pass": false,
+        "profit_per_grid_min": 4.1269088462808075,
+        "profit_per_grid_max": 4.683720147995924
+      },
+      {
+        "symbol": "SOLUSDT",
+        "quantity": 3.265855166,
+        "margin_formula_profit_per_grid": 1.5550637375604808,
+        "margin_formula_relative_error": 0.20344771076349463,
+        "margin_formula_pass": false,
+        "computed_profit_per_grid": 1.5090230173081212,
+        "observed_profit_per_grid": 1.2921739130434782,
+        "profit_relative_error": 0.1678172744982096,
+        "profit_pass": false,
+        "computed_liquidation_price": 74.89263524169814,
+        "observed_liquidation_price": 69.651,
+        "liquidation_relative_error": 0.07525570690583262,
+        "liquidation_pass": true,
+        "profit_per_grid_min": 1.3926398150288122,
+        "profit_per_grid_max": 1.6254062195874037
+      }
+    ],
+    "sizing_assumption": "used_margin * leverage / (grid_count * entry_price)",
+    "limitations": [
+      "Original per-order quantity, contract risk tiers and margin amendment history absent.",
+      "Current buy plus sell order count is used as configured grid count proxy.",
+      "Mean arithmetic-grid net profit is compared with realized path-weighted average.",
+      "Full inventory stress liquidation differs from current inventory liquidation.",
+      "Running Margin is total collateral; used margin subtracts its reserved component.",
+      "No symbol-specific fitted factors or inversion of observed targets is used."
+    ],
+    "state_reconstruction_diagnostics": {
+      "predictive_calibration": false,
+      "bots": [
+        {
+          "symbol": "HEMIUSDT",
+          "status": "reconstructed",
+          "reconstructed_quantity": 10676.12986270023,
+          "assumed_held_slots": 38,
+          "pnl_per_base_quantity": 0.027967999999999993,
+          "margin_hypotheses": [
+            {
+              "name": "margin_used_reserve_additional",
+              "used_margin": 2500,
+              "reserved_margin": 0,
+              "total_margin": 2500,
+              "quantity": 10676.12986270023,
+              "profit_per_grid": 0.8408214847580908,
+              "liquidation_price": 0.006974774383586722,
+              "valid_margin_split": true
+            },
+            {
+              "name": "margin_total_includes_reserve",
+              "used_margin": 2500,
+              "reserved_margin": 0,
+              "total_margin": 2500,
+              "quantity": 10676.12986270023,
+              "profit_per_grid": 0.8408214847580908,
+              "liquidation_price": 0.006974774383586722,
+              "valid_margin_split": true
+            }
+          ]
+        },
+        {
+          "symbol": "BTRUSDT",
+          "status": "reconstructed",
+          "reconstructed_quantity": 638.3524277141267,
+          "assumed_held_slots": 47,
+          "pnl_per_base_quantity": 0.1833000000000009,
+          "margin_hypotheses": [
+            {
+              "name": "margin_used_reserve_additional",
+              "used_margin": 3000,
+              "reserved_margin": 0,
+              "total_margin": 3000,
+              "quantity": 638.3524277141267,
+              "profit_per_grid": 0.8252437799080314,
+              "liquidation_price": 0.10329898089117709,
+              "valid_margin_split": true
+            },
+            {
+              "name": "margin_total_includes_reserve",
+              "used_margin": 3000,
+              "reserved_margin": 0,
+              "total_margin": 3000,
+              "quantity": 638.3524277141267,
+              "profit_per_grid": 0.8252437799080314,
+              "liquidation_price": 0.10329898089117709,
+              "valid_margin_split": true
+            }
+          ]
+        },
+        {
+          "symbol": "MOVRUSDT",
+          "status": "reconstructed",
+          "reconstructed_quantity": 171.04574638844292,
+          "assumed_held_slots": 90,
+          "pnl_per_base_quantity": -12.460000000000008,
+          "margin_hypotheses": [
+            {
+              "name": "margin_used_reserve_additional",
+              "used_margin": 7500,
+              "reserved_margin": 0,
+              "total_margin": 7500,
+              "quantity": 171.04574638844292,
+              "profit_per_grid": 1.4934574269662915,
+              "liquidation_price": 0.49832644547795374,
+              "valid_margin_split": true
+            },
+            {
+              "name": "margin_total_includes_reserve",
+              "used_margin": 7500,
+              "reserved_margin": 0,
+              "total_margin": 7500,
+              "quantity": 171.04574638844292,
+              "profit_per_grid": 1.4934574269662915,
+              "liquidation_price": 0.49832644547795374,
+              "valid_margin_split": true
+            }
+          ]
+        },
+        {
+          "symbol": "SOLUSDT",
+          "status": "reconstructed",
+          "reconstructed_quantity": 2.7134609280499626,
+          "assumed_held_slots": 74,
+          "pnl_per_base_quantity": -233.13400000000001,
+          "margin_hypotheses": [
+            {
+              "name": "margin_used_reserve_additional",
+              "used_margin": 10000,
+              "reserved_margin": 3000,
+              "total_margin": 13000,
+              "quantity": 2.7134609280499626,
+              "profit_per_grid": 1.2537834009365403,
+              "liquidation_price": 57.340078747419895,
+              "valid_margin_split": true
+            },
+            {
+              "name": "margin_total_includes_reserve",
+              "used_margin": 7000,
+              "reserved_margin": 3000,
+              "total_margin": 10000,
+              "quantity": 2.7134609280499626,
+              "profit_per_grid": 1.2537834009365403,
+              "liquidation_price": 68.56386550712209,
+              "valid_margin_split": true
+            }
+          ]
+        }
+      ],
+      "assumptions": [
+        "Arithmetic equal-base-quantity intervals; current order counts proxy grid count.",
+        "Long holds the top sell-count slots with entry_i=min(initial_entry,lower_level_i).",
+        "Short mirrors long: bottom buy-count slots with entry_i=max(initial_entry,upper_level_i).",
+        "Reported unrealized PnL excludes fees and funding and belongs to precisely those slots.",
+        "Actual trade history can invalidate assumed slot inventory and its average entries.",
+        "Quantity equals unrealized / sum(side*(current_price-assumed_entry_i)).",
+        "Near-zero PnL coefficient or nonpositive inferred quantity is underidentified.",
+        "Neutral inventory cannot be inferred from net PnL and order counts alone.",
+        "Both margin interpretations use the same inferred quantity and full inventory stress.",
+        "Maintenance is estimated at 0.5%; original exchange sizing and risk tiers remain unknown.",
+        "These retrospective diagnostics do not change predictive calibration status."
+      ]
+    },
+    "neutral": {
+      "calibrated": false,
+      "status": "blocked",
+      "metadata_source": "RAYUSDTM raw ticker from detached Phase2 copy on 2026-09-11; earlier than RAY fixture caption",
+      "percentage_tolerance_points": 0.3,
+      "liquidation_tolerance": 0.1,
+      "computed_percentages": [
+        2.599999999999981,
+        5.218181818181782
+      ],
+      "observed_percentages": [
+        2.61,
+        5.21
+      ],
+      "percentage_pass": true,
+      "predicted_quantity": 22.0,
+      "observed_quantity": 17.0,
+      "quantity_pass": false,
+      "forward_liquidation": {
+        "long": {
+          "computed": 0.6770419946997166,
+          "observed": 0.3238,
+          "relative_error": 1.0909264814691682,
+          "pass": false
+        },
+        "short": {
+          "computed": 2.4181597948691707,
+          "observed": 3.1121,
+          "relative_error": 0.22298133258276703,
+          "pass": false
+        }
+      },
+      "observed_quantity_liquidation": {
+        "long": {
+          "computed": 0.444369322492855,
+          "observed": 0.3238,
+          "relative_error": 0.3723573887981934,
+          "pass": false
+        },
+        "short": {
+          "computed": 2.6439554422817406,
+          "observed": 3.1121,
+          "relative_error": 0.15042722204243414,
+          "pass": false
+        }
+      },
+      "observed_quantity_snapshot": {
+        "long_quantity": 544.0,
+        "short_quantity": 629.0,
+        "buy_orders": 75,
+        "sell_orders": 65,
+        "order_count": 140,
+        "order_split_pass": true,
+        "position_split_pass": true,
+        "computed_unrealized_pnl": 0.0,
+        "observed_unrealized_pnl": -2.39,
+        "actual_profit_per_grid_min": 0.17701215999999867,
+        "actual_profit_per_grid_max": 0.1950294399999987
+      },
+      "unrealized_reconstructed": false,
+      "limitations": [
+        "Observed order lots calibrate the inventory structure, not predictive sizing.",
+        "Exact opening fill prices and contemporaneous bid/ask are absent; -2.39 is not reconstructed.",
+        "Neutral per-leg exchange liquidation and collateral allocation remain unknown.",
+        "Leveraged-margin percentage approximation is separate from actual base-quantity fill PnL.",
+        "Historical contract metadata may differ from metadata at screenshot time."
+      ]
+    },
+    "neutral_calibrated": false
+  },
+  "volatility": {
+    "formula": "100 * (high24 - low24) / low24 (unverified candidate)",
+    "rows": [
+      {
+        "pair": "ZKCUSDT",
+        "expected": 78.69,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "ESIMUSDT",
+        "expected": 73.09,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "PROMUSDT",
+        "expected": 52.86,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "BTRUSDT",
+        "expected": 47.1,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "TACUSDT",
+        "expected": 34.25,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "CYSUSDT",
+        "expected": 32.23,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "AIOUSDT",
+        "expected": 30.89,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "BTWUSDT",
+        "expected": 26.81,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "CHILLGUYUSDT",
+        "expected": 26.27,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "BANDUSDT",
+        "expected": 26.25,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "CASHCATUSDT",
+        "expected": 24.3,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "AUCTIONUSDT",
+        "expected": 24.13,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "ACHUSDT",
+        "expected": 23.95,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "KOMAUSDT",
+        "expected": 23.77,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "NILUSDT",
+        "expected": 23.4,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "DOSUSDT",
+        "expected": 22.11,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "SCRUSDT",
+        "expected": 21.55,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "LISTAUSDT",
+        "expected": 21.02,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "MAGICUSDT",
+        "expected": 20.12,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "BICOUSDT",
+        "expected": 18.94,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "MOVRUSDT",
+        "expected": 18.68,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "UNIUSDT",
+        "expected": 18.54,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      },
+      {
+        "pair": "OUSDT",
+        "expected": 18.4,
+        "measured": null,
+        "difference_pp": null,
+        "status": "unknown"
+      }
+    ],
+    "verified": 0,
+    "unknown": 23,
+    "validated": false,
+    "tolerance_pp": 1
+  },
+  "mode": "offline_preregistered_model",
+  "decision": {
+    "decision": "shelve",
+    "reasons": [
+      "four-bot predictive calibration has not passed",
+      "neutral predictive calibration has not passed",
+      "KuCoin volatility definition and fixture validation have not passed",
+      "month 1: incomplete historical coverage",
+      "month 1: monthly net is unknown or not positive",
+      "month 1: completed grids below +1 USDT are unknown or nonzero",
+      "month 1: completed grids at +1 USDT are unknown or not positive",
+      "month 1: liquidations are unknown or nonzero",
+      "month 1: closest liquidation approach is unknown or below 10 percent of range",
+      "month 1: drawdown is unknown or at least 15 percent of margin",
+      "month 2: incomplete historical coverage",
+      "month 2: monthly net is unknown or not positive",
+      "month 2: completed grids below +1 USDT are unknown or nonzero",
+      "month 2: completed grids at +1 USDT are unknown or not positive",
+      "month 2: liquidations are unknown or nonzero",
+      "month 2: closest liquidation approach is unknown or below 10 percent of range",
+      "month 2: drawdown is unknown or at least 15 percent of margin"
+    ],
+    "live_orders_authorized": false
+  }
+}
