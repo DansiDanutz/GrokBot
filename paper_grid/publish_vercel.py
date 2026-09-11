@@ -142,9 +142,12 @@ def _site_config(stage, config):
 
 def _csp_routes(stage):
     dashboard = csp.static_policy((stage / 'index.html').read_bytes())
+    radar = stage / 'radar' / 'index.html'
     reports = b''.join(_safe_path(path).read_bytes()
                        for path in sorted((stage / 'reports').glob('*.html')))
     policies = (('/', dashboard), ('/index.html', dashboard),
+                ('/radar', csp.static_policy(radar.read_bytes()) if radar.is_file() else csp.policy()),
+                ('/radar/(.*)', csp.static_policy(radar.read_bytes()) if radar.is_file() else csp.policy()),
                 ('/reports/(.*)', csp.static_policy(reports, scripts=False)),
                 ('/data/(.*)', csp.policy()))
     return [{'source': path, 'headers': [{'key': 'Content-Security-Policy', 'value': value}]}

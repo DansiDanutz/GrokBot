@@ -101,6 +101,9 @@ def make_handler(monitor, port):
             path = urlsplit(self.path).path
             if path == '/':
                 return self.send(200, Path(__file__).with_name('dashboard.html').read_bytes(), 'text/html; charset=utf-8', dashboard=True)
+            if path in ('/radar', '/radar/'):
+                return self.send(200, Path(__file__).with_name('radar.html').read_bytes(),
+                                 'text/html; charset=utf-8', dashboard=True)
             if path.startswith('/audits/'):
                 name = path[len('/audits/'):]
                 if not re.fullmatch(r'[a-zA-Z0-9_-]+\.(html|json|md)', name):
@@ -111,10 +114,15 @@ def make_handler(monitor, port):
                     return self.send(404, b'Not found', 'text/plain')
                 kind = {'html': 'text/html; charset=utf-8', 'json': 'application/json', 'md': 'text/plain; charset=utf-8'}[file.suffix[1:]]
                 return self.send(200, file.read_bytes(), kind)
-            if path not in ('/api/report', '/api/health', '/api/audits', '/api/analytics'):
+            if path not in ('/api/report', '/api/health', '/api/audits', '/api/analytics', '/api/radar'):
                 return self.send(404, b'Not found', 'text/plain')
             try:
-                if path == '/api/analytics':
+                if path == '/api/radar':
+                    file = monitor.runtime.parent / 'radar' / 'radar.json'
+                    if file.is_symlink() or not file.is_file() or file.stat().st_size > 2 * 1024 * 1024:
+                        raise ValueError('radar unavailable')
+                    payload = json.loads(file.read_text())
+                elif path == '/api/analytics':
                     payload = read_analytics()
                 elif path == '/api/audits':
                     from paper_grid import audits
