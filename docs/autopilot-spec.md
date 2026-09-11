@@ -214,7 +214,7 @@ not reopened. Bench coins never get a bot.
 ### Telegram and Phase C rendering
 
 Telegram sends one message per hourly scan only when core or bench changed:
-"Core: SYM dir score (top reason) …", then "Bench: …", then the swap line with
+"Core: SYM dir score (top reason code) …", then "Bench: …", then the swap line with
 both scores and the margin. Daily summary adds the number of swaps.
 
 Phase C adds a Watchlist section above the bots on `/paper`: Core and Bench
@@ -267,6 +267,37 @@ watchlist and history in snapshots; Telegram silent when nothing changed.
 - `docs/STATUS.md`: rewrite "what GrokBot is" and the done table; add a RUNBOOK
   with exact install steps for radar and autopilot LaunchAgents, the tailscale
   serve command, and the publisher cutover from the v1 checkout.
+
+### Phase C amendment: landing page and publisher cutover (Dan)
+
+Make `/paper` the site landing page. `publish_vercel.py` stages
+`paper/index.html` also as `index.html`, retains `/radar`, and publishes the v1
+dashboard at `/control`. Home navigation links Paper, Radar and Control. Update
+CSP routes and `test_publish_vercel.py` for these destinations. The watchlist
+cards and last 24 watchlist events described above render in Phase C, with code
+templates for every score part in the page script and the same CSP as radar.html.
+
+Add `config/launchd/com.danslab.trader-publisher.plist.example`: run
+`paper_grid/publish_vercel.py` from the GrokBot checkout every five minutes through
+the credential-exec wrapper. Read radar and autopilot snapshots from the GrokBot
+runtime directory and the v1 report from the existing v1 runtime directory
+read-only. Do not install the template or modify any installed launchd agent.
+
+The `docs/STATUS.md` RUNBOOK must contain exact manual cutover steps for Dan:
+
+1. Boot out the current `com.danslab.trader-publisher`.
+2. Install radar, autopilot and publisher plists from the three examples, using
+   his chat id where required.
+3. Bootstrap them; configure `tailscale serve` for the local dashboard.
+4. Verify `/`, `/radar` and `/paper` on the live site with curl and tail all three
+   logs.
+5. Roll back by booting out the new publisher and bootstrapping the old plist.
+
+These are documented operator actions only; Codex does not execute them. Phase B
+and Phase C each retain their own PR and frozen-head audit on issue #16. Remain
+idle after each handoff until Claude's gate. After the Phase C gate, merge, post
+default head, test count, all three plist paths and Dan's manual steps on #16,
+then close #16.
 
 After the Phase C gate: merge, post the final handoff on #16 (default branch
 head, test count, both plist paths, the manual steps for Dan), close #16.
