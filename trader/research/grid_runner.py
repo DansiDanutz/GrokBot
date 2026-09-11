@@ -105,15 +105,11 @@ def minute_paths(snapshot, state, end_ms):
                               funding_rate=rate * mark / price if mark else 0,
                               bid=price*(1-spread_fraction),
                               ask=price*(1+spread_fraction))
-            equity.append(net_equity(current, current.price))
-            floating.append(floating_pnl(current, current.price))
-            if current.liquidated or current.status == 'out_of_range':
+            marks = current.equity_marks or (net_equity(current, current.price),)
+            equity.extend(marks)
+            floating.extend([floating_pnl(current, current.price)] * len(marks))
+            if current.liquidated:
                 break
-        if current.status == 'out_of_range' and current.timestamp_ms < end_ms:
-            current = advance(current, current.price, end_ms,
-                              funding_rate=rate*mark/current.price if mark else 0)
-            equity.append(net_equity(current, current.price))
-            floating.append(floating_pnl(current, current.price))
         paths.append((current, equity, floating))
     return min(paths, key=lambda p: (p[1][-1], p[0].completed_grids))
 
@@ -189,9 +185,17 @@ class Run:
             self.mark(self.cash+eq, pnl)
         self.last_ms = at_ms
 
+    def executable_allocation(self, at_ms):
+        value = self.cash
+        if self.state:
+            bid, ask = quote(self.snapshot, self.state.config.pair, at_ms)
+            hypothetical = stop(self.state, (bid+ask)/2, at_ms, bid, ask,
+                                'sizing_valuation_only')
+            value += net_equity(hypothetical, hypothetical.price)
+        return min(self.initial, value)
+
     def tick(self, at_ms):
-        allocation = min(self.initial, self.cash + (net_equity(self.state, self.state.price)
-                                                   if self.state else 0))
+        allocation = self.executable_allocation(at_ms)
         if allocation <= 0:
             raise CoverageError('capital exhausted; no external top-up modeled')
         result = scan(self.snapshot, at_ms, investment=allocation,
@@ -249,6 +253,8 @@ class Run:
         equity = self.cash + (net_equity(self.state, self.state.price) if self.state else 0)
         totals.update(start_ms=self.start, end_ms=self.end, net=equity-self.initial,
                       cash_unallocated=self.cash,
+                      final_state=asdict(self.state) if self.state else None,
+                      state_started_ms=self.started,
                       max_drawdown=self.max_drawdown,
                       max_floating_loss=self.max_floating_loss,
                       switches_per_day=len(self.switches)*86400000/(self.end-self.start),

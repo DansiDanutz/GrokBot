@@ -122,3 +122,50 @@ class RunnerTests(unittest.TestCase):
         result = run_window(data, START, START+120000, self.parameters())
         self.assertGreaterEqual(result['end_close_spread_reserve'], 0)
         self.assertIn('hypothetical_end_liquidation_net', result)
+
+    def test_replacement_scan_uses_cash_after_hypothetical_market_close(self):
+        from trader.research.grid_runner import Run, new_bot
+        from trader.strategies.kucoin_grid import stop, net_equity
+        data = Data()
+        run = Run(data, START, START+120000, self.parameters())
+        run.state = new_bot(candidate(), START, 1000)
+        run.cash = 0
+        expected = net_equity(stop(run.state, 100, START+60000, 99.99, 100.01), 100)
+        seen = []
+        def ranked(data, at_ms, investment=1000, grids=20):
+            seen.append(investment)
+            c = candidate('BBB', 10000, investment)
+            return dict(candidates=[c], eligible_candidates=[c],
+                        coverage=dict(unknown=0, asof_symbols=1))
+        with patch('trader.research.grid_runner.scan', ranked):
+            run.tick(START+60000)
+        self.assertAlmostEqual(seen[0], expected)
+        self.assertAlmostEqual(run.state.config.investment, seen[0])
+
+    def test_range_exit_continues_marking_inventory_through_bar_close(self):
+        from trader.research.grid_runner import minute_paths
+        from trader.strategies.grid_types import GridConfig
+        from trader.strategies.kucoin_grid import create_bot
+        state = create_bot(GridConfig('AAA', 90, 110, direction='long', quantity=1), 100, START)
+        data = Data()
+        data.candles = lambda *args: [dict(time_ms=START, open=100, high=101, low=80, close=99)]
+        final, _, _ = minute_paths(data, state, START+60000)
+        self.assertEqual(final.price, 99)
+        self.assertEqual(final.status, 'out_of_range')
+
+    def test_minute_replay_retains_intrasegment_equity_extrema(self):
+        from trader.research.grid_runner import minute_paths
+        from trader.strategies.grid_types import GridConfig
+        from trader.strategies.kucoin_grid import create_bot, advance
+        state = advance(create_bot(GridConfig('AAA', 90, 110, quantity=1), 100, START),
+                        95, START)
+        data = Data()
+        data.candles = lambda *args: [dict(time_ms=START, open=95, high=109, low=95, close=109)]
+        _, equity_marks, _ = minute_paths(data, state, START+60000)
+        self.assertGreater(len(equity_marks), 4)
+
+    @patch('trader.research.grid_runner.scan', scanner)
+    def test_replay_exports_state_for_offline_operator_review(self):
+        result = run_window(Data(), START, START+120000, self.parameters())
+        self.assertEqual(result['final_state']['config']['pair'], 'AAA')
+        self.assertEqual(result['state_started_ms'], START)
