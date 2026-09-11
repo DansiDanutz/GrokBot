@@ -40,7 +40,9 @@ new public data still depends on successful half-hour publication from the Mac.
 
 ## Schedule and reporting
 
-All calendar times below use **Europe/Bucharest**.
+This table describes the unchanged **v1 deployment**. All calendar times below
+use **Europe/Bucharest**. Phase 1 development uses midnight for daily reports;
+see [the development convention](../paper_grid/CONTINUOUS.md).
 
 | Work | Cadence |
 |---|---|
@@ -159,7 +161,10 @@ Server stdout and stderr now have separate private files under `.runtime/logs/`.
 Each is capped at 5 MiB with three rotated backups (40 MiB combined maximum).
 Existing oversized logs retain their latest 5 MiB; symlink log targets and rotation
 archives are refused. Fleet MCP keeps protocol stdout clean and sends only fixed,
-sanitized probe-failure diagnostics to stderr.
+sanitized probe-failure diagnostics to stderr. If log writing or rotation fails,
+the launcher stops its owned server child; it does not continue without logs.
+Run the doctor's printed configuration repair only while the workspace app is
+stopped. Phase 1 did not stop the old launcher or perform that repair.
 
 OSS extraction excludes only the root enterprise directory, retains nested OSS
 paths with the same name, validates licensing files, then deletes only the exact

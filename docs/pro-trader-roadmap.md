@@ -157,7 +157,13 @@ After each phase, Codex writes `docs/roadmap-evidence/phase-N.md` containing:
 4. Anything not done, and any deviation from this roadmap with the reason.
 5. Live evidence where relevant: curl outputs, launchctl status, row counts, rendered report paths.
 
-Then Dan tells Claude "audit phase N". Claude re-audits the merged result (fixes introduce bugs), updates the audit artifact and the fleet audit dashboard, and marks findings fixed only with proof.
+Then Dan tells Claude "audit phase N". From Phase 1 onward, Claude audits the
+fixed PR head in a separate worktree before merge. Codex stays idle and does not
+commit, merge or begin the next phase until the gate decision. Any changed PR
+head invalidates the previous audit target. Claude updates the audit artifact
+and fleet dashboard and marks findings fixed only with proof. See
+[grokbot-roadmap-audit-protocol.md](grokbot-roadmap-audit-protocol.md).
+This supersedes the original merged-result wording following the Phase 0 audit.
 
 ## Paste-ready Codex prompt
 
