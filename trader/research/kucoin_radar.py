@@ -2,6 +2,7 @@
 import math
 from trader.strategies.grid_features import features
 from trader.strategies.grid_setup import build_setup
+from trader.strategies.candle_coverage import prepare
 
 HOUR_MS = 3_600_000
 DAY_MS = 24 * HOUR_MS
@@ -63,54 +64,109 @@ def completed_bars(bars, asof_ms, hours=168):
     return result
 
 
-def _coverage(bars, asof_ms):
-    expected = 7 * 24 * 60
-    if len(bars) != expected:
-        return 'requires seven days of completed one-minute candles'
-    if bars[0]['timestamp_ms'] != asof_ms - 7 * DAY_MS:
-        return 'seven-day candle window is not aligned to asof'
-    if any(b['timestamp_ms'] - a['timestamp_ms'] != MINUTE_MS for a, b in zip(bars, bars[1:])):
-        return 'missing one-minute candles'
-    return None
+def _turnover_from_bars(market, bars, asof_ms):
+    observed = [row for row in completed_bars(bars, asof_ms, 24) if not row.get('synthetic')]
+    declared = market.get('candle_volume_unit')
+    if market.get('candle_turnover_unit') == 'quote_usdt':
+        values = [_number(row.get('turnover')) for row in observed]
+        basis = 'observed candle turnover in quote USDT; missing minutes not extrapolated'
+    else:
+        scale = 1 if declared in ('base', 'quote_usdt') else _number(market.get('multiplier'))
+        if declared not in ('base', 'quote_usdt', 'contracts') or scale is None or scale <= 0:
+            return None, 'candle volume units or contract multiplier unknown'
+        values = []
+        for row in observed:
+            volume, close = _number(row.get('volume')), _number(row.get('close'))
+            values.append(None if volume is None or close is None else
+                          volume*scale*(1 if declared == 'quote_usdt' else close))
+        basis = ('observed '+declared+' candle volume converted to USDT'
+                 + (' using close-price estimate' if declared != 'quote_usdt' else '')
+                 + '; missing minutes not extrapolated')
+    if not values or any(value is None or value < 0 for value in values):
+        return None, 'candle quote turnover observations incomplete or invalid'
+    return sum(values), basis
 
 
-def _market_reason(market, asof_ms, options):
-    observed = market.get('observed_at_ms')
-    age = options.get('market_max_age_ms', HOUR_MS)
-    if observed is None or not 0 <= asof_ms - observed <= age:
-        return 'unknown, stale or future market observation'
+def _market_context(record, asof_ms, prepared):
+    market = normalize_market(record['market'], asof_ms)
+    if market.get('filter_mode') != 'candle-only filters':
+        market['filter_mode'] = 'quote/book filters'
+        return market
+    for field in ('bid', 'ask', 'bid_depth_usdt', 'ask_depth_usdt',
+                  'funding_rate', 'funding_rate_8h', 'observed_at_ms', 'price'):
+        market[field] = None
+    for field in ('bestBidPrice', 'bestAskPrice', 'bestBidSize', 'bestAskSize',
+                  'fundingFeeRate', 'markPrice', 'indexPrice', 'lastTradePrice'):
+        market.pop(field, None)
+    turnover = _number(market.get('quote_turnover_24h'))
+    if turnover is None or not market.get('turnover_basis'):
+        turnover, basis = _turnover_from_bars(market, prepared['bars'], asof_ms)
+        market.update(quote_turnover_24h=turnover, turnover_basis=basis)
+    if market.get('membership_basis') == 'observed_candles':
+        observed = [row['timestamp_ms'] for row in prepared['bars'] if not row.get('synthetic')]
+        seed = record.get('prior_seed')
+        if seed and not seed.get('synthetic'):
+            observed.append(seed.get('timestamp_ms', seed.get('time_ms')))
+        inferred = min((time for time in observed if time is not None), default=None)
+        existing = _number(market.get('listed_at_ms'))
+        market['listed_at_ms'] = min(inferred, existing) if inferred is not None and existing is not None else inferred
+        market['active'] = True if observed else None
+        market['membership_disclosure'] = 'active membership and minimum listing age inferred from historical candles; not verified exchange membership history'
+    return market
+
+
+def _identity_reason(market):
     for field in ('active', 'perpetual'):
         if market.get(field) is not True:
-            return field + ' must be known and true'
+            return field+' must be known and true'
     if market.get('quote_currency') != 'USDT':
         return 'requires USDT quote currency'
     if market.get('asset_class') != 'crypto':
         return 'requires known crypto asset class; stocks and forex are excluded'
+    return None
+
+
+def _market_reason(market, asof_ms, options):
+    candle_only = market.get('filter_mode') == 'candle-only filters'
+    observed, age = market.get('observed_at_ms'), options.get('market_max_age_ms', HOUR_MS)
+    if not candle_only and (observed is None or not 0 <= asof_ms-observed <= age):
+        return 'unknown, stale or future market observation'
+    identity = _identity_reason(market)
+    if identity:
+        return identity
     turnover = _number(market.get('quote_turnover_24h'))
     if turnover is None or turnover < 500_000:
         return 'quote turnover unknown or below 500000 USDT; base volume is not turnover'
-    bid, ask = _number(market.get('bid')), _number(market.get('ask'))
-    if bid is None or ask is None or bid <= 0 or ask < bid or (ask-bid)/((bid+ask)/2) > .001:
-        return 'spread unknown, invalid or above 0.1 percent'
+    if not candle_only:
+        bid, ask = _number(market.get('bid')), _number(market.get('ask'))
+        if bid is None or ask is None or bid <= 0 or ask < bid or (ask-bid)/((bid+ask)/2) > .001:
+            return 'spread unknown, invalid or above 0.1 percent'
     listed = _number(market.get('listed_at_ms'))
-    if listed is None or asof_ms - listed < 7 * DAY_MS:
+    if listed is None or asof_ms-listed < 7*DAY_MS:
         return 'listing age unknown or below seven days'
-    funding = market.get('funding_rate_8h')
-    if funding is None or abs(funding) > .001:
-        return 'normalized eight-hour funding unknown or outside 0.1 percent'
+    if not candle_only:
+        funding = market.get('funding_rate_8h')
+        if funding is None or abs(funding) > .001:
+            return 'normalized eight-hour funding unknown or outside 0.1 percent'
     return None
 
 
 def _crossings(bars, step, low, high):
-    if not bars:
-        return 0
-    anchor, crossings = min(high, max(low, float(bars[0]['close']))), 0
-    for row in bars[1:]:
+    anchor, previous_time, crossings = None, None, 0
+    for row in bars:
+        timestamp = row['timestamp_ms']
+        if row.get('synthetic') or row.get('indicator_only'):
+            anchor, previous_time = None, None
+            continue
         price = min(high, max(low, float(row['close'])))
-        count = int((abs(price - anchor) + step * 1e-10) / step)
+        if anchor is None or timestamp-previous_time != MINUTE_MS or row.get('crossing_eligible') is False:
+            anchor, previous_time = price, timestamp
+            continue
+        count = int((abs(price-anchor)+step*1e-10)/step)
         if count:
-            anchor += math.copysign(count * step, price - anchor)
+            anchor += math.copysign(count*step, price-anchor)
             crossings += count
+        previous_time = timestamp
     return crossings
 
 
@@ -127,32 +183,57 @@ def crossing_score(bars, setup, asof_ms):
                 limitation='close-only step crossings are not executed fills or completed grids')
 
 
-def _evaluate(record, asof_ms, options):
-    market = normalize_market(record['market'], asof_ms)
+def _candidate_context(market, prepared, form, score):
+    candle_only = market['filter_mode'] == 'candle-only filters'
+    floor = _number(form.get('preview', {}).get('profit_per_grid_min'))
+    if floor is None or floor < 1:
+        return None
+    return dict(filter_mode=market['filter_mode'],
+                skipped_filters=['spread', 'depth', 'funding_window'] if candle_only else [],
+                membership_basis=market.get('membership_basis', 'historical_contract_metadata'),
+                membership_disclosure=market.get('membership_disclosure'),
+                metadata_basis=market.get('metadata_basis', 'supplied market metadata'),
+                metadata_retrospective=candle_only,
+                metadata_disclosure=('retrospective static contract metadata; survivorship uncertainty'
+                                     if candle_only else 'historical quote/book observations'),
+                quote_turnover_24h=_number(market['quote_turnover_24h']),
+                turnover_basis=market.get('turnover_basis', 'observed quote turnover'),
+                candle_coverage=prepared['coverage'],
+                actual_net_usdt_per_grid=floor, expected_gph=score['score'],
+                grid_income_per_hour=score['score']*floor, quantity_calibrated=False,
+                income_basis='expected crossing GPH times minimum modeled net per grid; existing quantity remains uncalibrated')
+
+
+def _evaluate(record, asof_ms, options, prepared, market):
     reason = _market_reason(market, asof_ms, options)
     if reason:
         return None, reason
-    bars = completed_bars(record['bars'], asof_ms)
-    reason = _coverage(bars, asof_ms)
-    if reason:
-        return None, reason
+    if not prepared['valid']:
+        return None, prepared['reason']
+    bars = prepared['bars']
     market['price'] = bars[-1]['close']
-    analysis = features(bars, market['funding_rate_8h'])
-    form = build_setup(record['pair'], analysis, market, options.get('setup'))
+    candle_only = market['filter_mode'] == 'candle-only filters'
+    funding = None if candle_only else market['funding_rate_8h']
+    form = build_setup(record['pair'], features(prepared, funding), market, options.get('setup'))
     if not form.get('eligible'):
         return None, form.get('reason', 'setup rejected')
-    notional = form.get('per_grid_notional', form['quantity'] * form['entry'])
-    depths = [market.get(side + '_depth_usdt') for side in ('bid', 'ask')]
-    if any(depth is None or depth < notional for depth in depths):
+    notional = form.get('per_grid_notional', form['quantity']*form['entry'])
+    depths = [market.get(side+'_depth_usdt') for side in ('bid', 'ask')]
+    if not candle_only and any(depth is None or depth < notional for depth in depths):
         return None, 'top-of-book depth unknown or below one grid notional on either side'
     score = crossing_score(bars, form, asof_ms)
-    return dict(pair=record['pair'], asof_ms=asof_ms, **score, setup=form,
-                direction=form['direction'], reason=form['reason'], coverage='complete'), None
+    context = _candidate_context(market, prepared, form, score)
+    if context is None:
+        unknown = _number(form.get('preview', {}).get('profit_per_grid_min')) is None
+        return None, 'actual modeled net profit per grid '+('unknown' if unknown else 'below 1 USDT')
+    reason = form['reason'] + ('; candle-only filters' if candle_only else '')
+    return dict(pair=record['pair'], asof_ms=asof_ms, **score, **context, setup=form,
+                direction=form['direction'], reason=reason,
+                coverage='complete' if prepared['coverage']['fraction'] == 1 else 'partial'), None
 
 
-def _rejection_coverage(record, asof_ms, reason):
+def _rejection_coverage(record, asof_ms, reason, market):
     """Known filter failures do not mean data is missing for the strategy."""
-    market = normalize_market(record['market'], asof_ms)
     if reason.startswith('quote turnover'):
         return _number(market.get('quote_turnover_24h')) is None
     if reason.startswith('spread'):
@@ -170,12 +251,14 @@ def _rejection_coverage(record, asof_ms, reason):
         return market.get('asset_class') is None
     if reason.startswith('requires USDT'):
         return market.get('quote_currency') is None
+    if reason.startswith('actual modeled net profit'):
+        return reason.endswith('unknown')
     return reason.startswith(('unknown, stale', 'requires seven days',
                               'seven-day candle', 'missing one-minute'))
 
 
 def _volatility_context(record, asof_ms):
-    bars = completed_bars(record['bars'], asof_ms, 24)
+    bars = [row for row in completed_bars(record['bars'], asof_ms, 24) if not row.get('synthetic')]
     value = None
     if len(bars) == 1440:
         high, low = max(row['high'] for row in bars), min(row['low'] for row in bars)
@@ -186,7 +269,7 @@ def _volatility_context(record, asof_ms):
 
 
 def radar(records, asof_ms, running_pairs=(), parameters=None):
-    """Return 5..10 safe non-running candidates, ranked by grid-crossing rate."""
+    """Return 5..10 non-running research candidates ranked by modeled grid income."""
     options, selected, rejected = parameters or {}, [], []
     count, universe = options.get('radar_size', 10), []
     if type(count) is not int or not 5 <= count <= 10:
@@ -197,18 +280,23 @@ def radar(records, asof_ms, running_pairs=(), parameters=None):
         if pair in seen:
             raise ValueError('duplicate market pair')
         seen.add(pair)
-        context = _volatility_context(record, asof_ms)
+        prepared = prepare(record['bars'], asof_ms, prior_seed=record.get('prior_seed'))
+        market = _market_context(record, asof_ms, prepared)
+        context = dict(_volatility_context(dict(record, bars=prepared['bars']), asof_ms),
+                       candle_coverage=prepared['coverage'])
         universe.append(context)
         if pair in running:
-            rejected.append(dict(pair=pair, reason='already running', coverage_issue=False))
+            rejected.append(dict(pair=pair, reason='already running', coverage_issue=False,
+                                 candle_coverage=prepared['coverage'], filter_mode=market['filter_mode']))
             continue
-        candidate, reason = _evaluate(record, asof_ms, options)
+        candidate, reason = _evaluate(record, asof_ms, options, prepared, market)
         if reason:
             rejected.append(dict(pair=pair, reason=reason,
-                                 coverage_issue=_rejection_coverage(record, asof_ms, reason)))
+                                 coverage_issue=reason == prepared.get('reason') or _rejection_coverage(record, asof_ms, reason, market),
+                                 candle_coverage=prepared['coverage'], filter_mode=market['filter_mode']))
         else:
             selected.append(dict(candidate, **{key: value for key, value in context.items() if key != 'pair'}))
-    selected.sort(key=lambda row: (-row['score'], row['pair']))
+    selected.sort(key=lambda row: (-row['grid_income_per_hour'], -row['score'], row['pair']))
     universe.sort(key=lambda row: (row['volatility_proxy_pct'] is None,
                                   -(row['volatility_proxy_pct'] or 0), row['pair']))
     return dict(asof_ms=asof_ms, radar=selected[:count], rejected=rejected, volatility_universe=universe,
