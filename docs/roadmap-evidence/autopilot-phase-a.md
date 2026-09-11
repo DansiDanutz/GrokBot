@@ -53,3 +53,26 @@ changes, Telegram sends, real orders or archived research imports occurred.
 The Phase B amendment and RAY assertion tolerance of **17–21 grids/h** remain
 scheduled for Phase B's first specification commit. Await Claude's gate before
 merging this PR or starting Phase B.
+
+## Conditional gate corrections (A-1 and A-2)
+
+Spec-first correction commit: `9b513cd`, following comment 5637070434.
+Grid count/profit now accrue only on paired fills that reduce the absolute
+net position. Seed inventory equals the number of seeded resting orders,
+excluding the empty line. These amended rules supersede the original seed-sizing
+and paired-opening statements above. No position-ledger or funding rule changed.
+
+RED: 18 tests ran with 8 failed assertions/subtests on the original engine.
+The recorded RAY fixture reproduced **329 grids** before the correction.
+GREEN: 18 engine tests, including a four-fill/two-grid oscillation, both seeded
+directions closing to zero inventory, and the prescribed 418-candle fixture.
+Full gates: **38 Node + 291 paper + 131 trader = 460 tests**, secrets clean.
+
+RAY regression window: 2026-09-11 08:20–15:20 UTC (end exclusive).
+Neutral, 5x, 1,000 USDT, range 1.10–2.00, 140 geometric grids, step 0.43%,
+opening price 1.5852. Funding rate zero for this comparison; there is no funding
+boundary inside the window. Results: **357 fills; 176 completed grids;
+27.0446601754 USDT grid profit; 25.3379390947 realized; 0.0201915058 unrealized;
+7.7086404125 fees; 17.6494901879 true net**. Bounds: 130–200 grids, 20–32 grid
+profit. Only the authorized fixture was extracted and evaluated; no research
+sweep, runtime change, live order or deployment occurred.

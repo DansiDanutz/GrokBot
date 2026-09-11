@@ -96,8 +96,7 @@ def open_bot(spec, price, now_ms):
                   or (spec['direction'] == 'SHORT' and side == 'buy'))
         bot['orders'].append(dict(line=i, side=side,
                                  paired_line=(i - 1 if side == 'sell' else i + 1) if seeded else None))
-    seed_count = (sum(line > price for line in lines) if spec['direction'] == 'LONG'
-                  else sum(line < price for line in lines) if spec['direction'] == 'SHORT' else 0)
+    seed_count = sum(order['paired_line'] is not None for order in bot['orders'])
     if seed_count:
         _position_fill(bot, quantity * seed_count * (1 if spec['direction'] == 'LONG' else -1), price)
     _mark(bot, price)
@@ -128,10 +127,11 @@ def _price_update(bot, price, at, events):
         i, quantity = order['line'], bot['contracts_per_line']
         fill_price = bot['lines'][i]
         sign = 1 if order['side'] == 'buy' else -1
+        position_before = abs(bot['position_contracts'])
         fee = _position_fill(bot, quantity * sign, fill_price)
         events.append(_event(bot, at, 'FILL', price=fill_price, contracts=quantity,
                              side=sign, fee=fee, line=i))
-        if order['paired_line'] is not None:
+        if order['paired_line'] is not None and abs(bot['position_contracts']) < position_before:
             profit = quantity * abs(fill_price - bot['lines'][order['paired_line']])
             bot['completed_grids'] += 1
             bot['grid_profit'] += profit

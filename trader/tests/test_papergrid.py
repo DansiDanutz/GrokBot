@@ -48,21 +48,25 @@ class PaperGridTests(unittest.TestCase):
                 self.assertTrue(all(math.isclose(ratios[0], value) for value in ratios))
                 self.assertEqual(bot["empty_line"], 2)
                 self.assertAlmostEqual(bot["contracts_per_line"], 7.5)
-                expected = {"LONG": 15, "SHORT": -22.5, "NEUTRAL": 0}[direction]
+                expected = {"LONG": 15, "SHORT": -15, "NEUTRAL": 0}[direction]
                 self.assertAlmostEqual(bot["position_contracts"], expected)
                 self.assertAlmostEqual(bot["fees_paid"], abs(expected) * 100 * FEE)
                 self.check_identity(bot)
                 self.check_orders(bot)
 
-    def test_seed_counts_actual_price_side_even_when_nearest_line_is_empty(self):
+    def test_seed_counts_seeded_orders_excluding_nearest_empty_line(self):
         for direction, price, sign in (("LONG", 98, 1), ("SHORT", 100, -1)):
             with self.subTest(direction=direction):
                 bot = open_bot(specification(direction), price, 0)
                 self.assertEqual(bot["empty_line"], 2)
-                self.assertEqual(bot["position_contracts"], sign * 3 * bot["contracts_per_line"])
+                seeded = [order for order in bot['orders'] if order['paired_line'] is not None]
+                self.assertEqual(len(seeded), 2)
+                self.assertEqual(bot["position_contracts"], sign * len(seeded) * bot["contracts_per_line"])
                 self.assertNotIn(2, [order["line"] for order in bot["orders"]])
                 exact = open_bot(specification(direction), bot["lines"][2], 0)
                 self.assertEqual(exact["position_contracts"], sign * 2 * exact["contracts_per_line"])
+                finished, _ = step(bot, dict(ts_ms=1, price=bot['range_high'] if sign == 1 else bot['range_low']))
+                self.assertEqual(finished['position_contracts'], 0)
 
     def test_multiline_tick_fills_at_each_limit_in_price_order(self):
         bot = open_bot(specification(), 100, 0)
@@ -104,7 +108,7 @@ class PaperGridTests(unittest.TestCase):
         bot = open_bot(specification("SHORT"), 100, 0)
         target = bot["lines"][1]
         result, _ = step(bot, {"ts_ms": 1, "price": target})
-        self.assertEqual(result["position_contracts"], -15)
+        self.assertEqual(result["position_contracts"], -7.5)
         self.assertEqual(result["completed_grids"], 1)
         self.assertAlmostEqual(result["realized_pnl"], 7.5 * (100 - target))
         self.assertAlmostEqual(result["grid_profit"], 7.5 * (bot["lines"][2] - target))
@@ -234,6 +238,47 @@ class PaperGridTests(unittest.TestCase):
             bots.append(bot)
         self.assertEqual(*bots)
         self.assertGreater(bot["completed_grids"], 0)
+
+    def test_paired_opening_fill_does_not_count_a_grid(self):
+        alternating = open_bot(specification(), 100, 0)
+        for at, line in enumerate((1, 2, 1, 2), 1):
+            alternating, _ = step(alternating, dict(ts_ms=at, price=alternating['lines'][line]))
+        self.assertEqual(alternating['fills'], 4)
+        self.assertEqual(alternating['completed_grids'], 2)
+        for direction in ('LONG', 'SHORT', 'NEUTRAL'):
+            with self.subTest(direction=direction):
+                bot = open_bot(specification(direction), 100, 0)
+                # Repeated traversal includes seeded closes, paired openings and closes.
+                for at, price in enumerate((80, 122, 80, 122), 1):
+                    before = copy.deepcopy(bot)
+                    bot, events = step(bot, dict(ts_ms=at, price=price))
+                    position, count, profit = before['position_contracts'], 0, 0
+                    orders = {o['line']: o for o in before['orders']}
+                    for event in events:
+                        if event['type'] != 'FILL':
+                            continue
+                        order = orders[event['line']]
+                        after = position + event['side'] * event['contracts']
+                        if order['paired_line'] is not None and abs(after) < abs(position) - 1e-9:
+                            count += 1
+                            profit += event['contracts'] * abs(event['price'] - before['lines'][order['paired_line']])
+                        position = after
+                    self.assertEqual(bot['completed_grids'] - before['completed_grids'], count)
+                    self.assertAlmostEqual(bot['grid_profit'] - before['grid_profit'], profit)
+
+    def test_ray_recorded_window_matches_conditional_gate_bounds(self):
+        candles = json.loads((FIXTURES / 'ray_20260911.json').read_text())
+        self.assertEqual(len(candles), 418)
+        bot = open_bot(specification('NEUTRAL', range_low=1.1, range_high=2.0,
+                       grids=140, leverage=5, step_pct=0.43, funding_pct=0),
+                       candles[0]['open'], candles[0]['ts_ms'] - 1)
+        for candle in candles:
+            bot, _ = step(bot, candle)
+        self.assertGreaterEqual(bot['completed_grids'], 130)
+        self.assertLessEqual(bot['completed_grids'], 200)
+        self.assertGreaterEqual(bot['grid_profit'], 20)
+        self.assertLessEqual(bot['grid_profit'], 32)
+        self.check_identity(bot)
 
     def test_funding_receipt_and_boundary_close_are_idempotent(self):
         bot = open_bot(specification('LONG', funding_pct=-0.01), 100, BOUNDARY - 1)
