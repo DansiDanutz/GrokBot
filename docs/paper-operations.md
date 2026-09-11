@@ -191,3 +191,41 @@ implementation to delete. All credential tests use synthetic private temporary
 files or mocked I/O, including negative tests against the prior implementation.
 
 _Last verified: 2026-09-11_
+
+## Dan-authorized public notice exception — 11 September 2026
+
+Dan explicitly authorized one v1 file change:
+`/Users/davidai/ZCodeProject/ZmartyChat-paper-grid/paper_grid/public/index.html`.
+The approved static Strategy update section was inserted as the first section
+inside the existing main element. Its text is identical to the development
+notice in `paper_grid/public/index.html` and `paper_grid/dashboard.html`.
+
+- v1 branch: `codex/paper-grid-routine`; previous commit `e0e10a77e493d5972b726518da0950f7720a6828`.
+- v1 commit: `9f36d2313924a341448be0681b4fa25b0fb9074b` (`docs(public): strategy update notice`).
+- Development notice commit: `89553ef` (694 tests and the staged-secret gate passed).
+- HTML SHA-256 before: `4b0beb1256d86aecddce7b600733c1619afc497891736e32283ec47e42a1e230`; after: `1a89f0276c46aeae6a6e2421b41c41a56d76e0ebe1fec555261864c04c6d9519`.
+- Identical inserted-fragment SHA-256: `ea704790fd1bb887a9a7b77401561b4276dfae15b8312755bc0ae9bcc03a0bfe`.
+- Existing inline script/style blocks were byte-identical before and after in all three files; no CSP hash or fixture update was needed.
+- The v1 commit changes only that HTML file. Its checkout has no `verify` or `verify:secrets` npm scripts; those gates ran in isolated development source. v1 verification used the exact fragment, one-file Git diff, unchanged inline blocks and seal hashes below.
+- No engine, seal/configuration field, account, source file other than the authorized HTML, existing plist, LaunchAgent or running service was edited/restarted. No deployment command was invoked.
+- The existing publisher read the updated HTML during its normal publication.
+
+Read-only before capture: `2026-09-11T11:55:53.416257+00:00`; after: `2026-09-11T12:00:49.276743+00:00`.
+The actual source hashes also matched the running experiment’s recorded
+`code_hashes` before and after. `experiment.json` is a changing worker-state
+container; only its unchanged code/configuration seal fields are reported here.
+No reseal or write to that container was performed.
+
+| Seal / source | Before SHA-256 | After SHA-256 |
+| --- | --- | --- |
+| `engine.py` | `6b165bf32e566d9a6436239021c3d77636bce404dd2833fb4125c4c0f6f7e07e` | `6b165bf32e566d9a6436239021c3d77636bce404dd2833fb4125c4c0f6f7e07e` |
+| `market.py` | `c7bef3e1b8916a34508e7b8085f43eaafe7b5df3918f1c6d78fc27656731d9e4` | `c7bef3e1b8916a34508e7b8085f43eaafe7b5df3918f1c6d78fc27656731d9e4` |
+| `coinglass.py` | `78a85ee5485c8f1cb8209744328eb359384904fc64421e43c22c6ef870c25159` | `78a85ee5485c8f1cb8209744328eb359384904fc64421e43c22c6ef870c25159` |
+| `experiment.py` | `fe9be3733230938607aaf3e7c41dd4af9d493d30f3f0b8eb1e3b44ba688ebf51` | `fe9be3733230938607aaf3e7c41dd4af9d493d30f3f0b8eb1e3b44ba688ebf51` |
+| Recorded configuration seal | `054dc3591383755042f0d9abea9c84da9c0829dfb82e0b026b91b397f2f32c35` | `054dc3591383755042f0d9abea9c84da9c0829dfb82e0b026b91b397f2f32c35` |
+
+Publication verified by `curl -fsS https://danslabtrader.vercel.app/` at
+`2026-09-11T12:13:59.036354+00:00` (15:13:59 Europe/Bucharest). The public
+HTML contained the exact approved fragment, not only the heading. The first
+check at `2026-09-11T12:00:49.729823+00:00` preceded publication and did not
+yet contain it. No restart or manual publication was performed.
