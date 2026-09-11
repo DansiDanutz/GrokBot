@@ -254,6 +254,8 @@ class Runner:
             events.append(_system(now, 'RECOVER'))
             self.state['runtime']['alert_active'] = False
         self._queue(events)
+        # A fresh tick timestamp alone is a heartbeat, not a state change worth a write.
+        before['runtime']['last_tick_ms'] = self.state['runtime']['last_tick_ms']
         changed = before != self.state
         view = policy.snapshot(self.state, now, health)
         if changed or now - self.state['runtime']['last_write_ms'] >= SNAPSHOT_MAX_INTERVAL_S * 1000:
