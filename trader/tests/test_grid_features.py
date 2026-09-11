@@ -38,12 +38,13 @@ class FeatureTests(unittest.TestCase):
         bars[-1] = {'open': 100, 'high': 110, 'low': 98, 'close': 105}
         self.assertTrue(features(bars)['fresh_high'])
 
-    def test_timestamp_ms_gaps_rejected(self):
+    def test_conflicting_timestamp_duplicates_rejected(self):
         bars = candles()
         for i, bar in enumerate(bars):
             bar['timestamp_ms'] = i*60000
         self.assertTrue(features(bars)['valid'])
         bars[800]['timestamp_ms'] += 60000
+        bars[800]['close'] = 101.
         self.assertFalse(features(bars)['valid'])
 
     def test_confirmed_swing_levels_require_two_closed_bars_on_right(self):
@@ -66,3 +67,49 @@ class FeatureTests(unittest.TestCase):
         self.assertEqual(evidence['supports'],[])
         self.assertEqual(evidence['resistances'],[])
         self.assertEqual(evidence['lookback_minutes'],10080)
+
+    def test_95_percent_history_forward_fills_for_indicators(self):
+        bars = candles()
+        for index,bar in enumerate(bars):
+            bar['timestamp_ms'] = index*60000
+        sparse = [bar for index,bar in enumerate(bars) if not 1000 <= index < 1504]
+        result = features(sparse,asof_ms=10080*60000)
+        self.assertTrue(result['valid'],result.get('reason'))
+        self.assertEqual(result['coverage']['fraction'],.95)
+        self.assertEqual(result['history_minutes'],10080)
+        self.assertEqual(result['price'],100.)
+        self.assertFalse(features(sparse[:-1],asof_ms=10080*60000)['valid'])
+
+    def test_prepared_history_preserves_coverage_and_unknown_funding(self):
+        from trader.strategies.candle_coverage import prepare
+        bars = candles()
+        for index,bar in enumerate(bars):
+            bar['timestamp_ms'] = index*60000
+        prepared = prepare(bars[:200]+bars[201:],10080*60000)
+        result = features(prepared,funding_rate=None)
+        self.assertTrue(result['valid'],result.get('reason'))
+        self.assertEqual(result['coverage']['actual'],10079)
+        self.assertTrue(result['funding_unknown'])
+        self.assertIsNone(result['funding_rate'])
+        self.assertEqual(result['funding_sign'],0)
+
+    def test_synthetic_neighbors_do_not_confirm_swing_pivots(self):
+        from trader.strategies.candle_coverage import prepare
+        bars = candles()
+        for index,bar in enumerate(bars):
+            bar['timestamp_ms'] = index*60000
+        bars[10070]['low'] = 90.
+        observed = features(prepare(bars,10080*60000))
+        self.assertEqual(observed['support_resistance']['support_pivot_count'],1)
+        with_gap = features(prepare(bars[:10071]+bars[10072:],10080*60000))
+        self.assertTrue(with_gap['valid'])
+        self.assertEqual(with_gap['support_resistance']['support_pivot_count'],0)
+
+    def test_malformed_prepared_ohlc_is_rejected(self):
+        from trader.strategies.candle_coverage import prepare
+        bars = candles()
+        for index,bar in enumerate(bars):
+            bar['timestamp_ms'] = index*60000
+        prepared = prepare(bars,10080*60000)
+        prepared['bars'][-1]['close'] = float('nan')
+        self.assertFalse(features(prepared)['valid'])
