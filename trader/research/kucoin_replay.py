@@ -448,9 +448,8 @@ def _track_hour(snapshot, report, at, end):
     return report.get('failed_liquidation', False)
 
 
-def _execute(snapshot, report, options, fixtures, seed, progress=None):
-    start, end, mode = report['start_ms'], report['end_ms'], report['mode']
-    began = perf_counter()
+def _execution_start(snapshot, report, fixtures, seed):
+    start, mode = report['start_ms'], report['mode']
     rng, cash, allowed = random.Random(seed), report['initial_capital'], None
     actual = mode == 'four_observed_long_forms_unchanged'
     if mode == 'same_four_symbols_system_setup':
@@ -459,7 +458,18 @@ def _execute(snapshot, report, options, fixtures, seed, progress=None):
                    for row in _fixture_rows(fixtures)]
     if actual:
         cash = _actual_start(snapshot, report, fixtures, start)
-    for at in range(start, end, HOUR_MS):
+    return dict(cursor_ms=start, cash=cash, allowed=allowed, rng_state=rng.getstate(), complete=False)
+
+
+def _execute(snapshot, report, options, fixtures, seed, progress=None, execution=None, max_hours=None):
+    end, actual = report['end_ms'], report['mode'] == 'four_observed_long_forms_unchanged'
+    began = perf_counter()
+    control = execution if execution is not None else _execution_start(snapshot, report, fixtures, seed)
+    rng, cash, allowed = random.Random(), control['cash'], control['allowed']
+    rng.setstate(control['rng_state'])
+    cursor = control['cursor_ms']
+    limit = end if max_hours is None else min(end, cursor+max_hours*HOUR_MS)
+    for at in range(cursor, limit, HOUR_MS):
         if progress:
             progress(dict(phase='hour_started', asof_ms=at, elapsed_seconds=perf_counter()-began,
                           completed_hours=report['completed_hours']))
@@ -475,6 +485,7 @@ def _execute(snapshot, report, options, fixtures, seed, progress=None):
                           completed_hours=report['completed_hours'],
                           running_bots=sum(bot['active'] for bot in report['bots']),
                           cache_stats=dict(getattr(snapshot, 'stats', {}))))
+        cursor = ending
         if liquidated:
             break
         if not actual and ending < end:
@@ -483,8 +494,24 @@ def _execute(snapshot, report, options, fixtures, seed, progress=None):
             for bot in report['bots']:
                 if bot['active']:
                     report['hourly_tracker'].append(dict(bot['latest'], bot_id=bot['bot_id']))
-    report['ending_available_cash'] = cash + sum(net_equity(bot['state'], bot['state'].price)
-        for bot in report['bots'] if bot['state'].status in TERMINAL and not bot.get('released'))
+    complete = cursor == end or bool(report.get('failed_liquidation'))
+    if complete:
+        report['ending_available_cash'] = cash + sum(net_equity(bot['state'], bot['state'].price)
+            for bot in report['bots'] if bot['state'].status in TERMINAL and not bot.get('released'))
+    return dict(cursor_ms=cursor, cash=cash, allowed=allowed, rng_state=rng.getstate(), complete=complete)
+
+
+def _prepare_window(snapshot, start_ms, end_ms, mode, options):
+    if options.get('historical_candle_only') and getattr(snapshot, 'historical_candle_only', False) is not True:
+        from trader.research.kucoin_snapshot import HistoricalSnapshot
+        snapshot = HistoricalSnapshot(snapshot, options)
+    report = _report(snapshot, start_ms, end_ms, mode, options)
+    if options.get('historical_candle_only'):
+        report['execution_assumptions'].extend([
+            'Historical contract specifications are retrospective and introduce survivorship/contract-change uncertainty.',
+            'Discretionary close spread is modeled at '+str(options.get('historical_spread_bps', 10))+' bps; seed/grid fills use model prices.',
+            'Intrabar stops/liquidations lack observed spread; missing extremes and unknown funding prevent verification.'])
+    return snapshot, report
 
 
 def run_window(snapshot, start_ms, end_ms, parameters=None, mode='system', fixtures=None, seed=20260911, progress=None):
@@ -495,15 +522,7 @@ def run_window(snapshot, start_ms, end_ms, parameters=None, mode='system', fixtu
         raise ValueError('window must use increasing UTC hour boundaries')
     options = range_policy_parameters(parameters)
     began = perf_counter()
-    if options.get('historical_candle_only') and getattr(snapshot, 'historical_candle_only', False) is not True:
-        from trader.research.kucoin_snapshot import HistoricalSnapshot
-        snapshot = HistoricalSnapshot(snapshot, options)
-    report = _report(snapshot, start_ms, end_ms, mode, options)
-    if options.get('historical_candle_only'):
-        report['execution_assumptions'].extend([
-            'Historical contract specifications are retrospective and introduce survivorship/contract-change uncertainty.',
-            'Discretionary close spread is modeled at '+str(options.get('historical_spread_bps', 10))+' bps; seed/grid fills use model prices.',
-            'Intrabar stops/liquidations lack observed spread; missing extremes and unknown funding prevent verification.'])
+    snapshot, report = _prepare_window(snapshot, start_ms, end_ms, mode, options)
     if report['coverage']['window_available']:
         try:
             _execute(snapshot, report, options, fixtures, seed, progress)
@@ -513,3 +532,51 @@ def run_window(snapshot, start_ms, end_ms, parameters=None, mode='system', fixtu
                                  cache_stats=dict(getattr(snapshot, 'stats', {})))
     from trader.research.kucoin_portfolio import summarize
     return summarize(report)
+
+
+
+def run_chunk(snapshot, start_ms, end_ms, parameters=None, mode='system', fixtures=None,
+              seed=20260911, max_hours=24, checkpoint=None, identity=None,
+              checkpoint_callback=None, progress=None):
+    """Run at most K complete hours; emit one detached JSON checkpoint at chunk end.
+
+    Keep the original window on every call. Callback persistence is external.
+    An interrupted hour leaves the previous caller-owned checkpoint untouched.
+    Physical cache reads and elapsed time are segment-local performance metadata.
+    """
+    from trader.research.replay_checkpoint import (checkpoint_binding, make_checkpoint,
+                                                   restore_checkpoint, restore_scan_cache)
+    from trader.research.kucoin_portfolio import summarize
+    if mode not in MODES or type(max_hours) is not int or max_hours < 1:
+        raise ValueError('known replay mode and positive integer max_hours required')
+    if any(type(t) is not int or t < 0 or t % HOUR_MS for t in (start_ms, end_ms)) or start_ms >= end_ms:
+        raise ValueError('window must use increasing UTC hour boundaries')
+    options, began = range_policy_parameters(parameters), perf_counter()
+    binding = checkpoint_binding(identity, start_ms, end_ms, mode, options, seed, fixtures)
+    report, control, cache = restore_checkpoint(checkpoint, binding) if checkpoint is not None else (None, None, None)
+    if report is None:
+        snapshot, report = _prepare_window(snapshot, start_ms, end_ms, mode, options)
+    elif not control['complete']:
+        snapshot, current = _prepare_window(snapshot, start_ms, end_ms, mode, options)
+        if current['manifest'] != report['manifest']:
+            raise ValueError('checkpoint snapshot manifest binding mismatch')
+        restore_scan_cache(snapshot, report, cache)
+    try:
+        if control is None or not control['complete']:
+            if report['coverage']['window_available']:
+                control = _execute(snapshot, report, options, fixtures, seed, progress, control, max_hours)
+            else:
+                control = dict(cursor_ms=start_ms, cash=report['initial_capital'], allowed=None,
+                               rng_state=random.Random(seed).getstate(), complete=True)
+    except (ValueError, KeyError, TypeError) as error:
+        _gap(report, str(error))
+        report['performance'] = dict(elapsed_seconds=perf_counter()-began, cache_stats=dict(getattr(snapshot, 'stats', {})))
+        return dict(complete=True, checkpoint=None, result=summarize(report))
+    report['performance'] = dict(elapsed_seconds=perf_counter()-began, cache_stats=dict(getattr(snapshot, 'stats', {})))
+    if control['complete'] and cache is not None:
+        report.pop('_scan_cache', None)
+    packet = make_checkpoint(report, control, binding)
+    if checkpoint_callback is not None:
+        checkpoint_callback(packet)
+    return dict(complete=control['complete'], checkpoint=packet,
+                result=summarize(report) if control['complete'] else None)
