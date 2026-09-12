@@ -101,3 +101,28 @@ class AutopilotPublicTests(unittest.TestCase):
     def test_untruncated_payload_reports_zero_counts(self):
         result = public_autopilot.safe(self.source())
         self.assertEqual(result['truncated'], {'closed_bots': 0, 'watchlist': 0})
+
+    def test_hourly_buckets_pass_through_and_are_validated(self):
+        source = self.source()
+        source['equity_hourly'] = [[3_600_000, 10_000, 10_010, 9_990, 10_005],
+                                   [7_200_000, 10_005, 10_005, 9_980, 9_980]]
+        result = public_autopilot.safe(source)
+        self.assertEqual(result['equity_hourly'], source['equity_hourly'])
+        # Closed-vocabulary style: malformed buckets are rejected, not republished.
+        for bad in ([[3_600_000, 10_000, 10_010, 9_990]],            # wrong arity
+                    [[3_600_000, 10_000, 10_010, 9_990, float('nan')]],  # nonfinite
+                    [[3_600_000, 10_000, 9_990, 10_010, 10_005]],    # high below low
+                    [[3_600_000, 10_000, 10_010, 9_990, 11_000]],    # close outside range
+                    [[7_200_000, 1, 2, 3, 4], [3_600_000, 1, 2, 3, 4]],  # unordered
+                    [[True, 1, 2, 3, 4]]):                           # bool stamp
+            source['equity_hourly'] = bad
+            with self.assertRaises(ValueError):
+                public_autopilot.safe(source)
+
+    def test_hourly_buckets_are_capped_at_seven_days(self):
+        source = self.source()
+        source['equity_hourly'] = [[i * 3_600_000, 10_000, 10_001, 9_999, 10_000]
+                                   for i in range(1, 300)]
+        result = public_autopilot.safe(source)
+        self.assertEqual(len(result['equity_hourly']), 168)
+        self.assertEqual(result['equity_hourly'][-1][0], 299 * 3_600_000)

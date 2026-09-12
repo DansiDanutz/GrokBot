@@ -53,6 +53,8 @@ class Runner:
         for key in ('open_bots', 'closed_bots', 'equity_curve'):
             if not isinstance(self.state.get(key), list):
                 raise ValueError('invalid autopilot state list')
+        # States written before the hourly candle aggregate get an empty list.
+        self.state.setdefault('equity_hourly', [])
         self.state.setdefault('runtime', dict(quotes={}, kucoin_ok=False,
                               kucoin_down_since_ms=None, alert_active=False, last_write_ms=0,
                               last_decision_ms=0, radar_scan_id=None))

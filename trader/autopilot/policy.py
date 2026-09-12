@@ -26,7 +26,8 @@ RETENTION_MS = 30 * 24 * HOUR_MS
 
 def new_state(now_ms):
     return dict(schema_version=1, started_ms=now_ms, open_bots=[], closed_bots=[],
-                cooldowns={}, radar_seen={}, equity_curve=[], next_bot_id=1,
+                cooldowns={}, radar_seen={}, equity_curve=[], equity_hourly=[],
+                next_bot_id=1,
                 archived_net=0.0, peak_equity=PAPER_EQUITY_USDT, max_drawdown_pct=0.0,
                 watchlist=watchlist.initial())
 
@@ -308,6 +309,19 @@ def _equity(state):
         net(wrapper['engine']) for wrapper in state['open_bots'] + state['closed_bots'])
 
 
+def _hourly_bucket(hourly, ts_ms, equity):
+    """Fold one equity sample into chronological UTC clock-hour OHLC buckets."""
+    start = ts_ms // HOUR_MS * HOUR_MS
+    if hourly and hourly[-1][0] == start:
+        bucket = hourly[-1]
+        bucket[2] = max(bucket[2], equity)
+        bucket[3] = min(bucket[3], equity)
+        bucket[4] = equity
+    else:
+        hourly.append([start, equity, equity, equity, equity])
+    return hourly[-168:]
+
+
 def sample(state, now_ms):
     result = deepcopy(state)
     expired = [w for w in result['closed_bots'] if w['engine']['closed_ms'] < now_ms - RETENTION_MS]
@@ -319,6 +333,7 @@ def sample(state, now_ms):
     curve = [point for point in result['equity_curve'] if point[0] >= now_ms - RETENTION_MS]
     if not curve or (now_ms > curve[-1][0] and curve[-1][0] // 60_000 != now_ms // 60_000):
         curve.append([now_ms, equity])
+        result['equity_hourly'] = _hourly_bucket(result.get('equity_hourly') or [], now_ms, equity)
     result['equity_curve'] = curve
     result['cooldowns'] = {symbol: expiry for symbol, expiry in result['cooldowns'].items() if expiry > now_ms}
     active = {w['engine']['symbol'] for w in result['open_bots']}
@@ -379,6 +394,7 @@ def snapshot(state, now_ms, health):
                 change_24h_pct=change(24), change_7d_pct=change(168),
                 open_bots=opened, closed_bots=visible_closed, groups=groups, totals=totals(opened+closed),
                 equity_curve=_downsample(state['equity_curve'], 2000),
+                equity_hourly=_downsample(state.get('equity_hourly', []), 168),
                 watchlist={k: deepcopy(state.get('watchlist', watchlist.initial())[k]) for k in ('core', 'bench')},
                 watchlist_history=deepcopy(state.get('watchlist', {}).get('history', [])),
                 watchlist_scan_id=state.get('watchlist', {}).get('last_scan_id'),

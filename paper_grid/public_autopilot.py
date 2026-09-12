@@ -81,6 +81,25 @@ def curve(source, maximum):
     return [validated[i * (len(validated)-1)//(maximum-1)] for i in range(maximum)]
 
 
+def hourly(source):
+    buckets = rows(source)
+    validated = []
+    for bucket in buckets:
+        if not isinstance(bucket, (list, tuple)) or len(bucket) != 5:
+            raise ValueError('invalid hourly bucket')
+        start, opened, high, low, close = map(number, bucket)
+        if start is None or start < 0 or None in (opened, high, low, close):
+            raise ValueError('invalid hourly bucket')
+        if high < low or high < max(opened, close) or low > min(opened, close):
+            raise ValueError('invalid hourly bucket range')
+        if validated and start <= validated[-1][0]:
+            raise ValueError('unordered hourly buckets')
+        validated.append([start, opened, high, low, close])
+    if len(validated) <= 168:
+        return validated
+    return [validated[i * (len(validated)-1)//(168-1)] for i in range(168)]
+
+
 def score_parts(source):
     parts = rows(source)
     if len(parts) > len(CODES):
@@ -163,6 +182,7 @@ def safe(source):
         recovery_pending=source.get('recovery_pending') is True,
         open_bots=[bot(row) for row in opened], closed_bots=[bot(row) for row in closed],
         equity_curve=curve(source.get('equity_curve', []), 2000),
+        equity_hourly=hourly(source.get('equity_hourly', [])),
         totals=numbers(obj(source.get('totals', {})), TOTAL_NUMBERS), groups={}, watchlist={})
     for direction in DIRECTIONS:
         group = obj(obj(source.get('groups', {})).get(direction, {}))
