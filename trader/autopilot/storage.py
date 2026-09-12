@@ -22,7 +22,7 @@ _event_file_cache = {}
 EVENT_TYPES = frozenset({"OPEN", "FILL", "GRID", "CLOSE", "RANGE_BREAK",
                          "STOP_LOSS", "RESERVE", "ALERT", "RECOVER", "ERROR",
                          "PROMOTE", "DEMOTE", "DROP", "DIRECTION_CHANGE",
-                         "RULE_BLOCK"})
+                         "RULE_BLOCK", "DECISION"})
 
 
 def _safe(path):
@@ -138,6 +138,7 @@ def validate_event(event):
     if "event_id" in event and (type(event["event_id"]) is not int or event["event_id"] < 1):
         raise ValueError("invalid event id")
     watchlist_event = event['type'] in ('PROMOTE', 'DEMOTE', 'DROP', 'DIRECTION_CHANGE')
+    decision_event = event['type'] == 'DECISION'
     if watchlist_event:
         replacement = event.get('replaced_symbol')
         if not isinstance(replacement, str) or (replacement and not re.fullmatch(r'[A-Z0-9]{1,32}', replacement)):
@@ -147,8 +148,30 @@ def validate_event(event):
                 raise ValueError('invalid watchlist score')
         if not 0 <= event['score'] <= 100 or not 0 <= event['replaced_score'] <= 100:
             raise ValueError('invalid watchlist score bounds')
+    if decision_event:
+        if event.get('action') not in ('open', 'close', 'skip'):
+            raise ValueError('invalid decision action')
+        if event.get('direction') not in ('LONG', 'SHORT', 'NEUTRAL'):
+            raise ValueError('invalid decision direction')
+        if event.get('radar_direction') not in (
+                'LONG', 'SHORT', 'NEUTRAL', 'TURNING-UP', 'TURNING-DOWN'):
+            raise ValueError('invalid decision radar direction')
+        rules = event.get('rule_blocks')
+        if not isinstance(rules, list) or len(rules) > 32:
+            raise ValueError('invalid decision rule blocks')
+        if any(type(code) is not int or not 1 <= code <= 999 for code in rules):
+            raise ValueError('invalid decision rule code')
+        for key in ('radar_score', 'expected_grids_per_hour', 'range_width_pct',
+                    'funding_rate', 'kucoin_ok'):
+            value = event.get(key)
+            if type(value) not in (int, float) or not math.isfinite(value):
+                raise ValueError('invalid decision number')
+        if event['kucoin_ok'] not in (0, 1):
+            raise ValueError('invalid decision health flag')
     for key, value in event.items():
         if key == 'replaced_symbol' and watchlist_event:
+            continue
+        if decision_event and key in ('action', 'direction', 'radar_direction', 'rule_blocks'):
             continue
         if key in ("type", "symbol"):
             continue

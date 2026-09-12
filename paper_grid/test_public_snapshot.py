@@ -122,6 +122,24 @@ class PublicSnapshotTests(unittest.TestCase):
         self.assertNotIn('diagnostic', json.dumps(published['recent_events']))
         self.assertEqual(published['account']['starting_equity'], 10000)
 
+    def test_decisions_24h_are_allowlisted_and_capped(self):
+        from trader.autopilot import policy
+        from trader.autopilot.storage import EventLog
+        source = self.root / 'autopilot.json'
+        source.write_text(json.dumps(policy.snapshot(policy.new_state(1000), 2000, {})))
+        decisions = [dict(ts_ms=int(AT * 1000) - i, event_id=i + 1, bot_id=i + 1,
+            symbol='RAYUSDTM', type='DECISION', action='open', direction='LONG',
+            radar_direction='LONG', radar_score=50 + i / 100,
+            expected_grids_per_hour=10, range_width_pct=8, funding_rate=0,
+            kucoin_ok=1, rule_blocks=[]) for i in range(60)]
+        EventLog(self.root).append(decisions)
+        self.export(autopilot_path=source)
+        published = json.loads((self.root / 'site/data/autopilot.json').read_text())
+        self.assertEqual(len(published['decisions_24h']), 50)
+        self.assertTrue(all(event['type'] == 'DECISION'
+                            for event in published['decisions_24h']))
+        self.assertIn('radar_score', published['decisions_24h'][0])
+
     def test_explicit_snapshot_missing_oversized_or_symlink_fails_closed(self):
         target = self.root / 'missing.json'
         with self.assertRaises(ValueError):

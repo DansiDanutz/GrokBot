@@ -42,9 +42,20 @@ the sum of per-bot grids/hour. Historical all-time net survives retention.
 State and snapshots use private atomic replacement. Pending events are checkpointed
 before appending; monotonically increasing event IDs deduplicate crash retries.
 `events.jsonl` sits alongside state when its parent is named `autopilot`, otherwise
-inside an `autopilot` child directory. Logs rotate by UTC day and retain 30 days,
+inside an `autopilot` child directory. `DECISION` rows record each distinct open,
+close or rejected candidate with the entry-time radar score, direction, expected
+grid rate, range width, funding rate, KuCoin health flag and numeric rule codes.
+The entry context is retained on the private bot wrapper so close outcomes join to
+the conditions that produced them. Logs rotate by UTC day and retain 30 days,
 including idle periods. Readers cap each daily file at 2 MiB and return at most
 500 events; an oversized day fails closed. Private state reads have a 64 MiB bound.
+
+The public snapshot exposes only the newest 50 decision rows from the last 24 hours
+through the same closed-vocabulary projection as other events. The daily review
+uses the private retained log to report completed outcomes by fixed 0-100 score
+quartile and funding sign, plus rejection-code frequency. The generated doctrine
+lists which observed entry profiles made or lost paper money; open trades are
+counted as entries but excluded from outcome totals until they close.
 
 Health reports the age of the oldest required symbol's last trade, API success,
 heartbeat and radar age. Decisions run every five minutes or after radar mtime

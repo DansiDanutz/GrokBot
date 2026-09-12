@@ -507,6 +507,27 @@ def render_doctrine(store, props, benefits=None):
         if summary.get("premature") is not None:
             lines.append("- premature closes: {}, missed ${:.2f}".format(
                 summary["premature"], float(summary.get("missed_usd", 0.0) or 0.0)))
+    profiles = (props or {}).get("entry_profiles") or {}
+    lines += ["", "## What entry profiles actually make money", ""]
+    completed = []
+    for kind, buckets in (("score", profiles.get("score_quartiles") or {}),
+                          ("funding", profiles.get("funding_signs") or {})):
+        for name, row in buckets.items():
+            closed = int(row.get("closed", 0) or 0)
+            if closed:
+                wins = int(row.get("wins", 0) or 0)
+                completed.append((float(row.get("net", 0.0) or 0.0), kind, name,
+                                  closed, wins))
+    for net, kind, name, closed, wins in sorted(completed, reverse=True)[:4]:
+        lines.append("- {} {}: ${:.2f} net, {}/{} wins".format(
+            kind, name, net, wins, closed))
+    if not completed:
+        lines.append("- no completed trades with persisted entry decisions yet")
+    blocked = profiles.get("rule_blocks") or {}
+    if blocked:
+        top = sorted(blocked.items(), key=lambda item: (-item[1], int(item[0])))[:3]
+        lines.append("- most frequent entry blocks: " + ", ".join(
+            "code {} x{}".format(code, count) for code, count in top))
     lines += ["", "## Top evidence-backed learnings", ""]
     proposals = [p for p in ((props or {}).get("proposals") or []) if p.get("evidence")]
     tiered = sorted(proposals, key=lambda p: p.get("tier", 2))

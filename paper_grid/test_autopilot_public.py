@@ -68,6 +68,17 @@ class AutopilotPublicTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             public_autopilot.events([event] * 501)
 
+    def test_decision_events_are_explicitly_projected(self):
+        event = dict(ts_ms=1, bot_id=1, symbol='RAYUSDTM', type='DECISION',
+                     action='skip', direction='LONG', radar_direction='TURNING-UP',
+                     radar_score=81, expected_grids_per_hour=12.5,
+                     range_width_pct=8.5, funding_rate=-.01, kucoin_ok=1,
+                     rule_blocks=[13, 16], private_number=99)
+        result = public_autopilot.events([event])[0]
+        self.assertEqual(result['rule_blocks'], [13, 16])
+        self.assertEqual(result['action'], 'skip')
+        self.assertNotIn('private_number', result)
+
     def test_open_and_closed_bot_details_are_projected_without_engine_orders(self):
         from trader.papergrid.engine import open_bot, close_bot
         source = self.source()

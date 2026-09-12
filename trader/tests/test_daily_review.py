@@ -19,6 +19,7 @@ from trader.review.daily import (
     day_events,
     day_window,
     render_markdown,
+    entry_feature_buckets,
     trend_at,
     trend_bucket,
 )
@@ -439,7 +440,7 @@ class ReportTests(TempDbCase):
         result = analyze_exit(flat, self.conn)
         self.assertEqual(result["classification"], "GOOD")
 
-    def test_trend_table_groups_buckets(self):
+    def test_trend_evidence_is_retained_for_existing_rules(self):
         start, end = day_window("2026-09-12", tz=UTC)
         long_bot = make_bot(bot_id=1, opened_ms=start + HOUR, closed_ms=start + 2 * HOUR,
                             completed_grids=4)
@@ -453,8 +454,31 @@ class ReportTests(TempDbCase):
         self.assertEqual(data["trend_rows"]["WITH-TREND"]["bots"], 1)
         self.assertEqual(data["trend_rows"]["AGAINST-TREND"]["bots"], 1)
         md = render_markdown(data)
-        self.assertIn("| WITH-TREND | 1 |", md)
-        self.assertIn("| AGAINST-TREND | 1 |", md)
+        self.assertIn("## 3. Entry profiles at decision time", md)
+
+    def test_entry_decisions_join_completed_outcomes_and_count_blocks(self):
+        start, _ = day_window("2026-09-12", tz=UTC)
+        winner = make_bot(bot_id=1, opened_ms=start + HOUR,
+                          closed_ms=start + 2 * HOUR, realized_pnl=12,
+                          fees_paid=2, completed_grids=7)
+        loser = make_bot(bot_id=2, opened_ms=start + 3 * HOUR,
+                         closed_ms=start + 4 * HOUR, realized_pnl=-4,
+                         fees_paid=1, completed_grids=2)
+        events = [
+            {"type": "DECISION", "action": "open", "bot_id": 1,
+             "radar_score": 82, "funding_rate": -0.01, "rule_blocks": []},
+            {"type": "DECISION", "action": "open", "bot_id": 2,
+             "radar_score": 62, "funding_rate": 0.02, "rule_blocks": []},
+            {"type": "DECISION", "action": "skip", "bot_id": 0,
+             "radar_score": 40, "funding_rate": 0, "rule_blocks": [13, 13, 16]},
+        ]
+        profiles = entry_feature_buckets(self._state([winner, loser]), events)
+        self.assertEqual(profiles["score_quartiles"]["Q4 75-100"],
+                         {"entries": 1, "closed": 1, "wins": 1,
+                          "net": 10.0, "grids": 7})
+        self.assertEqual(profiles["score_quartiles"]["Q3 50-74"]["net"], -5.0)
+        self.assertEqual(profiles["funding_signs"]["negative"]["wins"], 1)
+        self.assertEqual(profiles["rule_blocks"], {"13": 2, "16": 1})
 
     def test_cumulative_closed_total_comes_from_state(self):
         from trader.review.daily import build_proposals

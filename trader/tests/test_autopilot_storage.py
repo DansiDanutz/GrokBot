@@ -109,6 +109,20 @@ class StorageTests(unittest.TestCase):
         log.append([dict(valid, event_id=1)])
         self.assertEqual(read_events(self.root, 0), [dict(valid, event_id=1)])
 
+    def test_decision_schema_allows_only_closed_vocabularies_and_numeric_rules(self):
+        decision = dict(ts_ms=1, bot_id=1, symbol='RAYUSDTM', type='DECISION',
+                        action='open', direction='LONG', radar_direction='TURNING-UP',
+                        radar_score=81.5, expected_grids_per_hour=12.0,
+                        range_width_pct=8.0, funding_rate=-0.01, kucoin_ok=1,
+                        rule_blocks=[])
+        EventLog(self.root).append([decision])
+        self.assertEqual(read_events(self.root, 0), [decision])
+        for key, value in (('action', 'private'), ('direction', 'UP'),
+                           ('radar_direction', 'secret'), ('rule_blocks', ['text']),
+                           ('kucoin_ok', 2)):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                EventLog(self.root).append([dict(decision, **{key: value})])
+
     def test_event_ids_dedupe_retried_batch_and_historical_day_appends(self):
         log = EventLog(self.root)
         def event(day, event_id):

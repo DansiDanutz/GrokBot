@@ -41,7 +41,9 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual({d: sum(b['engine']['direction'] == d for b in result['open_bots'])
                           for d in ('LONG', 'SHORT', 'NEUTRAL')},
                          {'LONG': 2, 'SHORT': 1, 'NEUTRAL': 2})
-        self.assertEqual(len(events), 5)
+        self.assertEqual(sum(event['type'] == 'OPEN' for event in events), 5)
+        self.assertEqual(sum(event['type'] == 'DECISION' and event['action'] == 'open'
+                             for event in events), 5)
         self.assertEqual((state, self.radar), before)
         self.assertEqual(result['open_bots'][2]['source_section'], 'turning_up')
 
@@ -200,6 +202,39 @@ class PolicyTests(unittest.TestCase):
                              ('funding_pct', float('nan')), ('grids', 0), ('step_pct', -1)]:
             with self.subTest(field=field):
                 self.assertFalse(policy.eligible(policy.new_state(0), row('A', **{field: value}), 'LONG', 'long', 0))
+
+    def test_decisions_preserve_entry_context_for_open_skip_and_close(self):
+        from trader.autopilot.storage import validate_event
+        state = policy.new_state(0)
+        state['runtime'] = {'kucoin_ok': True}
+        candidate = row('A', rank_score=82, expected_grids_per_hour=17,
+                        funding_pct=-0.012)
+        opened, events = policy.decide(state, radar(long=[candidate]), {}, 0, 'a')
+        decision = next(event for event in events
+                        if event['type'] == 'DECISION' and event['action'] == 'open')
+        self.assertEqual((decision['bot_id'], decision['funding_rate'], decision['kucoin_ok']),
+                         (1, -0.012, 1))
+        self.assertGreater(decision['radar_score'], 80)
+        self.assertEqual(decision['rule_blocks'], [])
+        validate_event(decision)
+
+        skipped, skipped_events = policy.decide(
+            policy.new_state(0), radar(long=[candidate]), {}, 1, 'b',
+            require_live_prices=True)
+        self.assertFalse(skipped['open_bots'])
+        skip = next(event for event in skipped_events
+                    if event['type'] == 'DECISION' and event['action'] == 'skip')
+        self.assertEqual(skip['rule_blocks'], [policy.DECISION_RULES['missing_live_price']])
+        validate_event(skip)
+
+        closed, close_events = policy.advance(opened, {'A': {'ts_ms': 2, 'price': 140}})
+        self.assertFalse(closed['open_bots'])
+        close = next(event for event in close_events
+                     if event['type'] == 'DECISION' and event['action'] == 'close')
+        self.assertEqual((close['bot_id'], close['radar_score'], close['funding_rate']),
+                         (decision['bot_id'], decision['radar_score'], decision['funding_rate']))
+        self.assertEqual(close['rule_blocks'], [policy.DECISION_CLOSE_REASONS['RANGE_BREAK']])
+        validate_event(close)
 
     def test_neutral_reserve_peak_drawdown_and_monotonic_samples(self):
         state, _ = policy.decide(policy.new_state(0), radar(neutral=[row('N', 'NEUTRAL')]), {}, 0, 'a')

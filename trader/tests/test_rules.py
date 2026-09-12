@@ -28,6 +28,15 @@ def proposals_fixture(**overrides):
         "trend_buckets": {"with_trend": {"n": 3, "net": 100.0, "grids": 50},
                           "against_trend": {"n": 3, "net": -60.0, "grids": 10},
                           "neutral": {"n": 1, "net": 5.0, "grids": 20}},
+        "entry_profiles": {
+            "entry_decisions": 6, "matched_bots": 6,
+            "score_quartiles": {
+                "Q4 75-100": {"entries": 3, "closed": 3, "wins": 2,
+                                "net": 42.0, "grids": 24}},
+            "funding_signs": {
+                "negative": {"entries": 2, "closed": 2, "wins": 2,
+                               "net": 31.0, "grids": 16}},
+            "rule_blocks": {"13": 4}},
         "against_trend_symbols": {"NEARUSDTM": {"n": 2, "net": -106.28}},
         "close_reasons": {"PROFILE_UPDATE": {"n": 2, "total_net": -18.25,
                                              "avg_hold_s": 3700.5}},
@@ -297,6 +306,8 @@ class ApplyEndToEndTests(TempPathCase):
         self.assertIn("require_trend_alignment: ON", doctrine)
         self.assertIn("2026-09-11", doctrine)
         self.assertIn("estimated benefit $48.05", doctrine)
+        self.assertIn("What entry profiles actually make money", doctrine)
+        self.assertIn("score Q4 75-100: $42.00 net, 2/3 wins", doctrine)
         with open(self.status_path, encoding="utf-8") as handle:
             status = json.load(handle)
         self.assertEqual(status["proposals"],

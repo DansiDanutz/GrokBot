@@ -219,7 +219,11 @@ class RuntimeTests(unittest.TestCase):
         again = self.runner(); restored = again.pass_once()
         self.assertEqual(restored['watchlist_history'], view['watchlist_history'])
         self.assertEqual(restored['watchlist'], view['watchlist'])
-        self.assertEqual(read_events(self.state.parent, 0), history)
+        after = read_events(self.state.parent, 0)
+        self.assertEqual([event for event in after if event['type'] != 'DECISION'],
+                         [event for event in history if event['type'] != 'DECISION'])
+        self.assertTrue(all(event['type'] == 'DECISION'
+                            for event in after[len(history):]))
 
     def test_stale_radar_cannot_open_core_bots(self):
         self.clock[0] += 121 * 60000

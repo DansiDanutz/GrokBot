@@ -401,9 +401,14 @@ def export_snapshot(runtime, output_dir, now=None, *, health=None,
                 recent = read_events(path.parent, max(0, int(published_at*1000)-30*86400000), limit=500, latest=True)
                 snapshot['recent_events'] = _public_events(recent[-50:])
                 snapshot['completed_grid_events'] = _public_events([e for e in recent if e['type'] == 'GRID'])
+                decisions = read_events(path.parent,
+                    max(0, int(published_at * 1000) - 86400000), limit=500, latest=True)
+                snapshot['decisions_24h'] = _public_events(
+                    [event for event in decisions if event['type'] == 'DECISION'][-50:])
                 snapshot['recent_events_available'] = True
             except (OSError, ValueError):
                 snapshot['recent_events'] = []
+                snapshot['decisions_24h'] = []
                 snapshot['recent_events_available'] = False
         snapshot['published_at_ms'] = int(published_at * 1000)
         payloads['data/' + name + '.json'] = _encoded(snapshot)

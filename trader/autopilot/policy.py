@@ -34,6 +34,75 @@ RETENTION_MS = 30 * 24 * HOUR_MS
 RISK_CLOSE_REASONS = frozenset({'STOP_LOSS', 'RANGE_BREAK', 'RISK_LIMIT'})
 _OPPOSING_LABELS = {'LONG': ('SHORT', 'TURNING-DOWN'),
                     'SHORT': ('LONG', 'TURNING-UP')}
+DECISION_RULES = {
+    'range_not_verified': 1,
+    'insufficient_equity': 2,
+    'bot_capacity': 3,
+    'missing_liquidity': 4,
+    'duplicate_symbol': 5,
+    'cooldown': 6,
+    'direction_cap': 7,
+    'major_cap': 8,
+    'movers_cap': 9,
+    'low_grid_rate': 10,
+    'invalid_profile': 11,
+    'invalid_layout': 12,
+    'missing_live_price': 13,
+    'no_candidates': 14,
+    'missing_radar': 15,
+    'learned_trend_alignment': 16,
+    'learned_symbol_cooldown': 17,
+    'learned_min_hold': 18,
+}
+DECISION_CLOSE_REASONS = {
+    'LABEL_FLIP': 101,
+    'RANGE_BREAK': 102,
+    'STOP_LOSS': 103,
+    'DROPPED': 104,
+    'MAX_AGE': 105,
+    'MANUAL': 106,
+    'PROFILE_UPDATE': 107,
+    'RISK_LIMIT': 108,
+}
+
+
+def _range_width_pct(low, high, price):
+    return 0.0 if not price else 100.0 * (high - low) / price
+
+
+def _decision_context(row, direction, state):
+    return {
+        'direction': direction,
+        'radar_direction': row.get('direction', 'NEUTRAL'),
+        'radar_score': float(row.get('score', row.get('rank_score', 0.0)) or 0.0),
+        'expected_grids_per_hour': float(row.get('expected_grids_per_hour', 0.0) or 0.0),
+        'range_width_pct': float(_range_width_pct(
+            row.get('range_low', 0.0), row.get('range_high', 0.0), row.get('price', 0.0))),
+        'funding_rate': float(row.get('funding_pct', 0.0) or 0.0),
+        'kucoin_ok': 1 if state.get('runtime', {}).get('kucoin_ok') is True else 0,
+    }
+
+
+def _decision_event(now_ms, bot_id, symbol, action, context, rule_blocks=()):
+    return dict(ts_ms=now_ms, bot_id=bot_id, symbol=symbol, type='DECISION',
+                action=action, **context,
+                rule_blocks=sorted(set(int(code) for code in rule_blocks)))
+
+
+def _wrapper_decision(state, wrapper, now_ms, action, rule_blocks):
+    bot = wrapper['engine']
+    context = wrapper.get('decision_context') or {
+        'direction': wrapper.get('slot_direction', bot['direction']),
+        'radar_direction': wrapper.get('open_label') or bot['direction'],
+        'radar_score': 0.0,
+        'expected_grids_per_hour': 0.0,
+        'range_width_pct': _range_width_pct(
+            bot['range_low'], bot['range_high'], bot.get('opening_price', bot['last_price'])),
+        'funding_rate': float(bot.get('funding_pct', 0.0) or 0.0),
+        'kucoin_ok': 1 if state.get('runtime', {}).get('kucoin_ok') is True else 0,
+    }
+    return _decision_event(now_ms, bot['bot_id'], bot['symbol'], action,
+                           context, rule_blocks)
 
 
 def _learned_rules():
@@ -53,7 +122,7 @@ def _rule_block_event(now_ms, bot, rule_code, **fields):
     return event
 
 
-def _hold_gate(wrapper, reason, rules, now_ms, events):
+def _hold_gate(state, wrapper, reason, rules, now_ms, events):
     """Refuse non-risk closes on bots younger than the learned min hold.
 
     Returns the reason unchanged when the close is allowed, None when the
@@ -75,6 +144,8 @@ def _hold_gate(wrapper, reason, rules, now_ms, events):
         events.append(_rule_block_event(now_ms, bot, 1,
                                         hold_hours=round(hold_hours, 4),
                                         min_hold_hours=min_hold))
+    events.append(_wrapper_decision(state, wrapper, now_ms, 'skip',
+                                    [DECISION_RULES['learned_min_hold']]))
     return None
 
 
@@ -152,34 +223,45 @@ def profile(row, direction, bot_id):
 
 def eligible(state, row, direction, source_section, now_ms):
     """Admission shared by slot selection, including explicit trend movers caps."""
+    return _eligibility(state, row, direction, source_section, now_ms)[0]
+
+
+def _eligibility(state, row, direction, source_section, now_ms):
+    blocks = []
     if row.get('range_verified') != 1:
-        return False
+        blocks.append(DECISION_RULES['range_not_verified'])
     bots = [item['engine'] for item in state['open_bots']]
     allocated = sum(w['engine']['notional_usdt'] + w['engine'].get('reserve_added_usdt',0) + w['reserve_usdt'] for w in state['open_bots'])
     if _equity(state) - allocated < NOTIONAL_PER_BOT_USDT + NEUTRAL_RESERVE_USDT:
-        return False
-    if len(bots) >= MAX_BOTS or not row.get('passes_liquidity', False):
-        return False
+        blocks.append(DECISION_RULES['insufficient_equity'])
+    if len(bots) >= MAX_BOTS:
+        blocks.append(DECISION_RULES['bot_capacity'])
+    if not row.get('passes_liquidity', False):
+        blocks.append(DECISION_RULES['missing_liquidity'])
     if any(bot['symbol'] == row['symbol'] for bot in bots):
-        return False
+        blocks.append(DECISION_RULES['duplicate_symbol'])
     if state['cooldowns'].get(row['symbol'], 0) > now_ms:
-        return False
+        blocks.append(DECISION_RULES['cooldown'])
     if sum(bot['direction'] == direction for bot in bots) >= DIRECTION_CAP:
-        return False
+        blocks.append(DECISION_RULES['direction_cap'])
     if row['symbol'] in MAJORS and sum(bot['symbol'] in MAJORS for bot in bots) >= MAJORS_MAX:
-        return False
+        blocks.append(DECISION_RULES['major_cap'])
     if (direction != 'NEUTRAL' and source_section == 'movers'
             and sum(item['source_section'] == 'movers' and item['engine']['direction'] != 'NEUTRAL'
                     for item in state['open_bots']) >= MOVERS_MAX):
-        return False
+        blocks.append(DECISION_RULES['movers_cap'])
     try:
         spec, _ = profile(row, direction, 0)
         rate = expected_grids_per_hour(row['atr_1h_pct'], spec['step_pct'], row['turnover_24h_usdt'])
-        return (rate >= MIN_EXPECTED_GRIDS_PER_HOUR
-                and spec['range_low'] < row['price'] < spec['range_high']
-                and layout_valid(spec['range_low'], spec['grid_interval'], spec['grids'], row['price'], direction))
+        if rate < MIN_EXPECTED_GRIDS_PER_HOUR:
+            blocks.append(DECISION_RULES['low_grid_rate'])
+        if not (spec['range_low'] < row['price'] < spec['range_high']):
+            blocks.append(DECISION_RULES['invalid_layout'])
+        if not layout_valid(spec['range_low'], spec['grid_interval'], spec['grids'], row['price'], direction):
+            blocks.append(DECISION_RULES['invalid_profile'])
     except (KeyError, TypeError, ValueError, ZeroDivisionError):
-        return False
+        blocks.append(DECISION_RULES['invalid_profile'])
+    return not blocks, sorted(set(blocks))
 
 
 def _candidate_sections(radar, rows):
@@ -297,11 +379,14 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
         if (not reason and bot['symbol'] in prices and
                 (bot['leverage'] != LEVERAGE_TREND or bot.get('accounting_version') != ACCOUNTING_VERSION)):
             reason = 'PROFILE_UPDATE'
-        reason = _hold_gate(wrapper, reason, rules, now_ms, events)
+        reason = _hold_gate(result, wrapper, reason, rules, now_ms, events)
         if reason:
             wrapper['engine'], emitted = close_bot(bot, prices.get(bot['symbol'], bot['last_price']), now_ms, reason)
             _mark_wrapper(wrapper)
             events.extend(emitted)
+            events.append(_wrapper_decision(
+                result, wrapper, now_ms, 'close',
+                [DECISION_CLOSE_REASONS.get(reason, 199)]))
             result['open_bots'].remove(wrapper)
             result['closed_bots'].append(wrapper)
             if reason != 'PROFILE_UPDATE':
@@ -310,27 +395,48 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
     vacancies = [direction for direction, count in SLOTS.items()
                  for _ in range(count - sum(w['slot_direction'] == direction for w in result['open_bots']))]
     deferred = []
+    skip_keys = set()
+
+    def skip(row, direction, blocks):
+        key = (row['symbol'], direction, tuple(sorted(set(blocks))))
+        if key in skip_keys:
+            return
+        skip_keys.add(key)
+        events.append(_decision_event(
+            now_ms, 0, row['symbol'], 'skip',
+            _decision_context(row, direction, result), blocks))
+
     def fill(slot, direction):
         for section, row in _candidates(sections, direction):
             if require_live_prices and row['symbol'] not in prices:
+                skip(row, direction, [DECISION_RULES['missing_live_price']])
                 continue
             if _trend_gate_blocks(direction, row, labels, rules):
+                skip(row, direction, [DECISION_RULES['learned_trend_alignment']])
                 continue
             if _cooldown_gate_blocks(row, rules, now_ms):
+                skip(row, direction, [DECISION_RULES['learned_symbol_cooldown']])
                 continue
             marked = dict(row, price=prices.get(row['symbol'], row['price']))
-            if not eligible(result, marked, direction, section, now_ms):
+            admitted, blocks = _eligibility(result, marked, direction, section, now_ms)
+            if not admitted:
+                skip(marked, direction, blocks)
                 continue
             spec, reserve = profile(marked, direction, result['next_bot_id'])
             bot = open_bot(spec, marked['price'], now_ms)
             bot['risk_metadata_at_ms'] = now_ms - int(row.get('snapshot_age_min',0)*60000)
+            context = _decision_context(marked, direction, result)
             result['open_bots'].append(dict(engine=bot, reserve_usdt=reserve,
                                            source_section=section, slot_direction=slot, signals=[],
-                                           open_label=labels.get(bot['symbol']), range_verified=row.get('range_verified', 0)))
+                                           open_label=labels.get(bot['symbol']),
+                                           range_verified=row.get('range_verified', 0),
+                                           decision_context=context))
             result['next_bot_id'] += 1
             result['radar_seen'][bot['symbol']] = [dict(scan_id=scan_id, present=True)]
             events.append(dict(ts_ms=now_ms, bot_id=bot['bot_id'], symbol=bot['symbol'], type='OPEN',
                                price=marked['price'], equity=bot['equity'] + reserve))
+            events.append(_decision_event(now_ms, bot['bot_id'], bot['symbol'],
+                                          'open', context))
             return True
         return False
     for slot in vacancies:
@@ -341,6 +447,20 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
         for direction in fallback:
             if fill(slot, direction):
                 break
+    if not radar_available:
+        context = dict(direction='NEUTRAL', radar_direction='NEUTRAL', radar_score=0.0,
+                       expected_grids_per_hour=0.0, range_width_pct=0.0,
+                       funding_rate=0.0,
+                       kucoin_ok=1 if result.get('runtime', {}).get('kucoin_ok') is True else 0)
+        events.append(_decision_event(now_ms, 0, 'SYSTEM', 'skip', context,
+                                      [DECISION_RULES['missing_radar']]))
+    elif vacancies and not sections and not skip_keys:
+        context = dict(direction='NEUTRAL', radar_direction='NEUTRAL', radar_score=0.0,
+                       expected_grids_per_hour=0.0, range_width_pct=0.0,
+                       funding_rate=0.0,
+                       kucoin_ok=1 if result.get('runtime', {}).get('kucoin_ok') is True else 0)
+        events.append(_decision_event(now_ms, 0, 'SYSTEM', 'skip', context,
+                                      [DECISION_RULES['no_candidates']]))
     return sample(result, now_ms), events
 
 
@@ -388,10 +508,13 @@ def advance(state, updates):
                     _mark(current,price)
                     events.append(dict(ts_ms=update['ts_ms'],bot_id=current['bot_id'],symbol=current['symbol'],type='RESERVE',amount=reserve))
                 if protection_needed(current):reason='RISK_LIMIT'
-        reason = _hold_gate(wrapper, reason, rules, update['ts_ms'], events)
+        reason = _hold_gate(result, wrapper, reason, rules, update['ts_ms'], events)
         if reason:
             wrapper['engine'], emitted = close_bot(wrapper['engine'], price, update['ts_ms'], reason)
             events.extend(emitted)
+            events.append(_wrapper_decision(
+                result, wrapper, update['ts_ms'], 'close',
+                [DECISION_CLOSE_REASONS.get(reason, 199)]))
             result['open_bots'].remove(wrapper)
             result['closed_bots'].append(wrapper)
             result['cooldowns'][bot['symbol']] = update['ts_ms'] + COOLDOWN_HOURS * HOUR_MS

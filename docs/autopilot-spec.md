@@ -142,7 +142,11 @@ a token.
 
 Events log: append-only JSONL at `<runtime>/autopilot/events.jsonl`, daily
 rotation, keep 30 days. Types: `OPEN, FILL, GRID, CLOSE, RANGE_BREAK, STOP_LOSS,
-ALERT, RECOVER, ERROR`. Fields: `ts_ms, type, bot_id, symbol` plus numbers only.
+ALERT, RECOVER, ERROR, DECISION`. Fields: `ts_ms, type, bot_id, symbol` plus
+numbers, except DECISION's closed-vocabulary `action`, `direction`, and
+`radar_direction` fields and its bounded numeric `rule_blocks` list. DECISION
+entry features are persisted at open and reused at close so reviews correlate
+outcomes with the original entry conditions.
 
 Health in the snapshot: `heartbeat_ms, tick_age_s, kucoin_ok, radar_age_min`.
 Telegram alert once when no tick for `TICK_STALE_ALERT_S` or `kucoin_ok` false

@@ -2,8 +2,8 @@
 
 Reads the paper-trading state, event logs and the local market SQLite
 read-only, then emits a markdown audit of the trading day: day summary,
-exit quality with post-exit counterfactuals, trend alignment, close-reason
-breakdown and PROPOSAL-grade learnings. Nothing here mutates state and
+exit quality with post-exit counterfactuals, persisted entry-feature outcomes,
+close-reason breakdown and PROPOSAL-grade learnings. Nothing here mutates state and
 nothing auto-applies; every adjustment is a proposal for a human.
 
 Usage:
@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from trader.autopilot.liquidation import estimate as _liquidation_estimate
+from trader.autopilot.policy import DECISION_RULES
 from trader.papergrid.engine import FEE_RATE_MAKER
 from trader.review import rules as learned_rules
 
@@ -475,6 +476,56 @@ def trend_bucket(direction, signal):
     return "WITH-TREND" if signal == wants else "AGAINST-TREND"
 
 
+def score_quartile(score):
+    """Fixed quartiles of the normalized 0-100 radar score."""
+    value = max(0.0, min(100.0, float(score)))
+    return ("Q1 0-24" if value < 25 else "Q2 25-49" if value < 50
+            else "Q3 50-74" if value < 75 else "Q4 75-100")
+
+
+def _profile_row():
+    return {"entries": 0, "closed": 0, "wins": 0, "net": 0.0, "grids": 0}
+
+
+def entry_feature_buckets(state, events):
+    """Join persisted entry decisions to completed bot outcomes by bot_id."""
+    bots = {bot_field(bot, "bot_id"): bot for bot in all_bots(state)}
+    result = {"entry_decisions": 0, "matched_bots": 0,
+              "score_quartiles": {}, "funding_signs": {}, "rule_blocks": {}}
+    for event in events:
+        if event.get("type") != "DECISION":
+            continue
+        if event.get("action") == "skip":
+            for code in event.get("rule_blocks", []):
+                if isinstance(code, int) and not isinstance(code, bool):
+                    key = str(code)
+                    result["rule_blocks"][key] = result["rule_blocks"].get(key, 0) + 1
+            continue
+        if event.get("action") != "open":
+            continue
+        result["entry_decisions"] += 1
+        bot = bots.get(event.get("bot_id"))
+        if bot is not None:
+            result["matched_bots"] += 1
+        score_name = score_quartile(event.get("radar_score", 0.0))
+        funding = float(event.get("funding_rate", 0.0) or 0.0)
+        funding_name = "negative" if funding < 0 else "positive" if funding > 0 else "zero"
+        for bucket, name in ((result["score_quartiles"], score_name),
+                             (result["funding_signs"], funding_name)):
+            row = bucket.setdefault(name, _profile_row())
+            row["entries"] += 1
+            if bot is not None and bot_field(bot, "closed_ms") is not None:
+                outcome = bot_net(bot)
+                row["closed"] += 1
+                row["wins"] += outcome > 0
+                row["net"] += outcome
+                row["grids"] += int(bot_field(bot, "completed_grids", 0) or 0)
+    for bucket in (result["score_quartiles"], result["funding_signs"]):
+        for row in bucket.values():
+            row["net"] = round(row["net"], 4)
+    return result
+
+
 # ---------------------------------------------------------------------------
 # report assembly
 
@@ -551,6 +602,7 @@ def build_report(date_str, state, conn, events, radar=None, vault_key=None, now_
         "errors": errors,
         "trend_rows": trend_rows,
         "trend_symbols": trend_symbols,
+        "entry_profiles": entry_feature_buckets(state, events),
         "by_reason": by_reason,
         "impatience": impatience,
         "premature": premature,
@@ -701,6 +753,7 @@ def build_proposals(data, proposals=None):
         "trend_buckets": {"with_trend": bucket("WITH-TREND"),
                           "against_trend": bucket("AGAINST-TREND"),
                           "neutral": neutral},
+        "entry_profiles": data.get("entry_profiles"),
         "against_trend_symbols": against_symbols,
         "close_reasons": close_reasons,
         "errors": {str(code): count for code, count in data["errors"].items()},
@@ -804,18 +857,32 @@ def render_markdown(data):
         lines.append("- Notes: " + "; ".join(notes))
 
     lines.append("")
-    lines.append("## 3. Trend alignment at open")
+    lines.append("## 3. Entry profiles at decision time")
     lines.append("")
-    lines.append("Signal from 1h klines at each OPEN: 24h return sign (NO-TREND when "
-                 f"|24h ret| < {NO_TREND_PCT}%) plus EMA(20) 4h slope. Thesis under test: "
-                 "grids should trade WITH trend.")
+    profiles = data["entry_profiles"]
+    lines.append("Persisted DECISION events joined to bot outcomes by bot_id. Net and wins use "
+                 "completed bots only; open positions remain in the entry count.")
+    lines.append(f"- Entry decisions: {profiles['entry_decisions']}; matched bots: "
+                 f"{profiles['matched_bots']}")
     lines.append("")
-    lines.append("| bucket | bots | net | completed grids |")
-    lines.append("|---|---|---|---|")
-    for bucket in ("WITH-TREND", "AGAINST-TREND", "NO-TREND", "NEUTRAL-BOT", "NO-DATA"):
-        row = data["trend_rows"].get(bucket)
+    lines.append("| feature bucket | entries | closed | wins | net | grids |")
+    lines.append("|---|---|---|---|---|---|")
+    for name, row in profiles["score_quartiles"].items():
+        lines.append(f"| score {name} | {row['entries']} | {row['closed']} | "
+                     f"{row['wins']} | {_fmt(row['net'])} | {row['grids']} |")
+    for name in ("negative", "zero", "positive"):
+        row = profiles["funding_signs"].get(name)
         if row:
-            lines.append(f"| {bucket} | {row['bots']} | {_fmt(row['net'])} | {row['grids']} |")
+            lines.append(f"| funding {name} | {row['entries']} | {row['closed']} | "
+                         f"{row['wins']} | {_fmt(row['net'])} | {row['grids']} |")
+    names = {str(code): name for name, code in DECISION_RULES.items()}
+    if profiles["rule_blocks"]:
+        blocked = ", ".join("{} ({}) x{}".format(names.get(code, "unknown"), code, count)
+                            for code, count in sorted(profiles["rule_blocks"].items(),
+                                                      key=lambda item: (-item[1], int(item[0]))))
+        lines.append(f"- Skip rule frequency: {blocked}")
+    else:
+        lines.append("- Skip rule frequency: none recorded")
 
     lines.append("")
     lines.append("## 4. Close-reason breakdown")
