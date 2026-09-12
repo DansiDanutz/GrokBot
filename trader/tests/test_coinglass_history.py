@@ -30,12 +30,13 @@ class SymbolRowsTests(unittest.TestCase):
                          aggregated_short_liquidation_usd=1))
         rows.append(dict(time='bad', aggregated_long_liquidation_usd=1,
                          aggregated_short_liquidation_usd=1))
+        rows.append(dict(rows[0]))
         kept, rejected = _symbol_rows('NEARUSDTM', rows, NOW_MS)
         floor = now_s // 3600
         self.assertEqual([row['time_ms'] for row in kept],
                          [(floor - index) * 3600 * 1000
                           for index in (3, 2, 1)])
-        self.assertEqual(rejected, 2)
+        self.assertEqual(rejected, 3)
 
     def test_rejects_negative_and_non_finite_usd(self):
         now_s = NOW_MS // 1000

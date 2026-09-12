@@ -25,7 +25,7 @@ MAX_ROWS_PER_SYMBOL = 49
 
 def _symbol_rows(symbol, rows, now_ms):
     """Completed hourly rows only; tolerate individual bad rows."""
-    kept, rejected = [], 0
+    kept, rejected, seen = [], 0, set()
     for row in rows:
         try:
             stamp = epoch_ms(row['time'])
@@ -34,15 +34,16 @@ def _symbol_rows(symbol, rows, now_ms):
         except (KeyError, TypeError, ValueError, OverflowError):
             rejected += 1
             continue
-        if stamp % HOUR_MS or stamp + HOUR_MS > now_ms \
+        if stamp in seen or stamp % HOUR_MS or stamp + HOUR_MS > now_ms \
                 or not math.isfinite(long_usd) or not math.isfinite(short_usd) \
                 or long_usd < 0 or short_usd < 0:
             rejected += 1
             continue
+        seen.add(stamp)
         kept.append(dict(symbol=symbol, exchange=EXCHANGE_LABEL,
                          time_ms=stamp, long_usd=long_usd,
                          short_usd=short_usd))
-    return kept[:MAX_ROWS_PER_SYMBOL], rejected
+    return sorted(kept, key=lambda row: row['time_ms'])[:MAX_ROWS_PER_SYMBOL], rejected
 
 
 def _snapshot_symbols(path):
