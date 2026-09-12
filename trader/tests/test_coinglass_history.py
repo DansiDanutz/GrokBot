@@ -14,7 +14,7 @@ HOUR_MS = 3_600_000
 
 def history(now_s, hours=6, long_usd=1000.0, short_usd=500.0):
     start = (now_s // 3600 - hours) * 3600
-    return [dict(time=start + index * 3600,
+    return [dict(time=(start + index * 3600) * 1000,
                  aggregated_long_liquidation_usd=long_usd,
                  aggregated_short_liquidation_usd=short_usd)
             for index in range(hours)]
@@ -24,7 +24,7 @@ class SymbolRowsTests(unittest.TestCase):
     def test_keeps_only_completed_hourly_rows(self):
         now_s = NOW_MS // 1000
         rows = history(now_s, hours=3)
-        rows.append(dict(time=now_s, aggregated_long_liquidation_usd=1,
+        rows.append(dict(time=now_s * 1000, aggregated_long_liquidation_usd=1,
                          aggregated_short_liquidation_usd=1))
         rows.append(dict(time='bad', aggregated_long_liquidation_usd=1,
                          aggregated_short_liquidation_usd=1))
@@ -101,6 +101,29 @@ class RunTests(unittest.TestCase):
                          ['history unavailable'])
         self.assertEqual(store.query('SELECT count(*) AS n FROM '
                                      'coinglass_liquidations')[0]['n'], 2)
+
+    def test_empty_or_invalid_history_fails_the_symbol(self):
+        for rows in ([], [dict(time='bad',
+                              aggregated_long_liquidation_usd=1,
+                              aggregated_short_liquidation_usd=1)]):
+            with self.subTest(rows=rows):
+                store = self.store()
+                details = run(store, ['NEARUSDTM'], NOW_MS,
+                              getter=lambda *_: rows, api_key='cg-test-key')
+                self.assertEqual(details['status'], 'fail')
+                self.assertEqual(details['symbols_ok'], 0)
+                self.assertEqual(details['rows'], 0)
+
+    def test_unexpected_getter_failure_is_sanitized_per_symbol(self):
+        def getter(*_):
+            raise RuntimeError('provider body must not escape')
+
+        details = run(self.store(), ['NEARUSDTM'], NOW_MS, getter=getter,
+                      api_key='cg-test-key')
+        self.assertEqual(details['status'], 'fail')
+        self.assertEqual(details['failures'][0]['errors'],
+                         ['history request failed'])
+        self.assertNotIn('provider body', str(details))
 
     def test_missing_key_fails_closed_without_network(self):
         def getter(symbol, request_now, key):

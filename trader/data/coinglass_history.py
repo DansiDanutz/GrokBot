@@ -16,7 +16,7 @@ from paper_grid.coinglass import (
 )
 from trader.data.store import Store
 from trader.data.updater_records import HOUR_MS, quality
-from trader.data.updater_runtime import AlreadyRunning, CollectorLock
+from trader.data.updater_runtime import AlreadyRunning, CollectorLock, epoch_ms
 
 EXCHANGE_LABEL = 'Binance,OKX,Bybit'
 MAX_ROWS_PER_SYMBOL = 49
@@ -27,14 +27,13 @@ def _symbol_rows(symbol, rows, now_ms):
     kept, rejected = [], 0
     for row in rows:
         try:
-            stamp = int(float(row['time'])) * 1000
+            stamp = epoch_ms(row['time'])
             long_usd = float(row['aggregated_long_liquidation_usd'])
             short_usd = float(row['aggregated_short_liquidation_usd'])
         except (KeyError, TypeError, ValueError, OverflowError):
             rejected += 1
             continue
-        if stamp != float(row['time']) * 1000 \
-                or stamp % HOUR_MS or stamp + HOUR_MS > now_ms \
+        if stamp % HOUR_MS or stamp + HOUR_MS > now_ms \
                 or not math.isfinite(long_usd) or not math.isfinite(short_usd) \
                 or long_usd < 0 or short_usd < 0:
             rejected += 1
@@ -65,17 +64,25 @@ def run(store, symbols, now_ms, *, getter=None, api_key=None, key_path=None):
         try:
             if key is None:
                 raise CoinGlassError('API key unavailable')
-            rows = fetch(symbol, now_s, key)
+            try:
+                rows = fetch(symbol, now_s, key)
+            except CoinGlassError:
+                raise
+            except Exception:
+                raise CoinGlassError('history request failed') from None
             if not isinstance(rows, list) or len(rows) > MAX_ROWS_PER_SYMBOL:
                 raise CoinGlassError('invalid history size')
             kept, rejected = _symbol_rows(symbol, rows, now_ms)
-            liquidations.extend(kept)
             rejected_rows += rejected
+            if not kept:
+                raise CoinGlassError('no valid completed history')
+            liquidations.extend(kept)
             symbols_ok.append(symbol)
         except CoinGlassError as error:
             failures.append(dict(symbol=symbol, errors=[str(error)]))
     stamps = [row['time_ms'] for row in liquidations]
-    status = 'fail' if not symbols_ok else 'warn' if failures else 'pass'
+    status = ('fail' if not symbols_ok else
+              'warn' if failures or rejected_rows else 'pass')
     details = dict(status=status, symbols_requested=len(names),
                    symbols_ok=len(symbols_ok), rows=len(liquidations),
                    rejected_rows=rejected_rows, failures=failures,
