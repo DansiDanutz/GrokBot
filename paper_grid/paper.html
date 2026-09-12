@@ -47,7 +47,7 @@ nav.main a[aria-current]{color:var(--foreground);border-color:var(--primary)}
 .anchors a:hover{color:var(--foreground);border-color:var(--border-2)}
 main{padding-bottom:56px}
 /* panels */
-.panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-card);padding:18px 20px;margin:0 0 18px}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-card);padding:18px 20px;margin:0 0 18px;scroll-margin-top:56px}
 .panel>h2{font:700 12px/1.3 var(--sans);letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px}
 .panel>.muted{margin:0 0 14px;max-width:88ch}
 .muted,.empty{color:var(--muted-foreground)}.empty{font-size:12.5px;padding:10px 0}
@@ -199,7 +199,7 @@ footer{font-size:11.5px;color:var(--muted-foreground);margin-top:24px;line-heigh
 @keyframes shimmer{0%{background-position:130% 0}100%{background-position:-90% 0}}
 @keyframes halopulse{0%,100%{opacity:.22}50%{opacity:.07}}
 @keyframes metricflash{0%{background:rgba(88,166,255,.2)}100%{background:transparent}}
-@media (max-width:860px){.wrap{padding:0 14px}.band .wrap{gap:10px 18px}.brand{order:1;flex:1}.stamp{order:2;justify-items:start;text-align:left}.tape{order:3;width:100%;margin-left:0}.section-nav{margin:0 -14px 14px;padding:8px 14px;align-items:flex-start}.sum{width:100%;margin-right:0;gap:8px 14px}.anchors{width:100%}.panel{padding:14px}.columns{grid-template-columns:1fr}.part{grid-template-columns:1fr 70px 70px}}
+@media (max-width:860px){.wrap{padding:0 14px}.band .wrap{gap:10px 18px}.brand{order:1;flex:1}.stamp{order:2;justify-items:start;text-align:left}.tape{order:3;width:100%;margin-left:0}.section-nav{margin:0 -14px 14px;padding:8px 14px;align-items:flex-start}.sum{width:100%;margin-right:0;gap:8px 14px}.anchors{width:100%}.panel{padding:14px;scroll-margin-top:80px}.columns{grid-template-columns:1fr}.part{grid-template-columns:1fr 70px 70px}}
 @media (pointer:coarse){button,a,summary{touch-action:manipulation}nav.main a{display:inline-flex;align-items:center;min-height:44px}.anchors a{display:inline-flex;align-items:center;min-height:36px}.row-toggle{width:34px;height:34px}button.sort{padding:10px 2px}}
 @media (prefers-reduced-motion:reduce){.card:hover,.metric:hover,.detail:hover,.chartbox:hover,tr.bot-row:hover{transform:none}}
 @media (prefers-reduced-motion:no-preference){nav.main a,.anchors a,.row-toggle,.row-toggle::before,button.sort,.card,.metric,.detail,.chartbox,tr.bot-row,.candle-wick{transition:color .15s ease-out,border-color .15s ease-out,background .15s ease-out,transform .18s ease-out,box-shadow .18s ease-out,text-decoration-color .15s ease-out,stroke-width .15s ease-out}.candle-slot:hover .candle-wick{stroke-width:2.6}.lasthalo{animation:halopulse 2.2s ease-in-out infinite}.skeleton{animation:shimmer 1.5s linear infinite}.metric strong.flash{animation:metricflash .28s ease-out}}
@@ -221,9 +221,9 @@ footer{font-size:11.5px;color:var(--muted-foreground);margin-top:24px;line-heigh
 <div class="sum-item"><span class="sum-label">Net PnL</span><strong class="sum-num" id="sum-net">—</strong></div>
 <div class="sum-item"><span class="sum-label">Open bots</span><strong class="sum-num" id="sum-open">—</strong></div>
 <span class="pill STALE" id="sum-health">LOADING</span>
-</div><nav class="anchors" aria-label="Paper desk sections"><a href="#account">Account</a><a href="#trade-activity">Buy / Sell</a><a href="#positions">Positions</a><a href="#history">History</a><a href="#today-hourly">Today</a><a href="#account-history">Equity</a><a href="#watchlist">Watchlist</a><a href="#scoring">Scoring</a><a href="#events-panel">Events</a></nav></div><div id="notice" class="notice" hidden></div>
+</div><nav class="anchors" aria-label="Paper desk sections"><a href="#account">Account</a><a href="#trade-activity">Latest fills</a><a href="#positions">Positions</a><a href="#history">History</a><a href="#today-hourly">Today</a><a href="#account-history">Equity</a><a href="#watchlist">Watchlist</a><a href="#scoring">Scoring</a><a href="#events-panel">Events</a></nav></div><div id="notice" class="notice" hidden></div>
 <section class="panel" id="account" aria-label="Paper account"><h2>Paper account · USDT</h2><p class="muted">Starting bankroll is separate from current balance and floating PnL. Watchlist candidates are not positions.</p><div class="account-grid" id="account-values"><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div></div></section>
-<section class="panel" id="trade-activity"><h2>BUY / SELL · active paper bots</h2><p class="muted">Latest executed paper fill for each active bot in the available event feed, not an instruction to trade. Green BUY and red SELL describe the fill, not the bot’s trend. Public activity is a published snapshot; local activity updates every 10 seconds.</p><div id="trade-actions"></div></section>
+<section class="panel" id="trade-activity"><h2>Latest fills · active paper bots</h2><p class="muted">Latest executed paper fill for each active bot in the available event feed, not an instruction to trade. Green BUY and red SELL describe the fill, not the bot’s trend. Rows are newest first; select a row to jump to its position. Public activity is a published snapshot; local activity updates every 10 seconds.</p><div id="trade-actions"></div></section>
 <section class="panel" id="self-learning" hidden><h2>Self-learning</h2><p class="muted">Rules the daily 07:00 review promotes from audited evidence. Advisory findings stay proposals; deleting the rules store returns every behavior to default.</p><p id="learning-line"></p><div class="badge-line" id="learning-chips"></div><p class="muted" id="learning-doctrine" hidden></p><p class="muted" id="learning-evidence" hidden></p></section>
 
 <section class="panel" id="positions"><h2>Open paper positions</h2><div class="head-extras"><span class="badge-line" id="positions-extreme" hidden></span><span class="dirchips" id="dir-chips" hidden></span></div><p class="muted">New-entry rules: At least 12 configured grids inside confirmed support / resistance only, with estimated leveraged return greater than 1% per completed grid after both 0.06% fill fees at 5×. Entry targets allow one-order rounding tolerance: Long 40% BUY / 60% SELL; Short 60% BUY / 40% SELL; Neutral 50% / 50% across both books. These are pending-order proportions, not guaranteed profits. Existing bots keep their original ranges and orders; the current split changes as fills occur.</p><p class="muted" id="positions-note">Loading open positions.</p><div id="positions-bots"></div></section>
@@ -719,22 +719,33 @@ if(!opened.length){root.replaceChildren(el('p','empty','No active paper bots.'))
 const head=el('thead'),hrow=el('tr');
 for(const c of ['Time','Type','Bot','Symbol','Price · USDT','Quantity','Fee · USDT'])hrow.append(el('th',null,c));
 head.append(hrow);
-const body=el('tbody');
+const body=el('tbody'),entries=[];
 for(const bot of opened){
   const fills=eventRows.map(r=>r.e).filter(e=>e.type==='FILL'&&e.bot_id===bot.bot_id&&e.symbol===bot.symbol&&(e.side===1||e.side===-1)&&fin(e.price)&&e.price>0&&fin(e.contracts)&&e.contracts>0&&(!fin(bot.opened_ms)||e.ts_ms>=bot.opened_ms));
-  const e=fills.at(-1),tr=el('tr');
+  entries.push({bot,e:fills.at(-1)||null});
+}
+entries.sort((a,b)=>(b.e?b.e.ts_ms:-1)-(a.e?a.e.ts_ms:-1));
+for(const {bot,e} of entries){
+  const tr=el('tr');
   if(!e){
     const sym=el('td');sym.append(el('strong',null,short(bot.symbol)));
-    const msg=el('td','empty');msg.setAttribute('colspan','6');msg.textContent='No BUY / SELL fill in the available feed — the fill may be outside the published feed window.';
+    const msg=el('td','empty');msg.setAttribute('colspan','6');msg.textContent='No latest fill in the available feed — the fill may be outside the published feed window.';
     tr.append(sym,msg);
   }else{
+    tr.setAttribute('data-activity-bid',String(bot.bot_id));
+    tr.setAttribute('tabindex','0');
+    tr.setAttribute('role','link');
+    tr.setAttribute('aria-label','Bot '+bot.bot_id+' · '+short(bot.symbol)+' · last fill '+(e.side===1?'BUY':'SELL')+' — show position details');
+    const timeTd=el('td',null,time(e.ts_ms));
+    const ageMin=Math.round((Date.now()-e.ts_ms)/60000);
+    if(ageMin>15)timeTd.append(el('span','muted',' · '+ageMin+'m ago'));
     const typeTd=el('td');typeTd.append(el('span','fill-badge '+(e.side===1?'buy':'sell'),e.side===1?'BUY':'SELL'));
-    tr.append(el('td',null,time(e.ts_ms)),typeTd,el('td',null,'bot '+bot.bot_id),el('td',null,short(bot.symbol)),el('td','r',px(e.price)),el('td','r',fmt(e.contracts,6)),el('td','r',fmt(e.fee,6)));
+    tr.append(timeTd,typeTd,el('td',null,'bot '+bot.bot_id),el('td',null,short(bot.symbol)),el('td','r',px(e.price)),el('td','r',fmt(e.contracts,6)),el('td','r',fmt(e.fee,6)));
   }
   body.append(tr);
 }
 const table=el('table','desk');table.append(head,body);
-const scroll=el('div','table-scroll');scroll.append(table);
+const scroll=el('div','table-scroll');scroll.setAttribute('tabindex','0');scroll.setAttribute('role','region');scroll.setAttribute('aria-label','Latest fills, scrollable');scroll.append(table);
 root.replaceChildren(scroll);}
 function updateEventViews(){
 if(!eventRows.length){id('events').replaceChildren(el('li','empty','No events yet.'));}
@@ -836,6 +847,24 @@ const st=scope==='history'?histSort:openSort;
 if(st.key===key)st.dir*=-1;
 else{st.key=key;st.dir=(key==='symbol'||key==='direction'||key==='funding_schedule_status'||key==='reason')?1:-1;}
 if(lastReport)renderBots(lastReport);}
+function setBotDetail(rec,show){
+rec.detail.hidden=!show;
+rec.node.className='bot-row'+(show?' open':'');
+if(rec.toggle){rec.toggle.className='row-toggle'+(show?' open':'');rec.toggle.setAttribute('aria-expanded',String(show));}}
+function expandBotDetail(bid){
+const rec=botNodes.get(Number(bid));
+if(!rec||!rec.detail||rec.detail.hidden!==true)return;
+setBotDetail(rec,true);}
+function onActivityActivate(ev){
+const t=ev.target;
+if(!t)return;
+if(ev.type==='keydown'&&ev.key!=='Enter'&&ev.key!==' ')return;
+const row=t.closest?t.closest('tr[data-activity-bid]'):null;
+if(!row)return;
+if(ev.preventDefault)ev.preventDefault();
+expandBotDetail(row.getAttribute('data-activity-bid'));
+const target=id('positions');
+if(target&&target.scrollIntoView)target.scrollIntoView();}
 function onDeskClick(ev){
 const t=ev.target;
 if(!t)return;
@@ -845,14 +874,13 @@ const row=t.closest?t.closest('tr[data-bid]'):null;
 if(!row)return;
 const rec=botNodes.get(Number(row.getAttribute('data-bid')));
 if(!rec||!rec.detail)return;
-const show=rec.detail.hidden===true;
-rec.detail.hidden=!show;
-rec.node.className='bot-row'+(show?' open':'');
-if(rec.toggle){rec.toggle.className='row-toggle'+(show?' open':'');rec.toggle.setAttribute('aria-expanded',String(show));}}
+setBotDetail(rec,rec.detail.hidden===true);}
 function start(){
 const desk=id('positions-bots'),hist=id('history-bots');
 if(desk&&desk.addEventListener)desk.addEventListener('click',onDeskClick);
 if(hist&&hist.addEventListener)hist.addEventListener('click',onDeskClick);
+const activity=id('trade-actions');
+if(activity&&activity.addEventListener){activity.addEventListener('click',onActivityActivate);activity.addEventListener('keydown',onActivityActivate);}
 const curve=id('curve');
 if(curve&&curve.addEventListener){curve.addEventListener('mousemove',onChartMove);curve.addEventListener('mouseleave',onChartLeave);curve.addEventListener('touchstart',onChartTouch,{passive:true});curve.addEventListener('touchmove',onChartTouch,{passive:true});}
 const hourly=id('hourly');
