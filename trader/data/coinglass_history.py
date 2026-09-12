@@ -35,12 +35,14 @@ def _symbol_rows(symbol, rows, now_ms):
         except (KeyError, TypeError, ValueError, OverflowError):
             rejected += 1
             continue
-        if stamp in seen or stamp % HOUR_MS or stamp + HOUR_MS > now_ms \
+        if stamp in seen or stamp % HOUR_MS or stamp > now_ms \
                 or not math.isfinite(long_usd) or not math.isfinite(short_usd) \
                 or long_usd < 0 or short_usd < 0:
             rejected += 1
             continue
         seen.add(stamp)
+        if stamp + HOUR_MS > now_ms:
+            continue
         kept.append(dict(symbol=symbol, exchange=EXCHANGE_LABEL,
                          time_ms=stamp, long_usd=long_usd,
                          short_usd=short_usd))
