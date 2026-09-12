@@ -83,6 +83,15 @@ class StoreValidationTests(TempPathCase):
         store["notes"] = {"not": "a list"}
         self.assertTrue(rules.validate_store(store))
 
+    def test_radar_flip_hysteresis_schema(self):
+        store = valid_store(radar_flip_hysteresis_cycles=2)
+        self.assertEqual(rules.validate_store(store), [])
+        for bad in ("2", True, 0, -1, 101, 2.5):
+            store = valid_store(radar_flip_hysteresis_cycles=bad)
+            self.assertTrue(rules.validate_store(store), f"should reject {bad!r}")
+        # absent stays valid (default OFF)
+        self.assertEqual(rules.validate_store(valid_store()), [])
+
     def test_load_rules_fail_closed_and_mtime_cache(self):
         self.assertEqual(rules.load_rules(self.store_path), rules.EMPTY_RULES)
         with open(self.store_path, "w", encoding="utf-8") as handle:
@@ -205,14 +214,38 @@ class PlanChangesTests(unittest.TestCase):
         self.assertFalse([c for c in self.plan(props) if c["rule"] == "symbol_cooldowns"])
 
 
+class RadarFlipHysteresisProposalTests(unittest.TestCase):
+    def test_emits_tier2_only_for_noisy_label_flips(self):
+        props = proposals_fixture()
+        props["close_reasons"]["LABEL_FLIP"] = {"n": 2, "total_net": -4.47,
+                                                "avg_hold_s": 3700.5}
+        proposal = rules.radar_flip_hysteresis_proposal(props)
+        self.assertIsNotNone(proposal)
+        self.assertEqual(proposal["tier"], 2)
+        self.assertEqual(proposal["value"], rules.FLIP_HYSTERESIS_CYCLES)
+        self.assertIn("radar_flip_hysteresis_cycles=2", proposal["evidence"])
+        # fewer than 2 flips -> nothing
+        props["close_reasons"]["LABEL_FLIP"]["n"] = 1
+        self.assertIsNone(rules.radar_flip_hysteresis_proposal(props))
+        # long holds -> not noise
+        props["close_reasons"]["LABEL_FLIP"]["n"] = 3
+        props["close_reasons"]["LABEL_FLIP"]["avg_hold_s"] = 5 * 3600
+        self.assertIsNone(rules.radar_flip_hysteresis_proposal(props))
+
+
 class ApplyEndToEndTests(TempPathCase):
     def run_apply(self, props=None, dry_run=False, today="2026-09-12"):
         self.write_proposals(props)
         self.status_path = os.path.join(self.tmp.name, "review-status.json")
+        self.ledger_path = os.path.join(self.tmp.name, "proposals-ledger.jsonl")
         return apply_module.apply_proposals(
             self.proposals_path, self.store_path, self.changelog_path,
             doctrine_path=self.doctrine_path, status_path=self.status_path,
+            ledger_path=self.ledger_path,
             dry_run=dry_run, today_iso=today, now_ms=1_789_160_400_000)
+
+    def read_ledger(self):
+        return rules.read_ledger(self.ledger_path)
 
     def test_dry_run_writes_only_status(self):
         summary = self.run_apply(dry_run=True)
@@ -220,6 +253,7 @@ class ApplyEndToEndTests(TempPathCase):
         self.assertFalse(os.path.exists(self.store_path))
         self.assertFalse(os.path.exists(self.changelog_path))
         self.assertFalse(os.path.exists(self.doctrine_path))
+        self.assertFalse(os.path.exists(self.ledger_path))
         with open(self.status_path, encoding="utf-8") as handle:
             status = json.load(handle)
         self.assertEqual(status["proposals"]["applied"], 3)
@@ -392,6 +426,63 @@ class ApplyEndToEndTests(TempPathCase):
             store = json.load(handle)
         keys = [(n["rule"], n["evidence"]) for n in store["notes"]]
         self.assertEqual(len(keys), len(set(keys)))
+
+    def test_ledger_lines_per_proposal_with_rule_text(self):
+        self.run_apply()
+        entries = self.read_ledger()
+        applied = [e for e in entries if e["status"] == "applied"]
+        self.assertEqual(len(applied), 3)
+        by_rule = {e["rule"]: e for e in applied}
+        self.assertEqual(by_rule["min_hold_hours_before_non_risk_close"]["rule_text"],
+                         "min_hold_hours_before_non_risk_close=4")
+        self.assertEqual(by_rule["require_trend_alignment"]["rule_text"],
+                         "require_trend_alignment=true")
+        self.assertEqual(by_rule["symbol_cooldowns"]["rule_text"],
+                         "symbol_cooldowns[NEARUSDTM]=7d")
+        self.assertEqual(by_rule["min_hold_hours_before_non_risk_close"]
+                         ["estimated_benefit_usd"], 48.05)
+        self.assertIn("closed_n", by_rule["require_trend_alignment"]["sample"])
+        advisory = [e for e in entries if e["status"] == "deferred" and e["tier"] == 2]
+        self.assertTrue(any(e["rule"] == "avoid_impatience_closes" for e in advisory))
+        self.assertTrue(all("advisory tier-2" in e["reason"] for e in advisory))
+
+    def test_ledger_no_candidates_line(self):
+        store = valid_store(min_hold_hours_before_non_risk_close=4.0,
+                            require_trend_alignment=True,
+                            symbol_cooldowns={"NEARUSDTM": "2026-09-19"})
+        self.write_store(store)
+        self.run_apply(proposals_fixture())  # everything already active
+        entries = self.read_ledger()
+        no_candidates = [e for e in entries if e["status"] == "no_candidates"]
+        self.assertEqual(len(no_candidates), 1)
+        self.assertIsNone(no_candidates[0]["rule"])
+
+    def test_ledger_idempotent_rerun(self):
+        self.run_apply()
+        first = self.read_ledger()
+        self.assertEqual(len(first), 4)  # 3 applied + 1 tier-2 advisory
+        # the first real run changes the store, so an identical re-run yields
+        # genuinely new dispositions under the (run_date, rule, status) key
+        self.run_apply()
+        second = self.read_ledger()
+        self.assertEqual(len(second), 6)
+        new_pairs = {(e["rule"], e["status"]) for e in second} - \
+                    {(e["rule"], e["status"]) for e in first}
+        self.assertIn(("min_hold_hours_before_non_risk_close", "deferred"), new_pairs)
+        self.assertIn((None, "no_candidates"), new_pairs)
+        # steady state: every disposition for this run_date is recorded
+        self.run_apply()
+        self.assertEqual(self.read_ledger(), second)
+
+    def test_ledger_window_filter(self):
+        lines = [{"run_date": "2026-09-05", "rule": "a"},
+                 {"run_date": "2026-09-06", "rule": "b"},
+                 {"run_date": "2026-09-12", "rule": "c"},
+                 {"run_date": "2026-09-13", "rule": "future"},
+                 {"run_date": "not-a-date", "rule": "junk"}]
+        window = rules.ledger_window(lines, "2026-09-12")
+        self.assertEqual([l["rule"] for l in window], ["b", "c"])
+        self.assertEqual(rules.ledger_window(lines, "bogus-date"), [])
 
     def test_reversibility_defaults_after_delete(self):
         self.run_apply()

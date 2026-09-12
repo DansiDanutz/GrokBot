@@ -236,7 +236,7 @@ def _mark_wrapper(wrapper):
     wrapper['max_drawdown_pct'] = max(wrapper.get('max_drawdown_pct', 0.0), 100*(peak-equity)/peak)
 
 
-def _reason(wrapper, labels, missing, now_ms):
+def _reason(wrapper, labels, missing, now_ms, flip_hysteresis=None):
     bot = wrapper['engine']
     for signal in ('RANGE_BREAK',):
         if signal in wrapper['signals']:
@@ -249,7 +249,19 @@ def _reason(wrapper, labels, missing, now_ms):
         # wide range) is only abandoned when that trend changes, not on the label
         # it was opened with.
         if bot['direction'] != 'NEUTRAL' or label != wrapper.get('open_label'):
+            # Learned radar-flip hysteresis (OFF unless the rules store sets
+            # radar_flip_hysteresis_cycles >= 2): require that many CONSECUTIVE
+            # conflicting radar scans before the flip may close the bot. The
+            # counter lives on the wrapper; absent rule -> byte-identical path.
+            if isinstance(flip_hysteresis, int) and not isinstance(flip_hysteresis, bool) \
+                    and flip_hysteresis >= 2:
+                wrapper['flip_conflicts'] = wrapper.get('flip_conflicts', 0) + 1
+                if wrapper['flip_conflicts'] < flip_hysteresis:
+                    return None
             return 'LABEL_FLIP'
+    elif label is not None and isinstance(flip_hysteresis, int) \
+            and not isinstance(flip_hysteresis, bool) and flip_hysteresis >= 2:
+        wrapper['flip_conflicts'] = 0
     if missing >= 2:
         return 'DROPPED'
     if now_ms - bot['opened_ms'] >= MAX_AGE_HOURS * HOUR_MS:
@@ -280,7 +292,8 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
             seen.append(dict(scan_id=scan_id, present=bot['symbol'] in labels))
             del seen[:-2]
         missing = sum(not entry['present'] for entry in seen) if radar_available else 0
-        reason = _reason(wrapper, labels, missing, now_ms)
+        reason = _reason(wrapper, labels, missing, now_ms,
+                         rules.get('radar_flip_hysteresis_cycles'))
         if (not reason and bot['symbol'] in prices and
                 (bot['leverage'] != LEVERAGE_TREND or bot.get('accounting_version') != ACCOUNTING_VERSION)):
             reason = 'PROFILE_UPDATE'

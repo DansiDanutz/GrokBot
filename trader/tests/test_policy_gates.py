@@ -125,6 +125,47 @@ class CooldownGateTests(unittest.TestCase):
         self.assertIn("A", {b["engine"]["symbol"] for b in result["open_bots"]})
 
 
+class RadarFlipHysteresisTests(unittest.TestCase):
+    def _open_long(self):
+        return policy.decide(policy.new_state(0), radar(long=[row("A")]), {}, 0, "a")
+
+    def test_absent_rule_is_byte_identical(self):
+        state, _ = self._open_long()
+        with set_rules():
+            result, _ = policy.decide(state, radar(short=[row("A", "SHORT")]), {}, 1, "b")
+        self.assertEqual(result["closed_bots"][0]["engine"]["reason"], "LABEL_FLIP")
+        self.assertNotIn("flip_conflicts", result["closed_bots"][0])
+
+    def test_two_consecutive_conflicts_needed(self):
+        state, _ = self._open_long()
+        with set_rules(radar_flip_hysteresis_cycles=2):
+            first, _ = policy.decide(state, radar(short=[row("A", "SHORT")]), {}, 1, "b")
+            self.assertEqual(len(first["open_bots"]), 1)  # deferred
+            self.assertEqual(first["open_bots"][0]["flip_conflicts"], 1)
+            second, _ = policy.decide(first, radar(short=[row("A", "SHORT")]), {}, 2, "c")
+        self.assertEqual(second["closed_bots"][0]["engine"]["reason"], "LABEL_FLIP")
+
+    def test_agreement_resets_counter(self):
+        state, _ = self._open_long()
+        conflict = radar(short=[row("A", "SHORT")])
+        agreement = radar(long=[row("A")])
+        with set_rules(radar_flip_hysteresis_cycles=2):
+            one, _ = policy.decide(state, conflict, {}, 1, "b")
+            self.assertEqual(one["open_bots"][0]["flip_conflicts"], 1)
+            reset, _ = policy.decide(one, agreement, {}, 2, "c")
+            self.assertEqual(reset["open_bots"][0].get("flip_conflicts"), 0)
+            again, _ = policy.decide(reset, conflict, {}, 3, "d")
+            self.assertEqual(len(again["open_bots"]), 1)  # counter restarted
+            self.assertEqual(again["open_bots"][0]["flip_conflicts"], 1)
+
+    def test_range_break_unaffected_by_hysteresis(self):
+        state, _ = self._open_long()
+        state["open_bots"][0]["signals"] = ["RANGE_BREAK"]
+        with set_rules(radar_flip_hysteresis_cycles=3):
+            result, _ = policy.decide(state, radar(long=[row("A")]), {}, 1, "b")
+        self.assertEqual(result["closed_bots"][0]["engine"]["reason"], "RANGE_BREAK")
+
+
 class SnapshotReviewStatusTests(unittest.TestCase):
     STATUS = {"last_run_at_ms": 1_789_160_400_000,
               "doctrine_version": "2026-09-12T07:00:04",

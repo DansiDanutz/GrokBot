@@ -37,12 +37,14 @@ EMPTY_RULES = {
     "min_hold_hours_before_non_risk_close": None,
     "require_trend_alignment": False,
     "symbol_cooldowns": {},
+    # radar_flip_hysteresis_cycles: absent by default (staged, OFF).
 }
 
 DEFAULT_STORE_PATH = str(Path.home() / "Sandbox" / "grokbot" / "autopilot" / "learned-rules.json")
 DEFAULT_CHANGELOG_PATH = str(Path.home() / "Sandbox" / "grokbot" / "reports" / "rules-changelog.jsonl")
 DEFAULT_DOCTRINE_PATH = str(Path.home() / "Sandbox" / "grokbot" / "autopilot" / "trader-doctrine.md")
 DEFAULT_STATUS_PATH = str(Path.home() / "Sandbox" / "grokbot" / "autopilot" / "review-status.json")
+DEFAULT_LEDGER_PATH = str(Path.home() / "Sandbox" / "grokbot" / "reports" / "proposals-ledger.jsonl")
 
 
 def empty_store(now_ms=None):
@@ -81,6 +83,11 @@ def validate_store(data):
         trend = rules.get("require_trend_alignment")
         if not isinstance(trend, bool):
             errors.append("require_trend_alignment must be a boolean")
+        hysteresis = rules.get("radar_flip_hysteresis_cycles")
+        if hysteresis is not None and (isinstance(hysteresis, bool)
+                                       or not isinstance(hysteresis, int)
+                                       or not 1 <= hysteresis <= 100):
+            errors.append("radar_flip_hysteresis_cycles must be an integer between 1 and 100")
         cooldowns = rules.get("symbol_cooldowns")
         if not isinstance(cooldowns, dict):
             errors.append("symbol_cooldowns must be an object")
@@ -315,6 +322,37 @@ def applied_today_count(store, today_iso):
 
 
 # ---------------------------------------------------------------------------
+# radar-flip hysteresis (STAGED — tier-2 advisory only, never auto-applies)
+
+FLIP_HYSTERESIS_CYCLES = 2
+MAX_LABEL_FLIP_HOLD_S = 4 * 3_600
+
+
+def radar_flip_hysteresis_proposal(props):
+    """Tier-2 proposal: require N consecutive conflicting radar scans before
+    a LABEL_FLIP close is allowed, when the day showed >=2 LABEL_FLIP closes
+    with sub-4h holds (label noise whipsawing young bots). Never tier-1.
+    """
+    flip = (props.get("close_reasons") or {}).get("LABEL_FLIP") or {}
+    n = int(flip.get("n", 0) or 0)
+    hold_s = flip.get("avg_hold_s")
+    if n < 2 or hold_s is None or hold_s >= MAX_LABEL_FLIP_HOLD_S:
+        return None
+    return {
+        "rule": "radar_flip_hysteresis_cycles",
+        "tier": 2,
+        "action": "set",
+        "value": FLIP_HYSTERESIS_CYCLES,
+        "evidence": ("{} LABEL_FLIP close(s) averaging {:.1f}h hold — label noise is "
+                     "whipsawing young bots; PROPOSAL (staged, off by default): "
+                     "radar_flip_hysteresis_cycles={} so a LABEL_FLIP close needs {} "
+                     "consecutive conflicting radar scans".format(
+                         n, hold_s / 3_600, FLIP_HYSTERESIS_CYCLES,
+                         FLIP_HYSTERESIS_CYCLES)),
+    }
+
+
+# ---------------------------------------------------------------------------
 # review status (dashboard feed), fail-closed
 
 
@@ -475,3 +513,47 @@ def render_doctrine(store, props, benefits=None):
         lines.append("- none yet")
     lines.append("")
     return "\n".join(lines[:60])
+
+
+# ---------------------------------------------------------------------------
+# proposals ledger (trackable '0 applied' history)
+
+
+def rule_text_for(rule, change=None, proposal=None):
+    """Short human description of a rule as configured, e.g.
+    'min_hold_hours_before_non_risk_close=4' or 'symbol_cooldowns[NEARUSDTM]=7d'."""
+    source = change or proposal or {}
+    value = source.get("after", source.get("value"))
+    if rule == "min_hold_hours_before_non_risk_close" and value is not None:
+        return "min_hold_hours_before_non_risk_close={:g}".format(float(value))
+    if rule == "require_trend_alignment":
+        return "require_trend_alignment={}".format(
+            "true" if (change or {}).get("after", True) else "false")
+    if rule == "symbol_cooldowns":
+        symbol = (change or {}).get("symbol") or (proposal or {}).get("symbol") or "?"
+        return "symbol_cooldowns[{}]={}d".format(symbol, COOLDOWN_DAYS)
+    if rule and value is not None:
+        return "{}={}".format(rule, value)
+    return rule
+
+
+def read_ledger(path):
+    """All parseable ledger lines (bad lines skipped); [] when absent."""
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return [json.loads(line) for line in handle
+                    if line.strip() and not line.startswith("#")]
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def ledger_window(lines, date_str, days=7):
+    """Ledger lines with run_date within [date - (days-1), date]."""
+    try:
+        anchor = date.fromisoformat(date_str)
+    except ValueError:
+        return []
+    earliest = anchor - timedelta(days=days - 1)
+    return [line for line in lines
+            if isinstance(line, dict) and isinstance(line.get("run_date"), str)
+            and earliest.isoformat() <= line["run_date"] <= date_str]

@@ -24,6 +24,7 @@ from paper_grid.telemetry_constants import READABLE_BUY_REJECTION_REASONS
 MAX_BYTES = 5 * 1024 * 1024
 MAX_REPORTS = 100
 PUBLIC_INDEX = Path(__file__).parent / 'public' / 'index.html'
+SYSTEM_MAP = Path(__file__).parent / 'public' / 'system-map.md'
 RADAR_PAGE = Path(__file__).parent / 'radar.html'
 PAPER_PAGE = Path(__file__).parent / 'paper.html'
 SYMBOL = re.compile(r'[A-Z0-9]{1,24}USDTM\Z')
@@ -375,6 +376,8 @@ def export_snapshot(runtime, output_dir, now=None, *, health=None,
     if not index.is_file() or index.stat().st_size > 512 * 1024:
         raise ValueError('missing or oversized public dashboard')
     payloads['control/index.html'] = index.read_bytes()
+    if SYSTEM_MAP.is_file():
+        payloads['data/system-map.md'] = SYSTEM_MAP.read_bytes()
     for name, page in (('paper', PAPER_PAGE), ('radar', RADAR_PAGE)):
         _no_symlinks(page)
         if not page.is_file() or page.stat().st_size > 512 * 1024:

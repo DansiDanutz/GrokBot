@@ -41,11 +41,13 @@ def load_store(path):
 
 
 def apply_proposals(proposals_path, store_path, changelog_path, *, doctrine_path=None,
-                    status_path=None, dry_run=False, today_iso=None, now_ms=None):
+                    status_path=None, ledger_path=None, dry_run=False, today_iso=None,
+                    now_ms=None):
     """Plan and (unless dry_run) apply tier-1 changes. Returns a summary dict."""
     today_iso = today_iso or date.today().isoformat()
     now_ms = int(now_ms if now_ms is not None else time.time() * 1000)
     status_path = status_path or rules.DEFAULT_STATUS_PATH
+    ledger_path = ledger_path or rules.DEFAULT_LEDGER_PATH
     with open(proposals_path, "r", encoding="utf-8") as handle:
         props = json.load(handle)
 
@@ -191,9 +193,75 @@ def apply_proposals(proposals_path, store_path, changelog_path, *, doctrine_path
         Path(doctrine_path).write_text(
             rules.render_doctrine(store, props, benefits), encoding="utf-8")
 
+    append_ledger(ledger_path, today_iso, props, accepted, gated, deferred,
+                  rejected, planned)
+
     rules.atomic_write_json(status_path, rules.build_status(
         store, counts, headline, doctrine_version, now_ms))
     return summary
+
+
+def append_ledger(ledger_path, today_iso, props, accepted, gated, quota_deferred,
+                  rejected, planned):
+    """One ledger line per proposal disposition (Item A).
+
+    Idempotent per run: lines whose (run_date, rule, status) already exists
+    in the ledger are skipped, so re-running the same proposals appends
+    nothing. Runs with zero tier-1 candidates write a single no_candidates
+    line so 'the learner looked and found nothing' is trackable history.
+    """
+    sample = rules._rule_sample(props)
+
+    def line(rule, tier, status, reason, change=None, proposal=None):
+        return {"run_date": today_iso, "rule": rule, "tier": tier, "status": status,
+                "reason": reason,
+                "estimated_benefit_usd": (change or {}).get("estimated_benefit_usd"),
+                "sample": (change or {}).get("sample") or sample,
+                "rule_text": rules.rule_text_for(rule, change, proposal)}
+
+    lines = []
+    planned_rules = {c["rule"] for c in planned}
+    for change in accepted:
+        lines.append(line(change["rule"], 1, "applied", change["evidence"], change=change))
+    for change in quota_deferred:
+        lines.append(line(change["rule"], 1, "deferred",
+                          "daily auto-apply cap reached", change=change))
+    for change in gated:
+        lines.append(line(change["rule"], 1, "deferred",
+                          change.get("defer_reason", "insufficient evidence"),
+                          change=change))
+    for change in rejected:
+        lines.append(line(change["rule"], 1, "rejected",
+                          change.get("reject_reason", "evidence re-check failed"),
+                          change=change))
+    for proposal in props.get("proposals", []):
+        if proposal.get("tier") == 1:
+            if proposal.get("rule") not in planned_rules:
+                lines.append(line(proposal.get("rule"), 1, "deferred",
+                                  "already active or condition unmet", proposal=proposal))
+        else:
+            lines.append(line(proposal.get("rule"), 2, "deferred",
+                              "advisory tier-2 (never auto-applies)", proposal=proposal))
+    if not planned:
+        lines.append({"run_date": today_iso, "rule": None, "tier": None,
+                      "status": "no_candidates",
+                      "reason": "no tier-1 candidates this run",
+                      "estimated_benefit_usd": None, "sample": sample,
+                      "rule_text": None})
+
+    existing = {(entry.get("run_date"), entry.get("rule"), entry.get("status"))
+                for entry in rules.read_ledger(ledger_path)}
+    fresh = [entry for entry in lines
+             if (entry.get("run_date"), entry.get("rule"), entry.get("status"))
+             not in existing]
+    if not fresh:
+        return []
+    target = Path(ledger_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, "a", encoding="utf-8") as handle:
+        for entry in fresh:
+            handle.write(json.dumps(entry) + "\n")
+    return fresh
 
 
 def main(argv=None):
@@ -205,6 +273,8 @@ def main(argv=None):
     parser.add_argument("--doctrine", default=rules.DEFAULT_DOCTRINE_PATH)
     parser.add_argument("--status-out", default=rules.DEFAULT_STATUS_PATH,
                         help="dashboard review-status.json (atomic tmp+rename)")
+    parser.add_argument("--ledger-out", default=rules.DEFAULT_LEDGER_PATH,
+                        help="proposals ledger JSONL (one line per proposal)")
     parser.add_argument("--dry-run", action="store_true",
                         help="plan and report without writing store/changelog/doctrine/status")
     parser.add_argument("--today", default=None, help="YYYY-MM-DD override (tests/dry-runs)")
@@ -213,6 +283,7 @@ def main(argv=None):
         datetime.strptime(args.today, "%Y-%m-%d")  # validate format early
     summary = apply_proposals(args.proposals, args.store, args.changelog,
                               doctrine_path=args.doctrine, status_path=args.status_out,
+                              ledger_path=args.ledger_out,
                               dry_run=args.dry_run, today_iso=args.today)
     counts = summary["counts"]
     verb = "DRY-RUN" if summary["dry_run"] else "applied"

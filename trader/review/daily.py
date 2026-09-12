@@ -626,6 +626,10 @@ def derive_proposals(data):
             "evidence": "NO-TREND bots completed almost no grids ({:.1f}/bot) — prefer "
                         "trending movers from radar.".format(
                             no_trend["grids"] / no_trend["bots"])})
+    hysteresis = learned_rules.radar_flip_hysteresis_proposal(
+        build_proposals(data, []))
+    if hysteresis:
+        tier2.append(hysteresis)
     if data["errors"]:
         codes = ", ".join(f"code {k} x{v}" for k, v in
                           sorted(data["errors"].items(), key=lambda kv: str(kv[0])))
@@ -834,6 +838,20 @@ def render_markdown(data):
     else:
         lines.append("- Insufficient data for a rule proposal today.")
     lines.append("")
+    lines.append("## 6. Proposal history (last 7 days)")
+    lines.append("")
+    history = data.get("proposal_history") or []
+    if history:
+        lines.append("| date | rule | status | reason |")
+        lines.append("|---|---|---|---|")
+        for entry in history:
+            rule = entry.get("rule_text") or entry.get("rule") or "—"
+            reason = str(entry.get("reason") or "")[:110]
+            lines.append("| {} | {} | {} | {} |".format(
+                entry.get("run_date"), rule, entry.get("status"), reason))
+    else:
+        lines.append("- No proposals recorded in the last 7 days.")
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -858,6 +876,9 @@ def main(argv=None):
     parser.add_argument("--out", required=True, help="markdown output path")
     parser.add_argument("--proposals-out", default=None,
                         help="optional path for the machine-readable proposals JSON")
+    parser.add_argument("--ledger", default=None,
+                        help="proposals ledger JSONL for the history section "
+                             "(default: ~/Sandbox/grokbot/reports/proposals-ledger.jsonl)")
     parser.add_argument("--vault-key", default=None,
                         help="recorded in the report; the launcher owns vault publication")
     args = parser.parse_args(argv)
@@ -881,6 +902,9 @@ def main(argv=None):
                             vault_key=args.vault_key)
     finally:
         conn.close()
+    data["proposal_history"] = learned_rules.ledger_window(
+        learned_rules.read_ledger(args.ledger or learned_rules.DEFAULT_LEDGER_PATH),
+        args.date)
     markdown = render_markdown(data)
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
