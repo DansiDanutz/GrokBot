@@ -76,8 +76,9 @@ recording is a day of clusters lost.
 
 Run hourly against the Phase-2 workspace db, e.g.
 `python3 -m trader.data.coinglass_history --database <db> --once`
-(symbols default to the top active universe by 30d turnover; CoinGlass
-request cap 9 symbols per run). Deployment stays a reviewed `.example`
+(symbols prioritize open bots and the live watchlist when an autopilot snapshot
+is supplied, then fill the CoinGlass request cap of 9 from the active universe).
+Deployment stays a reviewed `.example`
 launchd file per repo rule. Acceptance tests: offline getter injection,
 idempotent upsert, per-symbol failure tolerance, fail-closed missing key.
 

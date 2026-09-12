@@ -1,11 +1,13 @@
 """CoinGlass history recorder tested offline with injected getters."""
 from pathlib import Path
+import json
+import plistlib
 import sqlite3
 import tempfile
 import unittest
 
 from paper_grid.coinglass import CoinGlassError
-from trader.data.coinglass_history import run, _symbol_rows
+from trader.data.coinglass_history import run, _snapshot_symbols, _symbol_rows
 from trader.data.store import Store
 
 NOW_MS = 1_757_616_000_000  # 2025-09-11T12:00:00Z, hourly aligned.
@@ -43,6 +45,18 @@ class SymbolRowsTests(unittest.TestCase):
                      aggregated_short_liquidation_usd=1)]
         kept, rejected = _symbol_rows('NEARUSDTM', rows, NOW_MS)
         self.assertEqual((kept, rejected), ([], 2))
+
+    def test_snapshot_symbols_prioritize_open_bots_then_watchlist(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory).resolve() / 'autopilot.json'
+            path.write_text(json.dumps(dict(
+                open_bots=[dict(symbol='DOTUSDTM'), dict(symbol='NEARUSDTM')],
+                watchlist=dict(
+                    core=[dict(symbol='NEARUSDTM'), dict(symbol='JUPUSDTM')],
+                    bench=[dict(symbol='XBTUSDTM')]))))
+            self.assertEqual(_snapshot_symbols(path),
+                             ['DOTUSDTM', 'NEARUSDTM', 'JUPUSDTM',
+                              'XBTUSDTM'])
 
 
 class RunTests(unittest.TestCase):
@@ -136,6 +150,24 @@ class RunTests(unittest.TestCase):
         self.assertEqual(details['rows'], 0)
         self.assertEqual(details['failures'][0]['errors'],
                          ['API key unavailable'])
+
+
+class LaunchdTests(unittest.TestCase):
+    def test_template_records_live_paper_symbols_hourly(self):
+        path = (Path(__file__).parents[2] / 'config/launchd' /
+                'com.danslab.coinglass-history.plist.example')
+        config = plistlib.loads(path.read_bytes())
+        arguments = config['ProgramArguments']
+        self.assertEqual(config['Label'],
+                         'com.danslab.trader-coinglass-history')
+        self.assertEqual(config['StartInterval'], 3600)
+        self.assertTrue(config['RunAtLoad'])
+        self.assertEqual(config['WorkingDirectory'],
+                         '/Users/davidai/ZCodeProject/GrokBot-prod')
+        self.assertIn('trader.data.coinglass_history', arguments)
+        self.assertIn('--autopilot-snapshot', arguments)
+        self.assertIn('/Users/davidai/Sandbox/grokbot/autopilot/autopilot.json',
+                      arguments)
 
 
 if __name__ == '__main__':

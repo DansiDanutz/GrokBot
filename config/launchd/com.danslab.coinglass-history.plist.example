@@ -20,6 +20,8 @@
         <string>--database</string>
         <string>/Users/davidai/Sandbox/grokbot/market-data/phase-2-20260911/market.sqlite3</string>
         <string>--once</string>
+        <string>--autopilot-snapshot</string>
+        <string>/Users/davidai/Sandbox/grokbot/autopilot/autopilot.json</string>
     </array>
     <key>WorkingDirectory</key>
     <string>/Users/davidai/ZCodeProject/GrokBot-prod</string>

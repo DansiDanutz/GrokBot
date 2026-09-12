@@ -12,8 +12,9 @@ import math
 import sys
 
 from paper_grid.coinglass import (
-    CoinGlassError, MAX_SYMBOLS, read_api_key, request_history,
+    CoinGlassError, MAX_SYMBOLS, read_api_key, request_history, underlying,
 )
+from trader.autopilot.storage import read_json
 from trader.data.store import Store
 from trader.data.updater_records import HOUR_MS, quality
 from trader.data.updater_runtime import AlreadyRunning, CollectorLock, epoch_ms
@@ -44,6 +45,27 @@ def _symbol_rows(symbol, rows, now_ms):
     return kept[:MAX_ROWS_PER_SYMBOL], rejected
 
 
+def _snapshot_symbols(path):
+    """Prioritize symbols whose current paper outcomes need context."""
+    snapshot = read_json(path)
+    try:
+        groups = (snapshot['open_bots'], snapshot['watchlist']['core'],
+                  snapshot['watchlist']['bench'])
+    except (KeyError, TypeError):
+        raise ValueError('invalid autopilot snapshot') from None
+    if not all(isinstance(group, list) for group in groups):
+        raise ValueError('invalid autopilot snapshot')
+    names = []
+    for group in groups:
+        for row in group:
+            if not isinstance(row, dict):
+                raise ValueError('invalid autopilot snapshot')
+            symbol = row.get('symbol')
+            underlying(symbol)
+            names.append(symbol)
+    return list(dict.fromkeys(names))
+
+
 def run(store, symbols, now_ms, *, getter=None, api_key=None, key_path=None):
     """Fetch history for at most nine symbols and upsert idempotently.
 
@@ -62,6 +84,7 @@ def run(store, symbols, now_ms, *, getter=None, api_key=None, key_path=None):
         key = None
     for symbol in names:
         try:
+            underlying(symbol)
             if key is None:
                 raise CoinGlassError('API key unavailable')
             try:
@@ -101,8 +124,11 @@ def run(store, symbols, now_ms, *, getter=None, api_key=None, key_path=None):
 
 def _active_symbols(store):
     rows = store.query(
-        "SELECT symbol FROM universe WHERE active=1 "
-        'ORDER BY turnover_30d DESC')
+        "SELECT u.symbol FROM universe AS u WHERE u.active=1 "
+        "ORDER BY COALESCE(u.turnover_30d, ("
+        "SELECT t.turnover_24h FROM ticker_snapshots AS t "
+        "WHERE t.symbol=u.symbol ORDER BY t.time_ms DESC LIMIT 1), -1) DESC, "
+        "u.symbol")
     return [row['symbol'] for row in rows]
 
 
@@ -112,14 +138,20 @@ def main(argv=None):
     parser.add_argument('--once', action='store_true', required=True)
     parser.add_argument('--symbols', help='comma-separated override, '
                         'otherwise top active universe by turnover')
+    parser.add_argument('--autopilot-snapshot',
+                        help='prioritize open bots and the current watchlist')
     parser.add_argument('--secrets-file', default=None,
                         help='CoinGlass API key file')
     args = parser.parse_args(argv)
     try:
         with CollectorLock(args.database, suffix='.coinglass.lock'), \
                 Store(args.database) as store:
-            symbols = ([name for name in args.symbols.split(',') if name]
-                       if args.symbols else _active_symbols(store))
+            if args.symbols:
+                symbols = [name for name in args.symbols.split(',') if name]
+            else:
+                priority = (_snapshot_symbols(args.autopilot_snapshot)
+                            if args.autopilot_snapshot else [])
+                symbols = list(dict.fromkeys(priority + _active_symbols(store)))
             if not symbols:
                 raise ValueError('no symbols to record')
             details = run(store, symbols, int(store.query(
