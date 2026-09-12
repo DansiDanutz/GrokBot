@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -72,6 +73,29 @@ class AutopilotServerTests(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertEqual(json.loads(data)['equity'], 10000)
             self.assertEqual(self.get('/control')[0], 200)
+
+    def test_autopilot_api_includes_bounded_numeric_decisions(self):
+        now_ms = int(time.time() * 1000)
+        rows = [dict(ts_ms=now_ms - 1000 + index, bot_id=index,
+                     symbol='RAYUSDTM', type='DECISION', action='skip',
+                     direction='LONG', radar_direction='LONG', radar_score=60.0,
+                     expected_grids_per_hour=4.5, range_width_pct=8.0,
+                     funding_rate=0.005, kucoin_ok=1, rule_blocks=[3, 5],
+                     private_number=999)
+                for index in range(55)]
+        (self.events/'events.jsonl').write_text(
+            ''.join(json.dumps(row)+'\n' for row in rows))
+
+        status, body = self.get('/api/autopilot')
+        decisions = json.loads(body)['decisions_24h']
+
+        self.assertEqual(status, 200)
+        self.assertEqual(len(decisions), 50)
+        self.assertEqual(decisions[0]['bot_id'], 5)
+        self.assertEqual(decisions[-1]['bot_id'], 54)
+        self.assertNotIn('private_number', decisions[0])
+        self.assertTrue(all(all(type(code) is int for code in row['rule_blocks'])
+                            for row in decisions))
 
     def test_snapshot_rejects_ancestor_symlink_and_oversize_without_details(self):
         self.source.write_text(' ' * (2*1024*1024+1))

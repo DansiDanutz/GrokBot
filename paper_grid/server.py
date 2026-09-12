@@ -99,6 +99,17 @@ def make_handler(monitor, port, *, autopilot_snapshot=None, events_dir=None,
                 analytics_cache.update(at=time.monotonic(), payload=payload)
             return analytics_cache['payload']
 
+    def read_autopilot():
+        payload = public_autopilot.safe(read_json(autopilot_snapshot))
+        try:
+            since = max(0, int(time.time() * 1000) - 86_400_000)
+            recent = read_events(events_dir, since, limit=500, latest=True)
+            payload['decisions_24h'] = public_autopilot.events(
+                [event for event in recent if event['type'] == 'DECISION'][-50:])
+        except (OSError, ValueError):
+            payload['decisions_24h'] = []
+        return payload
+
     def read_only_health():
         # No monitor thread in read-only mode: derive liveness from the autopilot
         # snapshot the trader daemon writes. This reports the trader paper
@@ -179,7 +190,7 @@ def make_handler(monitor, port, *, autopilot_snapshot=None, events_dir=None,
                     after_event_id = int(cursor[0])
             try:
                 if path == '/api/autopilot':
-                    payload = public_autopilot.safe(read_json(autopilot_snapshot))
+                    payload = read_autopilot()
                 elif path == '/api/events':
                     payload = {'events': public_autopilot.events(read_events(events_dir, since, limit=500, after_event_id=after_event_id))}
                 elif path == '/api/radar':
