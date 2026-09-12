@@ -163,6 +163,25 @@ def apply_proposals(proposals_path, store_path, changelog_path, *, doctrine_path
                 "estimated_benefit_usd": change.get("estimated_benefit_usd"),
                 "sample": change.get("sample") or rules._rule_sample(props),
             }) + "\n")
+        # Item 3: an auditable trace line on EVERY real run, so "the learner
+        # looked and decided nothing" is distinguishable from "the learner
+        # never ran". Append-only; no dedup needed (unlike notes).
+        trace = {"ts_ms": now_ms, "action": "apply" if accepted else "no_change",
+                 "run_date": today_iso, "planned": counts["planned"],
+                 "applied": counts["applied"], "deferred": counts["deferred"],
+                 "rejected": counts["rejected"]}
+        if not accepted:
+            if rejected:
+                reason = "all candidates rejected at apply-time evidence re-check"
+            elif deferred:
+                reason = "daily auto-apply cap reached"
+            elif gated:
+                reason = "all candidates deferred: " + (gated[0].get("defer_reason")
+                                                        or "insufficient evidence")
+            else:
+                reason = "no candidates"
+            trace["did_not_change_reason"] = reason
+        handle.write(json.dumps(trace) + "\n")
 
     benefits = {c["rule"]: (c.get("estimated_benefit_usd"),
                             "{closed_n}/{opens_n}".format(**c["sample"]))

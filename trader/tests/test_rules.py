@@ -240,18 +240,22 @@ class ApplyEndToEndTests(TempPathCase):
                             for n in notes))
         with open(self.changelog_path, encoding="utf-8") as handle:
             lines = [json.loads(line) for line in handle if line.strip()]
-        self.assertEqual(len(lines), 3)
-        for line in lines:
+        self.assertEqual(len(lines), 4)  # 3 changes + 1 apply trace
+        self.assertEqual(lines[-1]["action"], "apply")
+        self.assertEqual(lines[-1]["planned"], 3)
+        changes = lines[:3]
+        for line in changes:
             self.assertIn("ts_ms", line)
             self.assertIn("action", line)
             self.assertIn("evidence", line)
             self.assertIn("sample", line)
             self.assertIn("closed_n", line["sample"])
-        hold = [l for l in lines if l["action"] == "set min_hold_hours_before_non_risk_close"]
+        changes = lines[:-1]
+        hold = [l for l in changes if l["action"] == "set min_hold_hours_before_non_risk_close"]
         self.assertEqual(hold[0]["estimated_benefit_usd"], 48.05)
-        trend = [l for l in lines if l["action"] == "set require_trend_alignment"]
+        trend = [l for l in changes if l["action"] == "set require_trend_alignment"]
         self.assertEqual(trend[0]["estimated_benefit_usd"], 60.0)
-        cooldown = [l for l in lines if l["action"] == "add symbol_cooldown"]
+        cooldown = [l for l in changes if l["action"] == "add symbol_cooldown"]
         self.assertIsNone(cooldown[0]["estimated_benefit_usd"])
         with open(self.doctrine_path, encoding="utf-8") as handle:
             doctrine = handle.read()
@@ -318,8 +322,34 @@ class ApplyEndToEndTests(TempPathCase):
         self.assertEqual(len(rejected), 2)
         with open(self.changelog_path, encoding="utf-8") as handle:
             lines = [json.loads(l) for l in handle if l.strip()]
-        self.assertEqual(len(lines), 1)  # only the cooldown was written
+        self.assertEqual(len(lines), 2)  # cooldown change + apply trace
         self.assertEqual(lines[0]["action"], "add symbol_cooldown")
+        self.assertEqual(lines[1]["action"], "apply")
+        self.assertNotIn("did_not_change_reason", lines[1])
+        self.assertEqual(lines[1]["rejected"], 2)
+
+    def test_no_change_trace_two_identical_runs(self):
+        # everything gated: min-hold sample gate (4 closed) + trend sample
+        # gate (4 directional) and no cooldown candidates -> no_change
+        props = proposals_fixture()
+        props["summary"]["closed"] = 4
+        props["trend_buckets"]["with_trend"]["n"] = 2
+        props["trend_buckets"]["against_trend"]["n"] = 2
+        props["against_trend_symbols"] = {}
+        first = self.run_apply(props)
+        self.assertEqual(first["counts"]["applied"], 0)
+        rules_after_first = open(self.store_path, encoding="utf-8").read()
+        second = self.run_apply(props)
+        self.assertEqual(second["counts"]["applied"], 0)
+        # store unchanged between runs (notes dedup: no bloat)
+        self.assertEqual(open(self.store_path, encoding="utf-8").read(), rules_after_first)
+        with open(self.changelog_path, encoding="utf-8") as handle:
+            lines = [json.loads(l) for l in handle if l.strip()]
+        self.assertEqual(len(lines), 2)
+        self.assertEqual([l["action"] for l in lines], ["no_change", "no_change"])
+        self.assertIn("directional opens", lines[0]["did_not_change_reason"])
+        self.assertEqual(lines[1]["did_not_change_reason"], lines[0]["did_not_change_reason"])
+        self.assertEqual(lines[0]["run_date"], "2026-09-12")
 
     def test_daily_cap_three_and_second_run_noop(self):
         props = proposals_fixture()

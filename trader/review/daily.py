@@ -24,11 +24,14 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from trader.autopilot.liquidation import estimate as _liquidation_estimate
 from trader.review import rules as learned_rules
 
 DAY_MS = 86_400_000
 SIX_HOURS_MS = 6 * 3_600_000
 NO_TREND_PCT = 0.5
+MIN_COVERAGE_PCT = 95.0
+EXPECTED_1M_BARS = DAY_MS // 60_000
 STOP_OR_RANGE_REASONS = {"STOP_LOSS", "RANGE_BREAK", "RANGE_OUT"}
 
 
@@ -138,6 +141,25 @@ def klines_window(conn, symbol, interval, start_ms, end_ms):
     return [tuple(row) for row in rows]
 
 
+def data_coverage(conn, symbols, start_ms, end_ms):
+    """1m kline coverage for each traded symbol over the reviewed day.
+
+    Coverage < MIN_COVERAGE_PCT for any traded symbol flags the whole day
+    LOW-CONFIDENCE: exit counterfactuals and trend buckets rest on those
+    klines, so the applier refuses to auto-learn from the day.
+    """
+    per_symbol = {}
+    for symbol in sorted({s for s in symbols if s}):
+        count = conn.execute(
+            "SELECT COUNT(*) FROM klines WHERE symbol = ? AND interval = '1m' "
+            "AND time_ms >= ? AND time_ms < ?",
+            (symbol, start_ms, end_ms),
+        ).fetchone()[0]
+        per_symbol[symbol] = round(count / EXPECTED_1M_BARS * 100.0, 2)
+    flagged = any(pct < MIN_COVERAGE_PCT for pct in per_symbol.values())
+    return {"flagged": flagged, "per_symbol": per_symbol}
+
+
 # ---------------------------------------------------------------------------
 # exit quality
 
@@ -195,7 +217,111 @@ def classify_exit(direction, entry, exit_price, grid_interval, net, reason,
     return "NEUTRAL"
 
 
-def analyze_exit(bot, conn, now_ms=None, open_price=None):
+def risk_metadata_donors(state):
+    """Per-symbol risk metadata history {symbol: [(at_ms, mmr, risk_limit), ...]}.
+
+    maintain_margin / risk_limit are per-symbol contract specs, so a bot
+    that closed before its first fill (no metadata of its own) can borrow
+    them from any same-symbol bot recorded in state. Sorted by at_ms so
+    callers can pick the newest entry at or before their evaluation time.
+    """
+    donors = {}
+    for bot in all_bots(state):
+        symbol = bot_field(bot, "symbol")
+        maintain = bot_field(bot, "maintain_margin")
+        risk_limit = bot_field(bot, "risk_limit")
+        at = bot_field(bot, "risk_metadata_at_ms")
+        if not symbol or maintain is None or not risk_limit or at is None:
+            continue
+        donors.setdefault(symbol, []).append((int(at), maintain, risk_limit))
+    for entries in donors.values():
+        entries.sort()
+    return donors
+
+
+def liquidation_band(bot, entry, exit_price, closed_ms, donors=None):
+    """Adverse liquidation boundary for the hypothetical hold after close.
+
+    Prefers a stored liquidation dict on the bot; otherwise reconstructs
+    the close-time position (leverage x notional base, entry price,
+    close-time collateral) and reuses the autopilot's own
+    liquidation.estimate — the same math that guards the live engine. Risk
+    metadata comes from the bot itself, or the newest same-symbol donor at
+    or before the close. Returns {source, status, price, lower_price,
+    upper_price} or None.
+    """
+    liq = bot_field(bot, "liquidation")
+    if isinstance(liq, dict) and (liq.get("price") or liq.get("lower_price")
+                                  or liq.get("upper_price")):
+        return {"source": "state", "status": liq.get("status"),
+                "price": liq.get("price"), "lower_price": liq.get("lower_price"),
+                "upper_price": liq.get("upper_price")}
+    direction = bot_field(bot, "direction")
+    if direction not in ("LONG", "SHORT") or not closed_ms:
+        return None
+    base = position_base_units(bot, exit_price)
+    entry_price = float(entry) if entry else None
+    maintain = bot_field(bot, "maintain_margin")
+    risk_limit = bot_field(bot, "risk_limit")
+    symbol = bot_field(bot, "symbol")
+    at = bot_field(bot, "risk_metadata_at_ms")
+    if maintain is None or not risk_limit or at is None:
+        maintain = risk_limit = at = None
+        for candidate_at, candidate_mm, candidate_rl in reversed((donors or {}).get(symbol, [])):
+            if candidate_at <= closed_ms:
+                maintain, risk_limit, at = candidate_mm, candidate_rl, candidate_at
+                break
+        if maintain is None or not risk_limit or at is None:
+            return None
+    if (not base or not entry_price or not symbol or at is None
+            or maintain is None or not risk_limit):
+        return None
+    # notional_usdt is margin, not position size: the held position is
+    # leverage x notional (the engine sizes it that way).
+    leverage = float(bot_field(bot, "leverage", 1.0) or 1.0)
+    sign = 1.0 if direction == "LONG" else -1.0
+    pseudo = dict(position_contracts=sign * base * leverage, avg_entry=entry_price,
+                  notional_usdt=float(bot_field(bot, "notional_usdt", 0.0) or 0.0),
+                  reserve_usdt=float(bot_field(bot, "reserve_usdt", 0.0) or 0.0),
+                  reserve_added_usdt=float(bot_field(bot, "reserve_added_usdt", 0.0) or 0.0),
+                  realized_pnl=float(bot_field(bot, "realized_pnl", 0.0) or 0.0),
+                  fees_paid=float(bot_field(bot, "fees_paid", 0.0) or 0.0),
+                  funding_paid=float(bot_field(bot, "funding_paid", 0.0) or 0.0),
+                  symbol=symbol)
+    try:
+        result = _liquidation_estimate(pseudo, {"maintainMargin": maintain,
+                                                "minRiskLimit": risk_limit, "symbol": symbol},
+                                       int(at), int(closed_ms))
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return None
+    band = {"source": "estimate", "status": result.get("status"),
+            "price": result.get("price"), "lower_price": result.get("lower_price"),
+            "upper_price": result.get("upper_price")}
+    if not (band["price"] or band["lower_price"] or band["upper_price"]):
+        return None
+    return band
+
+
+def _band_touch_ms(rows, direction, band):
+    """First 1m candle touching the adverse boundary, or None."""
+    if direction == "LONG":
+        boundary = band.get("lower_price") or band.get("price")
+        if boundary is None:
+            return None
+        for time_ms, _o, _h, low, _c in rows:
+            if low <= boundary:
+                return time_ms
+    elif direction == "SHORT":
+        boundary = band.get("upper_price") or band.get("price")
+        if boundary is None:
+            return None
+        for time_ms, _o, high, _l, _c in rows:
+            if high >= boundary:
+                return time_ms
+    return None
+
+
+def analyze_exit(bot, conn, now_ms=None, open_price=None, donors=None):
     """Counterfactual analysis for one closed bot.
 
     Looks at 1m klines over the 6h window after closed_ms: best achievable
@@ -226,6 +352,8 @@ def analyze_exit(bot, conn, now_ms=None, open_price=None):
         "would_have_been_pnl": None,
         "window_complete": False,
         "classification": "NEUTRAL",
+        "liq_band": None,
+        "liq_touch_ms": None,
         "note": "",
     }
     if not symbol or not closed_ms or not exit_price:
@@ -247,6 +375,7 @@ def analyze_exit(bot, conn, now_ms=None, open_price=None):
     base = position_base_units(bot, exit_price)
     interval = grid_interval_of(bot, exit_price)
     result["grid_interval"] = interval
+    notes = []
     if base is None:
         result["note"] = "position size not recoverable; PnL skipped"
         return result
@@ -256,9 +385,27 @@ def analyze_exit(bot, conn, now_ms=None, open_price=None):
         direction, entry, exit_price, interval, net, reason,
         result["best_price"], result["worst_price"],
     )
+    if result["classification"] == "PREMATURE":
+        # Liquidation-aware counterfactual: the missed profit is only real
+        # if holding would NOT have hit the adverse liquidation boundary.
+        band = liquidation_band(bot, entry, exit_price, closed_ms, donors)
+        result["liq_band"] = band
+        if band is None:
+            notes.append("liq unavailable (exit risk unverifiable)")
+        else:
+            if band.get("status") not in ("ESTIMATED", "HEDGE_ESTIMATED", None):
+                notes.append(f"liq status {band['status']}")
+            touch = _band_touch_ms(rows, direction, band)
+            if touch is not None:
+                result["classification"] = "RISKY_HOLD"
+                result["liq_touch_ms"] = touch
+                elapsed = touch - closed_ms
+                notes.append("liq band touched at +{}h{:02d}m — hold was not safe".format(
+                    elapsed // 3_600_000, (elapsed % 3_600_000) // 60_000))
     if (bot_field(bot, "opening_price") is None and bot_field(bot, "price") is None
             and open_price is not None):
-        result["note"] = "entry taken from OPEN event (state has none)"
+        notes.append("entry taken from OPEN event (state has none)")
+    result["note"] = "; ".join(notes)
     return result
 
 
@@ -339,11 +486,13 @@ def build_report(date_str, state, conn, events, radar=None, vault_key=None, now_
 
     open_prices = {e.get("bot_id"): e.get("price") for e in events
                    if e.get("type") == "OPEN" and e.get("price") is not None}
+    donors = risk_metadata_donors(state)
 
     exits = []
     for bot in closed:
         analysis = analyze_exit(bot, conn, now_ms=now_ms,
-                                open_price=open_prices.get(bot_field(bot, "bot_id")))
+                                open_price=open_prices.get(bot_field(bot, "bot_id")),
+                                donors=donors)
         analysis["ret_24h_pct"] = None
         analysis["ema_slope_4h"] = None
         exits.append(analysis)
@@ -402,6 +551,10 @@ def build_report(date_str, state, conn, events, radar=None, vault_key=None, now_
         # total, as visible in the retained state (archived bots predate the
         # retention window and are not countable here).
         "totals": {"closed_total": len(state.get("closed_bots", []))},
+        "data_coverage": data_coverage(
+            conn,
+            [bot_field(b, "symbol") for b in opened + closed],
+            start_ms, end_ms),
         "vault_key": vault_key,
         "radar": radar,
     }
@@ -530,7 +683,8 @@ def build_proposals(data, proposals=None):
                     "net": round(total_net, 4),
                     "premature": len(data["premature"]),
                     "missed_usd": round(sum(data["premature_costs"]), 4)},
-        "totals": {"closed_total": int(data.get("totals", {}).get("closed_total", 0))},
+        "totals": {"closed_total": int(data.get("totals", {}).get("closed_total", 0)),
+                   "data_coverage": data.get("data_coverage")},
         "premature_closes": premature,
         "trend_buckets": {"with_trend": bucket("WITH-TREND"),
                           "against_trend": bucket("AGAINST-TREND"),
@@ -569,6 +723,13 @@ def render_markdown(data):
     lines.append(f"- Bots opened: **{len(data['opened'])}**, closed: **{len(data['closed'])}**")
     if data.get("vault_key"):
         lines.append(f"- Vault key `{data['vault_key']}` supplied — publication handled by launcher (not written here)")
+    coverage = data.get("data_coverage") or {}
+    if coverage.get("flagged"):
+        worst = sorted(coverage["per_symbol"].items(), key=lambda kv: kv[1])[:3]
+        detail = ", ".join(f"{sym} {pct:.1f}%" for sym, pct in worst)
+        lines.append(f"- ⚠ **LOW-CONFIDENCE DAY — 1m data coverage below {MIN_COVERAGE_PCT:.0f}%** "
+                     f"for: {detail}. Exit counterfactuals and trend buckets rest on incomplete "
+                     "data; auto-learning is disabled for this day.")
     lines.append("")
     lines.append("> All learnings below are PROPOSAL-grade. Nothing auto-applies.")
 
@@ -609,19 +770,22 @@ def render_markdown(data):
     lines.append("| bot | symbol | dir | reason | entry | exit | net | best | +6h | would-have-been | class |")
     lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
     for e in data["exits"]:
+        marker = "⚠ " if e["classification"] == "RISKY_HOLD" else ""
         lines.append(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {}{} |".format(
                 e["bot_id"], e["symbol"], e["direction"], e["reason"],
                 _fmt(e["entry"], 8), _fmt(e["exit"], 8), _fmt(e["net"]),
                 _fmt(e["best_price"], 8), _fmt(e["price_6h"], 8),
-                _fmt(e["would_have_been_pnl"]), e["classification"]))
-    counts = {"GOOD": 0, "PREMATURE": 0, "NEUTRAL": 0}
+                _fmt(e["would_have_been_pnl"]), marker, e["classification"]))
+    counts = {"GOOD": 0, "PREMATURE": 0, "NEUTRAL": 0, "RISKY_HOLD": 0}
     for e in data["exits"]:
         counts[e["classification"]] = counts.get(e["classification"], 0) + 1
     missed = sum(data["premature_costs"])
     lines.append("")
-    lines.append(f"- GOOD: {counts.get('GOOD', 0)}, PREMATURE: {counts.get('PREMATURE', 0)}, NEUTRAL: {counts.get('NEUTRAL', 0)}")
-    lines.append(f"- Missed opportunity across PREMATURE exits: **${_fmt(missed)}**")
+    lines.append(f"- GOOD: {counts.get('GOOD', 0)}, PREMATURE: {counts.get('PREMATURE', 0)}, "
+                 f"RISKY_HOLD: {counts.get('RISKY_HOLD', 0)}, NEUTRAL: {counts.get('NEUTRAL', 0)}")
+    lines.append(f"- Missed opportunity across PREMATURE exits: **${_fmt(missed)}** "
+                 "(RISKY_HOLD exits excluded — the profit was not safely capturable)")
     notes = [f"bot {e['bot_id']} ({e['symbol']}): {e['note']}" for e in data["exits"] if e.get("note")]
     if notes:
         lines.append("- Notes: " + "; ".join(notes))

@@ -213,6 +213,9 @@ def plan_changes(props, current_rules, today_iso):
     - symbol cooldowns: unchanged day-specific rule (n >= 2 against-trend
       opens with negative net on one symbol).
 
+    A day flagged LOW-CONFIDENCE by the data-coverage gate defers every
+    candidate (reason names the worst-covered symbol).
+
     Deferral reasons name the failing gate so notes/changelog can show them.
     """
     planned = []
@@ -288,6 +291,21 @@ def plan_changes(props, current_rules, today_iso):
                 "sample": sample,
                 "status": "apply",
             })
+
+    # Data-coverage gate: a day flagged LOW-CONFIDENCE (any traded symbol
+    # under 95% 1m coverage) must not teach the system anything — every
+    # candidate defers with the offending symbol named. Appended to any
+    # existing gate reason so the specific one is preserved.
+    coverage = totals.get("data_coverage") or {}
+    if coverage.get("flagged"):
+        worst_symbol = min(coverage.get("per_symbol", {}).items(), key=lambda kv: kv[1])[0]
+        reason = "low data coverage (<95%) for {}".format(worst_symbol)
+        for entry in planned:
+            if entry.get("status") == "defer":
+                entry["defer_reason"] = (entry.get("defer_reason", "insufficient evidence")
+                                         + "; " + reason)
+            else:
+                _defer(entry, reason)
     return planned
 
 

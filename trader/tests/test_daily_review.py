@@ -177,6 +177,161 @@ class ExitClassificationTests(TempDbCase):
         self.assertEqual(result["classification"], "PREMATURE")
         self.assertIn("OPEN event", result["note"])
 
+
+class LiquidationAwareExitTests(TempDbCase):
+    def _premature_long(self, **overrides):
+        return make_bot(realized_pnl=-5.0, fees_paid=0.0, reason="PROFILE_UPDATE",
+                        **overrides)
+
+    def test_band_touched_reclassifies_to_risky_hold(self):
+        # stored band: liquidation at 80 for this LONG; path dips to 79
+        bot = self._premature_long(liquidation={"status": "ESTIMATED", "price": 80.0})
+        seed_klines(self.conn, "TESTUSDTM", "1m",
+                    path_after(1_789_236_000_000, 360,
+                               lambda i: 79.0 if 60 <= i < 120 else 112.0))
+        result = analyze_exit(bot, self.conn)
+        self.assertEqual(result["classification"], "RISKY_HOLD")
+        self.assertIsNotNone(result["liq_touch_ms"])
+        self.assertIn("liq band touched", result["note"])
+        self.assertEqual(result["liq_band"]["source"], "state")
+
+    def test_band_not_touched_stays_premature(self):
+        # dips to 85 (above the 80 band) then rallies -> still PREMATURE
+        bot = self._premature_long(liquidation={"status": "ESTIMATED", "price": 80.0})
+        seed_klines(self.conn, "TESTUSDTM", "1m",
+                    path_after(1_789_236_000_000, 360,
+                               lambda i: 85.0 if 60 <= i < 120 else 112.0))
+        result = analyze_exit(bot, self.conn)
+        self.assertEqual(result["classification"], "PREMATURE")
+        self.assertIsNone(result["liq_touch_ms"])
+
+    def test_short_mirror_band_above_touched(self):
+        bot = make_bot(direction="SHORT", realized_pnl=-4.0, fees_paid=0.0,
+                       reason="PROFILE_UPDATE",
+                       liquidation={"status": "ESTIMATED", "price": 120.0})
+        # SHORT exit 100; dips to 95 (recovery, would be PREMATURE) then
+        # rallies through the 120 band -> RISKY_HOLD
+        seed_klines(self.conn, "TESTUSDTM", "1m",
+                    path_after(1_789_236_000_000, 360,
+                               lambda i: 95.0 if i < 60 else 121.0))
+        result = analyze_exit(bot, self.conn)
+        self.assertEqual(result["classification"], "RISKY_HOLD")
+        self.assertIsNotNone(result["liq_touch_ms"])
+
+    def test_liq_absent_keeps_old_behavior_with_note(self):
+        bot = self._premature_long()  # no liquidation fields at all
+        seed_klines(self.conn, "TESTUSDTM", "1m",
+                    path_after(1_789_236_000_000, 360, lambda i: 112.0))
+        result = analyze_exit(bot, self.conn)
+        self.assertEqual(result["classification"], "PREMATURE")
+        self.assertIsNone(result["liq_band"])
+        self.assertIn("liq unavailable", result["note"])
+
+    def test_reconstructed_band_from_risk_metadata(self):
+        # no stored liquidation dict, but maintain_margin/risk_limit present:
+        # the estimator rebuilds the close-time band (10 units @ entry 100,
+        # 1000 notional, 5x leverage -> liq well below 95)
+        bot = make_bot(realized_pnl=-5.0, fees_paid=0.0, reason="PROFILE_UPDATE",
+                       maintain_margin=0.007, risk_limit=25000,
+                       risk_metadata_at_ms=1_789_236_000_000 - 600_000)
+        seed_klines(self.conn, "TESTUSDTM", "1m",
+                    path_after(1_789_236_000_000, 360, lambda i: 112.0))
+        result = analyze_exit(bot, self.conn)
+        self.assertEqual(result["classification"], "PREMATURE")
+        self.assertIsNotNone(result["liq_band"])
+        self.assertEqual(result["liq_band"]["source"], "estimate")
+        self.assertEqual(result["liq_band"]["status"], "ESTIMATED")
+
+    def test_same_symbol_donor_metadata_rescues_missing_band(self):
+        from trader.review.daily import risk_metadata_donors
+        # bot 3-style: closed before its first fill, no risk metadata of its
+        # own; another same-symbol bot donates per-symbol contract specs.
+        # The donor's metadata timestamp must be at or before the close.
+        bot = make_bot(realized_pnl=-5.0, fees_paid=0.0, reason="PROFILE_UPDATE")
+        donor = make_bot(bot_id=7, maintain_margin=0.025, risk_limit=10000,
+                         risk_metadata_at_ms=1_789_236_000_000 - 600_000)
+        late_donor = make_bot(bot_id=8, maintain_margin=0.05, risk_limit=10000,
+                              risk_metadata_at_ms=1_789_236_000_000 + 3_600_000)
+        donors = risk_metadata_donors({"open_bots": [],
+                                       "closed_bots": [bot, donor, late_donor]})
+        self.assertEqual(len(donors["TESTUSDTM"]), 2)  # late entry excluded by picker
+        seed_klines(self.conn, "TESTUSDTM", "1m",
+                    path_after(1_789_236_000_000, 360, lambda i: 112.0))
+        result = analyze_exit(bot, self.conn, donors=donors)
+        self.assertEqual(result["classification"], "PREMATURE")
+        self.assertIsNotNone(result["liq_band"])
+        self.assertNotIn("liq unavailable", result["note"])
+
+    def test_risky_hold_excluded_from_missed_sums(self):
+        from trader.review.daily import build_proposals
+        start, end = day_window("2026-09-12", tz=UTC)
+        risky = make_bot(bot_id=1, opened_ms=start + HOUR, closed_ms=start + 2 * HOUR,
+                         realized_pnl=-5.0, fees_paid=0.0, reason="PROFILE_UPDATE",
+                         liquidation={"status": "ESTIMATED", "price": 80.0})
+        premature = make_bot(bot_id=2, symbol="TEST2USDTM", opened_ms=start + 3 * HOUR,
+                             closed_ms=start + 4 * HOUR,
+                             realized_pnl=-2.0, fees_paid=0.0, reason="PROFILE_UPDATE")
+        bots = [risky, premature]
+        for bot in bots:
+            seed_klines(self.conn, bot["engine"]["symbol"], "1m",
+                        path_after(bot["engine"]["closed_ms"], 360,
+                                   lambda i: 79.0 if 60 <= i < 120 else 112.0))
+        data = build_report("2026-09-12", {"open_bots": [], "closed_bots": bots},
+                            self.conn, [], tz=UTC)
+        self.assertEqual([e["classification"] for e in data["exits"]],
+                         ["RISKY_HOLD", "PREMATURE"])
+        self.assertEqual(len(data["premature"]), 1)
+        # missed = 120 - (-2) for the PREMATURE bot only; RISKY_HOLD excluded
+        self.assertAlmostEqual(sum(data["premature_costs"]), 122.0)
+        props = build_proposals(data, data["proposals"])
+        self.assertEqual(len(props["premature_closes"]), 1)
+        self.assertEqual(props["premature_closes"][0]["bot_id"], 2)
+        md = render_markdown(data)
+        self.assertIn("RISKY_HOLD: 1", md)
+        self.assertIn("⚠ RISKY_HOLD", md)
+        self.assertIn("not safely capturable", md)
+
+
+class DataCoverageTests(TempDbCase):
+    def test_half_day_coverage_flags_low_confidence(self):
+        from trader.review.daily import build_proposals
+        from trader.review import rules as learned_rules
+        start, end = day_window("2026-09-12", tz=UTC)
+        bot = make_bot(bot_id=1, opened_ms=start + HOUR, closed_ms=start + 2 * HOUR,
+                       realized_pnl=-5.0, fees_paid=0.0, reason="PROFILE_UPDATE")
+        # only 10h of the day present -> ~41.7% coverage; the post-close
+        # 6h window (start+2h..+8h) is inside the seeded span and rallies
+        # to 112 so the day produces a real PREMATURE candidate
+        seed_klines(self.conn, "TESTUSDTM", "1m",
+                    path_after(start, 600, lambda i: 112.0 if 120 <= i < 480 else 100.0))
+        state = {"open_bots": [], "closed_bots": [bot]}
+        data = build_report("2026-09-12", state, self.conn, [], tz=UTC)
+        self.assertTrue(data["data_coverage"]["flagged"])
+        self.assertAlmostEqual(data["data_coverage"]["per_symbol"]["TESTUSDTM"],
+                               round(600 / 1440 * 100, 2))
+        # the day does produce a min-hold candidate (1 premature close,
+        # $120 missed) — the coverage gate must defer it
+        self.assertEqual(len(data["premature"]), 1)
+        props = build_proposals(data, data["proposals"])
+        self.assertTrue(props["totals"]["data_coverage"]["flagged"])
+        md = render_markdown(data)
+        self.assertIn("LOW-CONFIDENCE DAY", md)
+        planned = learned_rules.plan_changes(props, {}, "2026-09-12")
+        self.assertTrue(planned)
+        self.assertTrue(all(c["status"] == "defer" for c in planned))
+        self.assertIn("low data coverage (<95%) for TESTUSDTM",
+                      planned[0]["defer_reason"])
+
+    def test_full_coverage_not_flagged(self):
+        start, end = day_window("2026-09-12", tz=UTC)
+        bot = make_bot(bot_id=1, opened_ms=start + HOUR, closed_ms=start + 2 * HOUR)
+        seed_klines(self.conn, "TESTUSDTM", "1m",
+                    path_after(start, 1440, lambda i: 100.0))
+        data = build_report("2026-09-12", {"open_bots": [], "closed_bots": [bot]},
+                            self.conn, [], tz=UTC)
+        self.assertFalse(data["data_coverage"]["flagged"])
+        self.assertEqual(data["data_coverage"]["per_symbol"]["TESTUSDTM"], 100.0)
+
     def test_classify_exit_direct_thresholds(self):
         # LONG, net negative, recovered >= 1 grid -> PREMATURE even without stop reason
         self.assertEqual(classify_exit("LONG", 100.0, 99.0, 1.0, -1.0, "LABEL_FLIP", 101.5, 98.0), "PREMATURE")
