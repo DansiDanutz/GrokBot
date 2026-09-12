@@ -21,7 +21,8 @@ _EVENT_FILE_CACHE_LIMIT = 128
 _event_file_cache = {}
 EVENT_TYPES = frozenset({"OPEN", "FILL", "GRID", "CLOSE", "RANGE_BREAK",
                          "STOP_LOSS", "RESERVE", "ALERT", "RECOVER", "ERROR",
-                         "PROMOTE", "DEMOTE", "DROP", "DIRECTION_CHANGE"})
+                         "PROMOTE", "DEMOTE", "DROP", "DIRECTION_CHANGE",
+                         "RULE_BLOCK"})
 
 
 def _safe(path):

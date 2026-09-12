@@ -2,9 +2,15 @@
 
 Each open/closed wrapper has engine, reserve_usdt, source_section, slot_direction,
 the radar label at open and latched signals. A borrowed slot retains its original direction until closed.
+
+Learned-rule gates (trader.review.rules) bind here: trend alignment and
+symbol cooldowns gate new opens in decide(), and a minimum hold time gates
+non-risk closes in both decide() and advance(). With no valid rules store
+all gates are inert, so defaults are unchanged.
 """
 from copy import deepcopy
 import math
+from datetime import datetime
 
 from trader.papergrid import open_bot, close_bot, step
 from trader.radar.rates import expected_grids_per_hour
@@ -13,6 +19,7 @@ from trader.radar.spacing import economics
 from trader.radar.layout import layout_valid
 from trader.autopilot import watchlist
 from trader.autopilot.risk import sizing, ACCOUNTING_VERSION, protection_needed
+from trader.review import rules as learned_rules
 from trader.autopilot.constants import (
     PAPER_EQUITY_USDT, MAX_BOTS, NOTIONAL_PER_BOT_USDT, SLOTS, DIRECTION_CAP,
     LEVERAGE_TREND, LEVERAGE_NEUTRAL, STEP_NEUTRAL_PCT, NEUTRAL_RESERVE_USDT,
@@ -22,6 +29,74 @@ from trader.autopilot.constants import (
 
 HOUR_MS = 3_600_000
 RETENTION_MS = 30 * 24 * HOUR_MS
+
+# Closes that protect the account: exempt from the learned min-hold gate.
+RISK_CLOSE_REASONS = frozenset({'STOP_LOSS', 'RANGE_BREAK', 'RISK_LIMIT'})
+_OPPOSING_LABELS = {'LONG': ('SHORT', 'TURNING-DOWN'),
+                    'SHORT': ('LONG', 'TURNING-UP')}
+
+
+def _learned_rules():
+    """Load the learned-rules store once per decide/advance cycle.
+
+    Fail-closed: missing/invalid store yields empty rules (no behavior
+    change). Tests may patch this to inject a synthetic store.
+    """
+    return learned_rules.load_rules(learned_rules.DEFAULT_STORE_PATH)
+
+
+def _rule_block_event(now_ms, bot, rule_code, **fields):
+    """Numeric-fields-only event per the events.jsonl schema (no strings)."""
+    event = dict(ts_ms=now_ms, bot_id=bot['bot_id'], symbol=bot['symbol'],
+                 type='RULE_BLOCK', rule=rule_code)
+    event.update(fields)
+    return event
+
+
+def _hold_gate(wrapper, reason, rules, now_ms, events):
+    """Refuse non-risk closes on bots younger than the learned min hold.
+
+    Returns the reason unchanged when the close is allowed, None when the
+    learned rule blocked it. Blocks are logged once per bot per rule via the
+    wrapper's rule_blocks latch so events don't spam every cycle.
+    """
+    if not reason or reason in RISK_CLOSE_REASONS:
+        return reason
+    min_hold = rules.get('min_hold_hours_before_non_risk_close')
+    if min_hold is None:
+        return reason
+    bot = wrapper['engine']
+    hold_hours = (now_ms - bot['opened_ms']) / HOUR_MS
+    if hold_hours >= min_hold:
+        return reason
+    latch = wrapper.setdefault('rule_blocks', {})
+    if not latch.get('hold'):
+        latch['hold'] = 1
+        events.append(_rule_block_event(now_ms, bot, 1,
+                                        hold_hours=round(hold_hours, 4),
+                                        min_hold_hours=min_hold))
+    return None
+
+
+def _trend_gate_blocks(direction, row, labels, rules):
+    """True when a NEW open disagrees with the radar direction label.
+
+    NEUTRAL opens are exempt; missing/stale radar data never blocks.
+    """
+    if not rules.get('require_trend_alignment') or direction == 'NEUTRAL':
+        return False
+    label = labels.get(row['symbol'])
+    if not label:
+        return False
+    return label in _OPPOSING_LABELS.get(direction, ())
+
+
+def _cooldown_gate_blocks(row, rules, now_ms):
+    """True while a learned symbol cooldown still covers today."""
+    until = (rules.get('symbol_cooldowns') or {}).get(row['symbol'])
+    if not until:
+        return False
+    return datetime.fromtimestamp(now_ms / 1000).date().isoformat() <= until
 
 
 def new_state(now_ms):
@@ -184,6 +259,7 @@ def _reason(wrapper, labels, missing, now_ms):
 
 def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
     result, events = deepcopy(state), []
+    rules = _learned_rules()
     if watchlist.is_older(scan_id, result.get('watchlist', {}).get('last_scan_id')):
         radar = None
     radar_available = radar is not None
@@ -208,6 +284,7 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
         if (not reason and bot['symbol'] in prices and
                 (bot['leverage'] != LEVERAGE_TREND or bot.get('accounting_version') != ACCOUNTING_VERSION)):
             reason = 'PROFILE_UPDATE'
+        reason = _hold_gate(wrapper, reason, rules, now_ms, events)
         if reason:
             wrapper['engine'], emitted = close_bot(bot, prices.get(bot['symbol'], bot['last_price']), now_ms, reason)
             _mark_wrapper(wrapper)
@@ -223,6 +300,10 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
     def fill(slot, direction):
         for section, row in _candidates(sections, direction):
             if require_live_prices and row['symbol'] not in prices:
+                continue
+            if _trend_gate_blocks(direction, row, labels, rules):
+                continue
+            if _cooldown_gate_blocks(row, rules, now_ms):
                 continue
             marked = dict(row, price=prices.get(row['symbol'], row['price']))
             if not eligible(result, marked, direction, section, now_ms):
@@ -265,6 +346,7 @@ def _boundary_price(bot, update):
 
 def advance(state, updates):
     result, events = deepcopy(state), []
+    rules = _learned_rules()
     for wrapper in list(result['open_bots']):
         bot = wrapper['engine']
         update = updates.get(bot['symbol'])
@@ -293,6 +375,7 @@ def advance(state, updates):
                     _mark(current,price)
                     events.append(dict(ts_ms=update['ts_ms'],bot_id=current['bot_id'],symbol=current['symbol'],type='RESERVE',amount=reserve))
                 if protection_needed(current):reason='RISK_LIMIT'
+        reason = _hold_gate(wrapper, reason, rules, update['ts_ms'], events)
         if reason:
             wrapper['engine'], emitted = close_bot(wrapper['engine'], price, update['ts_ms'], reason)
             events.extend(emitted)
