@@ -28,18 +28,20 @@ class SymbolRowsTests(unittest.TestCase):
     def test_keeps_only_completed_hourly_rows(self):
         now_s = NOW_MS // 1000
         rows = history(now_s, hours=3)
-        rows.append(dict(time=(now_s // 3600) * HOUR_MS,
-                         aggregated_long_liquidation_usd=1,
-                         aggregated_short_liquidation_usd=1))
+        current = dict(time=(now_s // 3600) * HOUR_MS,
+                       aggregated_long_liquidation_usd=1,
+                       aggregated_short_liquidation_usd=1)
+        rows.append(current)
         rows.append(dict(time='bad', aggregated_long_liquidation_usd=1,
                          aggregated_short_liquidation_usd=1))
         rows.append(dict(rows[0]))
+        rows.append(dict(current))
         kept, rejected = _symbol_rows('NEARUSDTM', rows, NOW_MS)
         floor = now_s // 3600
         self.assertEqual([row['time_ms'] for row in kept],
                          [(floor - index) * 3600 * 1000
                           for index in (3, 2, 1)])
-        self.assertEqual(rejected, 2)
+        self.assertEqual(rejected, 3)
 
     def test_rejects_negative_and_non_finite_usd(self):
         now_s = NOW_MS // 1000

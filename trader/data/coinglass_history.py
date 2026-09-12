@@ -40,9 +40,9 @@ def _symbol_rows(symbol, rows, now_ms):
                 or long_usd < 0 or short_usd < 0:
             rejected += 1
             continue
+        seen.add(stamp)
         if stamp + HOUR_MS > now_ms:
             continue
-        seen.add(stamp)
         kept.append(dict(symbol=symbol, exchange=EXCHANGE_LABEL,
                          time_ms=stamp, long_usd=long_usd,
                          short_usd=short_usd))
