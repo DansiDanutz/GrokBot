@@ -12,7 +12,8 @@ import math
 import sys
 
 from paper_grid.coinglass import (
-    CoinGlassError, MAX_SYMBOLS, read_api_key, request_history, underlying,
+    CoinGlassError, MAX_HISTORY_AGE, MAX_SYMBOLS, read_api_key,
+    request_history, underlying,
 )
 from trader.autopilot.storage import read_json
 from trader.data.store import Store
@@ -77,7 +78,7 @@ def run(store, symbols, now_ms, *, getter=None, api_key=None, key_path=None):
     fetch = getter or request_history
     names = list(dict.fromkeys(symbols))[:MAX_SYMBOLS]
     now_s = now_ms // 1000
-    liquidations, failures = [], []
+    liquidations, failures, warnings = [], [], []
     rejected_rows, symbols_ok = 0, []
     try:
         key = api_key if api_key is not None else read_api_key(key_path)
@@ -100,17 +101,27 @@ def run(store, symbols, now_ms, *, getter=None, api_key=None, key_path=None):
             rejected_rows += rejected
             if not kept:
                 raise CoinGlassError('no valid completed history')
+            stamps = [row['time_ms'] for row in kept]
+            issues = []
+            if now_ms - (stamps[-1] + HOUR_MS) > MAX_HISTORY_AGE * 1000:
+                issues.append('stale completed history')
+            if any(b - a != HOUR_MS for a, b in zip(stamps, stamps[1:])):
+                issues.append('gapped completed history')
+            if issues:
+                warnings.append(dict(symbol=symbol, errors=issues))
             liquidations.extend(kept)
             symbols_ok.append(symbol)
         except CoinGlassError as error:
             failures.append(dict(symbol=symbol, errors=[str(error)]))
     stamps = [row['time_ms'] for row in liquidations]
     status = ('fail' if not symbols_ok else
-              'warn' if failures or rejected_rows else 'pass')
+              'warn' if failures or warnings or rejected_rows else 'pass')
     details = dict(status=status, symbols_requested=len(names),
                    symbols_ok=len(symbols_ok), rows=len(liquidations),
                    rejected_rows=rejected_rows, failures=failures,
-                   completed_hours_covered=bool(stamps),
+                   warnings=warnings,
+                   completed_hours_covered=(bool(stamps) and not failures
+                                            and not warnings),
                    source='coinglass_aggregated_history',
                    paper_only=True)
     checked = now_ms

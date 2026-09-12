@@ -140,6 +140,22 @@ class RunTests(unittest.TestCase):
                          ['history request failed'])
         self.assertNotIn('provider body', str(details))
 
+    def test_stale_or_gapped_history_is_stored_but_warns(self):
+        now_s = NOW_MS // 1000
+        stale = history(now_s - 7 * 86400, hours=2)
+        gapped = history(now_s, hours=3)
+        del gapped[1]
+
+        for rows, expected in ((stale, 'stale completed history'),
+                               (gapped, 'gapped completed history')):
+            with self.subTest(expected=expected):
+                details = run(self.store(), ['NEARUSDTM'], NOW_MS,
+                              getter=lambda *_: rows, api_key='cg-test-key')
+                self.assertEqual(details['status'], 'warn')
+                self.assertFalse(details['completed_hours_covered'])
+                self.assertEqual(details['warnings'][0]['errors'], [expected])
+                self.assertEqual(details['rows'], 2)
+
     def test_missing_key_fails_closed_without_network(self):
         def getter(symbol, request_now, key):
             raise AssertionError('network must not be reached')
