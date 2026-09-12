@@ -125,6 +125,38 @@ class CooldownGateTests(unittest.TestCase):
         self.assertIn("A", {b["engine"]["symbol"] for b in result["open_bots"]})
 
 
+class SnapshotReviewStatusTests(unittest.TestCase):
+    STATUS = {"last_run_at_ms": 1_789_160_400_000,
+              "doctrine_version": "2026-09-12T07:00:04",
+              "proposals": {"planned": 1, "applied": 1, "deferred": 0, "rejected": 0},
+              "active_rules": {"min_hold_hours_before_non_risk_close": 4.0,
+                               "require_trend_alignment": False,
+                               "symbol_cooldowns": []},
+              "evidence_headline": "min_hold=4h from premature close(s) ($48.05 missed)"}
+
+    def _snapshot_with_status_file(self, content):
+        with tempfile.TemporaryDirectory() as tmp:
+            status_path = os.path.join(tmp, "review-status.json")
+            if content is not None:
+                with open(status_path, "w", encoding="utf-8") as handle:
+                    handle.write(content)
+            with mock.patch.object(rules, "DEFAULT_STATUS_PATH", status_path):
+                rules.clear_cache()
+                return policy.snapshot(policy.new_state(0), 0, {})
+
+    def test_snapshot_includes_valid_status(self):
+        view = self._snapshot_with_status_file(json.dumps(self.STATUS))
+        self.assertEqual(view["review_status"]["evidence_headline"],
+                         self.STATUS["evidence_headline"])
+        self.assertEqual(view["review_status"]["proposals"]["applied"], 1)
+
+    def test_snapshot_omits_missing_or_invalid_status(self):
+        self.assertNotIn("review_status", self._snapshot_with_status_file(None))
+        self.assertNotIn("review_status", self._snapshot_with_status_file("{broken"))
+        self.assertNotIn("review_status",
+                         self._snapshot_with_status_file(json.dumps({"last_run_at_ms": "x"})))
+
+
 class FailClosedTests(unittest.TestCase):
     def test_invalid_store_file_means_no_behavior_change(self):
         with tempfile.TemporaryDirectory() as tmp:

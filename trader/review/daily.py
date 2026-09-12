@@ -398,6 +398,10 @@ def build_report(date_str, state, conn, events, radar=None, vault_key=None, now_
         "impatience": impatience,
         "premature": premature,
         "premature_costs": premature_costs,
+        # Cumulative significance input for the min-sample gate: bots closed
+        # total, as visible in the retained state (archived bots predate the
+        # retention window and are not countable here).
+        "totals": {"closed_total": len(state.get("closed_bots", []))},
         "vault_key": vault_key,
         "radar": radar,
     }
@@ -526,6 +530,7 @@ def build_proposals(data, proposals=None):
                     "net": round(total_net, 4),
                     "premature": len(data["premature"]),
                     "missed_usd": round(sum(data["premature_costs"]), 4)},
+        "totals": {"closed_total": int(data.get("totals", {}).get("closed_total", 0))},
         "premature_closes": premature,
         "trend_buckets": {"with_trend": bucket("WITH-TREND"),
                           "against_trend": bucket("AGAINST-TREND"),

@@ -224,6 +224,8 @@ footer{font-size:11.5px;color:var(--muted-foreground);margin-top:24px;line-heigh
 </div><nav class="anchors" aria-label="Paper desk sections"><a href="#account">Account</a><a href="#trade-activity">Buy / Sell</a><a href="#positions">Positions</a><a href="#history">History</a><a href="#today-hourly">Today</a><a href="#account-history">Equity</a><a href="#watchlist">Watchlist</a><a href="#scoring">Scoring</a><a href="#events-panel">Events</a></nav></div><div id="notice" class="notice" hidden></div>
 <section class="panel" id="account" aria-label="Paper account"><h2>Paper account · USDT</h2><p class="muted">Starting bankroll is separate from current balance and floating PnL. Watchlist candidates are not positions.</p><div class="account-grid" id="account-values"><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div></div></section>
 <section class="panel" id="trade-activity"><h2>BUY / SELL · active paper bots</h2><p class="muted">Latest executed paper fill for each active bot in the available event feed, not an instruction to trade. Green BUY and red SELL describe the fill, not the bot’s trend. Public activity is a published snapshot; local activity updates every 10 seconds.</p><div id="trade-actions"></div></section>
+<section class="panel" id="self-learning" hidden><h2>Self-learning</h2><p class="muted">Rules the daily 07:00 review promotes from audited evidence. Advisory findings stay proposals; deleting the rules store returns every behavior to default.</p><p id="learning-line"></p><div class="badge-line" id="learning-chips"></div><p class="muted" id="learning-doctrine" hidden></p><p class="muted" id="learning-evidence" hidden></p></section>
+
 <section class="panel" id="positions"><h2>Open paper positions</h2><div class="head-extras"><span class="badge-line" id="positions-extreme" hidden></span><span class="dirchips" id="dir-chips" hidden></span></div><p class="muted">New-entry rules: At least 12 configured grids inside confirmed support / resistance only, with estimated leveraged return greater than 1% per completed grid after both 0.06% fill fees at 5×. Entry targets allow one-order rounding tolerance: Long 40% BUY / 60% SELL; Short 60% BUY / 40% SELL; Neutral 50% / 50% across both books. These are pending-order proportions, not guaranteed profits. Existing bots keep their original ranges and orders; the current split changes as fills occur.</p><p class="muted" id="positions-note">Loading open positions.</p><div id="positions-bots"></div></section>
 <section class="panel" id="history"><h2>Position history <span class="chip winrate" id="history-winrate" hidden></span></h2><p class="muted">Latest 20 closed paper bots, including their close reason and final accounting. A watchlist promotion is not a position close.</p><div id="history-bots"></div></section>
 <section class="panel" id="today-hourly"><h2>Today · hourly</h2><p class="muted">Account equity per UTC clock hour for the current day — a green candle closes at or above the hour open, a red one below; the wick spans the hour's high to low. The glyph under an hour counts grid bots that were open during it.</p><div class="chartbox" id="hourly"><div class="skeleton sk-chart"></div></div><p class="muted">Open counts use open bots plus the newest 20 closed bots, so early-hour counts may undercount.</p></section>
@@ -759,12 +761,34 @@ const n=id('truncated-note'),t=report.truncated;
 const parts=t&&typeof t==='object'&&!Array.isArray(t)?Object.entries(t).filter(([,v])=>v).map(([k,v])=>k.replaceAll('_',' ')+(typeof v==='number'?' ≤ '+fmt(v,0):'')):[];
 if(parts.length){n.textContent='Published feed truncated · '+parts.join(' · ')+'. Some records may be absent from this snapshot.';n.hidden=false;}
 else n.hidden=true;}
+function renderLearning(report){
+const box=id('self-learning');if(!box)return;
+const rs=report?report.review_status:null;
+if(!rs||typeof rs!=='object'){box.hidden=true;return;}
+box.hidden=false;
+const p=(rs.proposals&&typeof rs.proposals==='object')?rs.proposals:{};
+const run=fin(rs.last_run_at_ms)?time(rs.last_run_at_ms):'—';
+id('learning-line').textContent=run+' · '+fmt(p.planned||0,0)+' proposals · '+fmt(p.applied||0,0)+' applied · '+fmt(p.deferred||0,0)+' deferred';
+const ar=(rs.active_rules&&typeof rs.active_rules==='object')?rs.active_rules:{};
+const chips=[];
+if(fin(ar.min_hold_hours_before_non_risk_close))chips.push('hold≥'+fmt(ar.min_hold_hours_before_non_risk_close,0)+'h');
+if(ar.require_trend_alignment===true)chips.push('trend-gate');
+for(const s of arr(ar.symbol_cooldowns))chips.push('cooldown '+s);
+if(!chips.length)chips.push('no active rules');
+id('learning-chips').replaceChildren(...chips.map(c=>el('span','chip',c)));
+const dv=id('learning-doctrine');
+if(typeof rs.doctrine_version==='string'&&rs.doctrine_version){dv.hidden=false;dv.textContent='doctrine · '+rs.doctrine_version;}
+else dv.hidden=true;
+const ev=id('learning-evidence');
+if(typeof rs.evidence_headline==='string'&&rs.evidence_headline){ev.hidden=false;ev.textContent=rs.evidence_headline;}
+else ev.hidden=true;
+}
 function render(report,isStatic){
 if(!report||!fin(report.generated_at_ms)||!fin(report.equity))throw Error('invalid snapshot');
 lastReport=report;rememberGrids(report.completed_grid_events);staticMode=isStatic;
 receivedAt=Math.min(Date.now(),report.generated_at_ms);
 lastRenderedKey=String(report.generated_at_ms)+'|'+(fin(report.published_at_ms)?report.published_at_ms:'');
-headerNumbers(report);account(report);watchlist(report);renderBots(report);equityChart(report);hourlyChart(report);
+headerNumbers(report);account(report);renderLearning(report);watchlist(report);renderBots(report);equityChart(report);hourlyChart(report);
 const points=arr(report.equity_curve);
 id('curve-start').textContent=points.length?time(points[0][0])+' · '+fmt(points[0][1])+' USDT':'No samples yet';
 id('curve-end').textContent=points.length?time(points.at(-1)[0])+' · '+fmt(points.at(-1)[1])+' USDT':'';

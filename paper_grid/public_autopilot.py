@@ -100,6 +100,40 @@ def hourly(source):
     return [validated[i * (len(validated)-1)//(168-1)] for i in range(168)]
 
 
+_STAMP_RE = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}')
+
+
+def review_status(source):
+    """Closed-vocabulary projection of the self-learning review status."""
+    source = obj(source)
+    result = numbers(source, ('last_run_at_ms',))
+    stamp = source.get('doctrine_version')
+    if stamp is not None and (not isinstance(stamp, str) or not _STAMP_RE.match(stamp) or len(stamp) > 40):
+        raise ValueError('invalid doctrine version')
+    counts = numbers(obj(source.get('proposals')), ('planned', 'applied', 'deferred', 'rejected'))
+    if any(value is None or value < 0 or value != int(value) for value in counts.values()):
+        raise ValueError('invalid proposal counts')
+    active = obj(source.get('active_rules'))
+    hold = active.get('min_hold_hours_before_non_risk_close')
+    if hold is not None and (type(hold) not in (int, float) or not math.isfinite(hold) or hold <= 0):
+        raise ValueError('invalid min hold rule')
+    if not isinstance(active.get('require_trend_alignment'), bool):
+        raise ValueError('invalid trend rule flag')
+    cooldowns = rows(active.get('symbol_cooldowns', []))
+    if len(cooldowns) > 24:
+        raise ValueError('too many cooldowns')
+    headline = source.get('evidence_headline')
+    if not isinstance(headline, str) or not 0 < len(headline) <= 240:
+        raise ValueError('invalid evidence headline')
+    result.update(doctrine_version=stamp,
+                  proposals={key: int(value) for key, value in counts.items()},
+                  active_rules=dict(min_hold_hours_before_non_risk_close=hold,
+                                    require_trend_alignment=active['require_trend_alignment'],
+                                    symbol_cooldowns=[symbol(item) for item in cooldowns]),
+                  evidence_headline=headline)
+    return result
+
+
 def score_parts(source):
     parts = rows(source)
     if len(parts) > len(CODES):
@@ -184,6 +218,8 @@ def safe(source):
         equity_curve=curve(source.get('equity_curve', []), 2000),
         equity_hourly=hourly(source.get('equity_hourly', [])),
         totals=numbers(obj(source.get('totals', {})), TOTAL_NUMBERS), groups={}, watchlist={})
+    if source.get('review_status') is not None:
+        result['review_status'] = review_status(source['review_status'])
     for direction in DIRECTIONS:
         group = obj(obj(source.get('groups', {})).get(direction, {}))
         result['groups'][direction] = dict(

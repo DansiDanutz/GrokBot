@@ -472,7 +472,8 @@ def snapshot(state, now_ms, health):
             return None
         base = prior[-1]
         return 100*(equity/base-1) if base else 0
-    return dict(schema_version=1, generated_at_ms=now_ms, equity=equity,
+    review_status = learned_rules.load_review_status()
+    result = dict(schema_version=1, generated_at_ms=now_ms, equity=equity,
                 peak_equity=state['peak_equity'], max_drawdown_pct=state['max_drawdown_pct'],
                 change_24h_pct=change(24), change_7d_pct=change(168),
                 open_bots=opened, closed_bots=visible_closed, groups=groups, totals=totals(opened+closed),
@@ -483,3 +484,6 @@ def snapshot(state, now_ms, health):
                 watchlist_scan_id=state.get('watchlist', {}).get('last_scan_id'),
                 watchlist_asof_ms=state.get('watchlist', {}).get('asof_ms'),
                 watchlist_swap_times=deepcopy(state.get('watchlist', {}).get('swap_times', [])), **health)
+    if review_status is not None:
+        result['review_status'] = review_status
+    return result

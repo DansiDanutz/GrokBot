@@ -12,15 +12,12 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import time
 from copy import deepcopy
 from datetime import date, timedelta
 from pathlib import Path
-
-DEFAULT_STORE_PATH = str(Path.home() / "Sandbox" / "grokbot" / "autopilot" / "learned-rules.json")
-DEFAULT_CHANGELOG_PATH = str(Path.home() / "Sandbox" / "grokbot" / "reports" / "rules-changelog.jsonl")
-DEFAULT_DOCTRINE_PATH = str(Path.home() / "Sandbox" / "grokbot" / "autopilot" / "trader-doctrine.md")
 
 SCHEMA_VERSION = 1
 MAX_AUTO_PER_DAY = 3
@@ -29,6 +26,11 @@ COOLDOWN_DAYS = 7
 MIN_HOLD_HOURS = 4.0
 MISSED_USD_THRESHOLD = 25.0
 AGAINST_TREND_OPENS_THRESHOLD = 2
+# Anti-noise significance gates: a handful of bots is anecdote, not evidence.
+MIN_DAILY_CLOSED = 5
+MIN_CUMULATIVE_CLOSED = 20
+MIN_DAILY_DIRECTIONAL_OPENS = 5
+MIN_RULE_BENEFIT_USD = 10.0
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 EMPTY_RULES = {
@@ -36,6 +38,11 @@ EMPTY_RULES = {
     "require_trend_alignment": False,
     "symbol_cooldowns": {},
 }
+
+DEFAULT_STORE_PATH = str(Path.home() / "Sandbox" / "grokbot" / "autopilot" / "learned-rules.json")
+DEFAULT_CHANGELOG_PATH = str(Path.home() / "Sandbox" / "grokbot" / "reports" / "rules-changelog.jsonl")
+DEFAULT_DOCTRINE_PATH = str(Path.home() / "Sandbox" / "grokbot" / "autopilot" / "trader-doctrine.md")
+DEFAULT_STATUS_PATH = str(Path.home() / "Sandbox" / "grokbot" / "autopilot" / "review-status.json")
 
 
 def empty_store(now_ms=None):
@@ -149,34 +156,100 @@ def _bucket(props, name):
             "grids": int(bucket.get("grids", 0) or 0)}
 
 
-def plan_changes(props, current_rules, today_iso):
-    """Plan tier-1 auto-appliable changes from one day's proposals.
+def _summary(props):
+    return props.get("summary") or {}
 
-    Returns a list of change dicts: {action, rule, before, after, evidence,
-    symbol?}. Pure — the caller enforces the per-day cap and persistence.
-    Conditions here are the single source of truth shared by the daily
-    report and the applier.
+
+def _totals(props):
+    return props.get("totals") or {}
+
+
+def estimate_rule_benefit(props, rule):
+    """Estimated USD benefit of a tier-1 rule, recomputed from proposal detail.
+
+    This is the single shared math used by the planner (Item 1), the
+    apply-time honest re-check (Item 3), and the changelog/doctrine numbers —
+    import it; do not reimplement.
+
+    min_hold: sum of missed_usd across the premature closes that drove the
+    proposal (missed_usd >= threshold). trend: |against_trend.net| clipped at
+    with_trend.net when the latter is positive. cooldown: not benefit-gated
+    (None).
     """
-    changes = []
+    if rule == "min_hold_hours_before_non_risk_close":
+        return round(sum(float(p.get("missed_usd") or 0.0)
+                         for p in props.get("premature_closes", [])
+                         if float(p.get("missed_usd") or 0.0) >= MISSED_USD_THRESHOLD), 4)
+    if rule == "require_trend_alignment":
+        against = abs(_bucket(props, "against_trend")["net"])
+        with_trend = _bucket(props, "with_trend")["net"]
+        return round(min(against, with_trend) if with_trend > 0 else against, 4)
+    return None
+
+
+def _rule_sample(props):
+    return {"closed_n": int(_summary(props).get("closed", 0) or 0),
+            "opens_n": int(_summary(props).get("opened", 0) or 0)}
+
+
+def _defer(entry, reason):
+    entry["status"] = "defer"
+    entry["defer_reason"] = reason
+    return entry
+
+
+def plan_changes(props, current_rules, today_iso):
+    """Plan tier-1 changes; significance gates turn thin evidence into deferrals.
+
+    Returns a list of entries, each: {status: "apply"|"defer", action, rule,
+    before, after, evidence, estimated_benefit_usd, sample, defer_reason?,
+    symbol?}. Anti-noise gates (Item 1):
+
+    - min_hold: needs >= MIN_DAILY_CLOSED closed bots that day AND
+      >= MIN_CUMULATIVE_CLOSED closed bots total (props.totals.closed_total),
+      plus estimated benefit >= MIN_RULE_BENEFIT_USD.
+    - trend: needs >= MIN_DAILY_DIRECTIONAL_OPENS directional opens that day
+      (with + against buckets), plus the same benefit floor.
+    - symbol cooldowns: unchanged day-specific rule (n >= 2 against-trend
+      opens with negative net on one symbol).
+
+    Deferral reasons name the failing gate so notes/changelog can show them.
+    """
+    planned = []
     rules = current_rules or {}
+    summary, totals = _summary(props), _totals(props)
+    closed_day = int(summary.get("closed", 0) or 0)
+    closed_total = int(totals.get("closed_total", 0) or 0)
+    sample = _rule_sample(props)
+
     wt, at = _bucket(props, "with_trend"), _bucket(props, "against_trend")
-    if (at["net"] < 0 and wt["net"] > abs(at["net"])
-            and not rules.get("require_trend_alignment")):
-        changes.append({
-            "action": "set require_trend_alignment",
-            "rule": "require_trend_alignment",
-            "before": bool(rules.get("require_trend_alignment")),
-            "after": True,
+    directional_opens = wt["n"] + at["n"]
+    if at["net"] < 0 and wt["net"] > abs(at["net"]) and not rules.get("require_trend_alignment"):
+        entry = {
+            "action": "set require_trend_alignment", "rule": "require_trend_alignment",
+            "before": bool(rules.get("require_trend_alignment")), "after": True,
             "evidence": ("against_trend net ${:.2f} over {} open(s) while with_trend made "
                          "${:.2f} over {} — trend agreement would have prevented the losses").format(
                              at["net"], at["n"], wt["net"], wt["n"]),
-        })
+            "estimated_benefit_usd": estimate_rule_benefit(props, "require_trend_alignment"),
+            "sample": sample,
+        }
+        if directional_opens < MIN_DAILY_DIRECTIONAL_OPENS:
+            planned.append(_defer(entry, "insufficient evidence: {} directional opens < {} minimum".format(
+                directional_opens, MIN_DAILY_DIRECTIONAL_OPENS)))
+        elif entry["estimated_benefit_usd"] < MIN_RULE_BENEFIT_USD:
+            planned.append(_defer(entry, "insufficient evidence: estimated benefit ${:.2f} < ${:.0f} minimum".format(
+                entry["estimated_benefit_usd"], MIN_RULE_BENEFIT_USD)))
+        else:
+            entry["status"] = "apply"
+            planned.append(entry)
+
     big_premature = [p for p in props.get("premature_closes", [])
                      if float(p.get("missed_usd") or 0.0) >= MISSED_USD_THRESHOLD]
     if big_premature and rules.get("min_hold_hours_before_non_risk_close") is None:
         ids = ", ".join(str(p.get("bot_id")) for p in big_premature[:5])
         missed = sum(float(p.get("missed_usd") or 0.0) for p in big_premature)
-        changes.append({
+        entry = {
             "action": "set min_hold_hours_before_non_risk_close",
             "rule": "min_hold_hours_before_non_risk_close",
             "before": rules.get("min_hold_hours_before_non_risk_close"),
@@ -184,22 +257,38 @@ def plan_changes(props, current_rules, today_iso):
             "evidence": ("{} premature close(s) (bot {}) each missed >= ${:.0f} (total ${:.2f}) — "
                          "hold negative bots at least {}h unless stop-loss/range-out").format(
                              len(big_premature), ids, MISSED_USD_THRESHOLD, missed, MIN_HOLD_HOURS),
-        })
+            "estimated_benefit_usd": estimate_rule_benefit(props, "min_hold_hours_before_non_risk_close"),
+            "sample": sample,
+        }
+        if closed_day < MIN_DAILY_CLOSED:
+            planned.append(_defer(entry, "insufficient evidence: {} closed bots today < {} minimum".format(
+                closed_day, MIN_DAILY_CLOSED)))
+        elif closed_total < MIN_CUMULATIVE_CLOSED:
+            planned.append(_defer(entry, "insufficient evidence: {} cumulative closed bots < {} minimum".format(
+                closed_total, MIN_CUMULATIVE_CLOSED)))
+        elif entry["estimated_benefit_usd"] < MIN_RULE_BENEFIT_USD:
+            planned.append(_defer(entry, "insufficient evidence: estimated benefit ${:.2f} < ${:.0f} minimum".format(
+                entry["estimated_benefit_usd"], MIN_RULE_BENEFIT_USD)))
+        else:
+            entry["status"] = "apply"
+            planned.append(entry)
+
     active = rules.get("symbol_cooldowns") or {}
     for symbol, stats in sorted((props.get("against_trend_symbols") or {}).items()):
         n = int(stats.get("n", 0) or 0)
         net = float(stats.get("net", 0.0) or 0.0)
         if n >= AGAINST_TREND_OPENS_THRESHOLD and net < 0 and symbol not in active:
-            changes.append({
-                "action": "add symbol_cooldown",
-                "rule": "symbol_cooldowns",
-                "symbol": symbol,
+            planned.append({
+                "action": "add symbol_cooldown", "rule": "symbol_cooldowns", "symbol": symbol,
                 "before": None,
                 "after": (date.fromisoformat(today_iso) + timedelta(days=COOLDOWN_DAYS)).isoformat(),
                 "evidence": ("{} against-trend opens on {} that day, net ${:.2f} — cooling the "
                              "symbol off for {} days").format(n, symbol, net, COOLDOWN_DAYS),
+                "estimated_benefit_usd": None,
+                "sample": sample,
+                "status": "apply",
             })
-    return changes
+    return planned
 
 
 def applied_today_count(store, today_iso):
@@ -208,11 +297,124 @@ def applied_today_count(store, today_iso):
 
 
 # ---------------------------------------------------------------------------
+# review status (dashboard feed), fail-closed
+
+
+_STATUS_CACHE = {}
+
+
+def load_review_status(path=None):
+    """Parse review-status.json; None when absent/invalid (never raises)."""
+    path = path or DEFAULT_STATUS_PATH
+    try:
+        stat = Path(path).stat()
+    except OSError:
+        _STATUS_CACHE.pop(path, None)
+        return None
+    cached = _STATUS_CACHE.get(path)
+    if cached and cached[0] == (stat.st_mtime_ns, stat.st_size):
+        return deepcopy(cached[1])
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not validate_status(data):
+        return None
+    _STATUS_CACHE[path] = ((stat.st_mtime_ns, stat.st_size), deepcopy(data))
+    return deepcopy(data)
+
+
+def validate_status(data):
+    """Closed-vocabulary shape check for review-status.json."""
+    if not isinstance(data, dict):
+        return False
+    if not _is_number(data.get("last_run_at_ms")):
+        return False
+    stamp = data.get("doctrine_version")
+    if stamp is not None and (not isinstance(stamp, str) or len(stamp) > 40):
+        return False
+    proposals = data.get("proposals")
+    if not isinstance(proposals, dict):
+        return False
+    for key in ("planned", "applied", "deferred", "rejected"):
+        value = proposals.get(key)
+        if not _is_number(value) or value < 0:
+            return False
+    active = data.get("active_rules")
+    if not isinstance(active, dict):
+        return False
+    hold = active.get("min_hold_hours_before_non_risk_close")
+    if hold is not None and (not _is_number(hold) or hold <= 0):
+        return False
+    if not isinstance(active.get("require_trend_alignment"), bool):
+        return False
+    cooldowns = active.get("symbol_cooldowns")
+    if not isinstance(cooldowns, list) or len(cooldowns) > 24:
+        return False
+    if any(not isinstance(symbol, str) or len(symbol) > 24 for symbol in cooldowns):
+        return False
+    headline = data.get("evidence_headline")
+    return isinstance(headline, str) and 0 < len(headline) <= 240
+
+
+def atomic_write_json(path, data):
+    """tmp+rename write so readers never see a partial status file."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(target.name + ".tmp")
+    temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(temporary, target)
+
+
+def build_status(store, counts, evidence_headline, doctrine_version, now_ms):
+    rules = store.get("rules", {})
+    return {
+        "doctrine_version": doctrine_version,
+        "last_run_at_ms": int(now_ms),
+        "proposals": {"planned": counts["planned"], "applied": counts["applied"],
+                      "deferred": counts["deferred"], "rejected": counts["rejected"]},
+        "active_rules": {
+            "min_hold_hours_before_non_risk_close": rules.get("min_hold_hours_before_non_risk_close"),
+            "require_trend_alignment": bool(rules.get("require_trend_alignment")),
+            "symbol_cooldowns": sorted((rules.get("symbol_cooldowns") or {}).keys()),
+        },
+        "evidence_headline": evidence_headline,
+    }
+
+
+def evidence_headline_for(changes):
+    """One-line dashboard headline, e.g. 'min_hold=4h from 1 premature close ($48.05)'.
+
+    Priority: min_hold first (the user's canonical evidence), then trend,
+    then cooldowns — regardless of plan order.
+    """
+    order = {"min_hold_hours_before_non_risk_close": 0,
+             "require_trend_alignment": 1, "symbol_cooldowns": 2}
+    for change in sorted(changes, key=lambda c: order.get(c["rule"], 9)):
+        if change["rule"] == "min_hold_hours_before_non_risk_close":
+            missed = change.get("estimated_benefit_usd") or 0.0
+            return "min_hold={:g}h from premature close(s) (${:.2f} missed)".format(
+                float(change["after"]), missed)
+        if change["rule"] == "require_trend_alignment":
+            return "trend-gate on (against-trend lost ${:.2f})".format(
+                abs(float(change.get("estimated_benefit_usd") or 0.0)))
+        if change["rule"] == "symbol_cooldowns":
+            return "cooldown {} until {}".format(change.get("symbol"), change.get("after"))
+    return "no tier-1 changes"
+
+
+# ---------------------------------------------------------------------------
 # doctrine
 
 
-def render_doctrine(store, props):
-    """Short markdown: active rules, the reviewed day's stats, top learnings."""
+def render_doctrine(store, props, benefits=None):
+    """Short markdown: active rules (with estimated benefit), day stats, learnings.
+
+    `benefits` maps rule name -> (estimated_benefit_usd, "closed_n/opens_n")
+    so the doctrine carries the same audited numbers as the changelog.
+    """
+    benefits = benefits or {}
     rules = store.get("rules", {})
     lines = ["# Trader doctrine (auto-generated by trader.review.apply)",
              "",
@@ -222,9 +424,13 @@ def render_doctrine(store, props):
              "## Active learned rules",
              ""]
     hold = rules.get("min_hold_hours_before_non_risk_close")
+    hold_note = ""
+    if hold is not None and "min_hold_hours_before_non_risk_close" in benefits:
+        amount, sample = benefits["min_hold_hours_before_non_risk_close"]
+        hold_note = " (estimated benefit ${:.2f}, sample {})".format(amount, sample)
     lines.append(f"- require_trend_alignment: {'ON' if rules.get('require_trend_alignment') else 'off'}")
     lines.append(f"- min_hold_hours_before_non_risk_close: "
-                 f"{f'{hold:g} h' if hold is not None else 'not set'}")
+                 f"{f'{hold:g} h' if hold is not None else 'not set'}{hold_note}")
     cooldowns = rules.get("symbol_cooldowns") or {}
     if cooldowns:
         lines.append("- symbol_cooldowns:")

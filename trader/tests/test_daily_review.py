@@ -11,6 +11,7 @@ import unittest
 from datetime import timezone
 
 from trader.review.daily import (
+    DAY_MS,
     analyze_exit,
     bot_net,
     build_report,
@@ -295,6 +296,18 @@ class ReportTests(TempDbCase):
         md = render_markdown(data)
         self.assertIn("| WITH-TREND | 1 |", md)
         self.assertIn("| AGAINST-TREND | 1 |", md)
+
+    def test_cumulative_closed_total_comes_from_state(self):
+        from trader.review.daily import build_proposals
+        start, end = day_window("2026-09-12", tz=UTC)
+        inside = make_bot(bot_id=1, opened_ms=start + HOUR, closed_ms=start + 2 * HOUR)
+        history = [make_bot(bot_id=100 + i, opened_ms=start - 10 * DAY_MS - i * HOUR,
+                            closed_ms=start - 9 * DAY_MS - i * HOUR) for i in range(24)]
+        state = {"open_bots": [], "closed_bots": [inside] + history}
+        data = build_report("2026-09-12", state, self.conn, [], tz=UTC)
+        self.assertEqual(data["totals"]["closed_total"], 25)
+        props = build_proposals(data, data["proposals"])
+        self.assertEqual(props["totals"]["closed_total"], 25)
 
 
 if __name__ == "__main__":

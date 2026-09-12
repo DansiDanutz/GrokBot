@@ -10,3 +10,5 @@ from trader.review import rules as _rules
 
 _rules.DEFAULT_STORE_PATH = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
                                           ".no-such-learned-rules.json")
+_rules.DEFAULT_STATUS_PATH = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                           ".no-such-review-status.json")
