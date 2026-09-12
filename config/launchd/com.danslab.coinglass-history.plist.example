@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template only. Review absolute paths and create log directories before use.
+     Runs the Phase B recorder once per hour against the Phase-2 market db,
+     under its own .coinglass flock (never together with another recorder on
+     the same DB). The CoinGlass API key is read from the default paper-grid
+     secrets file (~/.openclaw-secrets/paper-grid.env); this template holds
+     no credentials. Public CoinGlass aggregated liquidation requests only;
+     no account requests or exchange orders. Provider history is a short
+     rolling window: every hour skipped is data permanently lost. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.danslab.trader-coinglass-history</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>-m</string>
+        <string>trader.data.coinglass_history</string>
+        <string>--database</string>
+        <string>/Users/davidai/Sandbox/grokbot/market-data/phase-2-20260911/market.sqlite3</string>
+        <string>--once</string>
+        <string>--autopilot-snapshot</string>
+        <string>/Users/davidai/Sandbox/grokbot/autopilot/autopilot.json</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/davidai/ZCodeProject/GrokBot-prod</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>3600</integer>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>Umask</key>
+    <integer>63</integer>
+    <key>StandardOutPath</key>
+    <string>/Users/davidai/Sandbox/grokbot/market-data/logs/coinglass.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/davidai/Sandbox/grokbot/market-data/logs/coinglass.err.log</string>
+</dict>
+</plist>

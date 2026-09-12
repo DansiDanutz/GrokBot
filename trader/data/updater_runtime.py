@@ -32,9 +32,12 @@ class AlreadyRunning(RuntimeError):
 class CollectorLock:
     """Keep the inode after release so contenders lock the same file."""
 
-    def __init__(self, database):
+    def __init__(self, database, suffix='.updater.lock'):
+        if (not isinstance(suffix, str) or not suffix.startswith('.')
+                or '/' in suffix or '\0' in suffix or len(suffix) > 64):
+            raise ValueError('invalid collector lock suffix')
         self.database = _safe_path(database)
-        self.path = Path(str(self.database) + '.updater.lock')
+        self.path = Path(str(self.database) + suffix)
         self.handle = None
 
     def __enter__(self):

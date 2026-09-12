@@ -98,6 +98,16 @@ class RuntimeTests(unittest.TestCase):
 
 
 class LockPathTests(unittest.TestCase):
+    def test_custom_lock_suffix_stays_beside_database(self):
+        with tempfile.TemporaryDirectory() as folder:
+            database = Path(folder).resolve() / 'market.sqlite3'
+            with CollectorLock(database, suffix='.coinglass.lock'):
+                pass
+            self.assertTrue(Path(str(database) + '.coinglass.lock').exists())
+            for suffix in ('/outside.lock', '', 'x.lock'):
+                with self.subTest(suffix=suffix), self.assertRaises(ValueError):
+                    CollectorLock(database, suffix=suffix)
+
     def test_parent_alias_is_rejected_without_creating_external_lock(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder).resolve()
