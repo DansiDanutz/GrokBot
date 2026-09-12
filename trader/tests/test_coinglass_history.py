@@ -3,6 +3,8 @@ from pathlib import Path
 import json
 import plistlib
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -170,6 +172,14 @@ class RunTests(unittest.TestCase):
 
 
 class LaunchdTests(unittest.TestCase):
+    def test_module_entrypoint_invokes_cli(self):
+        root = Path(__file__).parents[2]
+        result = subprocess.run(
+            [sys.executable, '-m', 'trader.data.coinglass_history', '--help'],
+            cwd=root, capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('--database', result.stdout)
+
     def test_template_records_live_paper_symbols_hourly(self):
         path = (Path(__file__).parents[2] / 'config/launchd' /
                 'com.danslab.coinglass-history.plist.example')

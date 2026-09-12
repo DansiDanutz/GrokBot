@@ -178,3 +178,7 @@ def main(argv=None):
         print('coinglass recorder failed: ' + type(error).__name__,
               file=sys.stderr)
         return 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
