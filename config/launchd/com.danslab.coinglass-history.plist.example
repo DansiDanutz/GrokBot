@@ -22,7 +22,7 @@
         <string>--once</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Users/davidai/ZCodeProject/GrokBot</string>
+    <string>/Users/davidai/ZCodeProject/GrokBot-prod</string>
     <key>RunAtLoad</key>
     <true/>
     <key>StartInterval</key>
