@@ -32,9 +32,9 @@ class AlreadyRunning(RuntimeError):
 class CollectorLock:
     """Keep the inode after release so contenders lock the same file."""
 
-    def __init__(self, database):
+    def __init__(self, database, suffix='.updater.lock'):
         self.database = _safe_path(database)
-        self.path = Path(str(self.database) + '.updater.lock')
+        self.path = Path(str(self.database) + suffix)
         self.handle = None
 
     def __enter__(self):
