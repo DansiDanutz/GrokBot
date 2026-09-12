@@ -68,6 +68,17 @@ class AutopilotPublicTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             public_autopilot.events([event] * 501)
 
+    def test_decision_events_preserve_validated_entry_features(self):
+        event = dict(ts_ms=1, event_id=2, bot_id=3, symbol='RAYUSDTM',
+                     type='DECISION', action='skip', direction='NEUTRAL',
+                     radar_direction='TURNING-UP', radar_score=71.5,
+                     expected_grids_per_hour=14.2, range_width_pct=8.4,
+                     funding_rate=-0.0001, kucoin_ok=1,
+                     rule_blocks=[101, 202], private_number=123)
+        result = public_autopilot.events([event])[0]
+        self.assertEqual(result, {key: value for key, value in event.items()
+                         if key != 'private_number'})
+
     def test_open_and_closed_bot_details_are_projected_without_engine_orders(self):
         from trader.papergrid.engine import open_bot, close_bot
         source = self.source()

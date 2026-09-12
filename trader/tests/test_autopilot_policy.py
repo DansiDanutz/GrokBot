@@ -256,6 +256,12 @@ class EquityHourlyTests(unittest.TestCase):
         starts = [bucket[0] for bucket in state['equity_hourly']]
         self.assertEqual(starts, sorted(starts))
 
+    def test_seven_day_window_evicts_sparse_stale_buckets(self):
+        state = policy.sample(policy.new_state(0), HOUR)
+        state = policy.sample(state, 9 * 24 * HOUR)
+        self.assertEqual([bucket[0] for bucket in state['equity_hourly']],
+                         [9 * 24 * HOUR])
+
     def test_sample_backfills_missing_hourly_list_and_snapshot_exposes_it(self):
         state = policy.new_state(0)
         del state['equity_hourly']

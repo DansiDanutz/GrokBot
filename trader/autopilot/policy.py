@@ -312,6 +312,8 @@ def _equity(state):
 def _hourly_bucket(hourly, ts_ms, equity):
     """Fold one equity sample into chronological UTC clock-hour OHLC buckets."""
     start = ts_ms // HOUR_MS * HOUR_MS
+    cutoff = start - (168 - 1) * HOUR_MS
+    hourly = [bucket for bucket in hourly if bucket[0] >= cutoff]
     if hourly and hourly[-1][0] == start:
         bucket = hourly[-1]
         bucket[2] = max(bucket[2], equity)

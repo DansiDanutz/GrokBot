@@ -19,7 +19,8 @@ BOT_NUMBERS = ('opening_price accounting_version contract_lots contract_multipli
 TOTAL_NUMBERS = 'bots grids grid_profit unrealized fees funding net pnl grids_per_hour'.split()
 EVENT_NUMBERS = ('amount ts_ms bot_id event_id price contracts fee profit equity net '
                  'completed_grids realized_pnl unrealized_pnl tick_age_s side line reason_code '
-                 'book kucoin_down_since_ms code score replaced_score margin').split()
+                 'book kucoin_down_since_ms code score replaced_score margin radar_score '
+                 'expected_grids_per_hour range_width_pct funding_rate kucoin_ok').split()
 
 
 def number(value):
@@ -227,5 +228,10 @@ def events(source):
         row.update(type=item['type'], symbol=symbol(item['symbol'], system=True))
         if item['type'] in WATCH_EVENTS:
             row['replaced_symbol'] = symbol(item['replaced_symbol'], empty=True)
+        if item['type'] == 'DECISION':
+            row.update(action=enum(item['action'], ('open', 'close', 'skip')),
+                       direction=enum(item['direction'], DIRECTIONS),
+                       radar_direction=enum(item['radar_direction'], LABELS),
+                       rule_blocks=[number(code) for code in item['rule_blocks']])
         result.append(row)
     return result
