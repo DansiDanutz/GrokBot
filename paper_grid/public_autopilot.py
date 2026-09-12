@@ -19,7 +19,8 @@ BOT_NUMBERS = ('opening_price accounting_version contract_lots contract_multipli
 TOTAL_NUMBERS = 'bots grids grid_profit unrealized fees funding net pnl grids_per_hour'.split()
 EVENT_NUMBERS = ('amount ts_ms bot_id event_id price contracts fee profit equity net '
                  'completed_grids realized_pnl unrealized_pnl tick_age_s side line reason_code '
-                 'book kucoin_down_since_ms code score replaced_score margin').split()
+                 'book kucoin_down_since_ms code score replaced_score margin radar_score '
+                 'expected_grids_per_hour range_width_pct funding_rate kucoin_ok').split()
 
 
 def number(value):
@@ -79,6 +80,25 @@ def curve(source, maximum):
     if len(validated) <= maximum:
         return validated
     return [validated[i * (len(validated)-1)//(maximum-1)] for i in range(maximum)]
+
+
+def hourly(source):
+    buckets = rows(source)
+    validated = []
+    for bucket in buckets:
+        if not isinstance(bucket, (list, tuple)) or len(bucket) != 5:
+            raise ValueError('invalid hourly bucket')
+        start, opened, high, low, close = map(number, bucket)
+        if start is None or start < 0 or None in (opened, high, low, close):
+            raise ValueError('invalid hourly bucket')
+        if high < low or high < max(opened, close) or low > min(opened, close):
+            raise ValueError('invalid hourly bucket range')
+        if validated and start <= validated[-1][0]:
+            raise ValueError('unordered hourly buckets')
+        validated.append([start, opened, high, low, close])
+    if len(validated) <= 168:
+        return validated
+    return [validated[i * (len(validated)-1)//(168-1)] for i in range(168)]
 
 
 def score_parts(source):
@@ -163,6 +183,7 @@ def safe(source):
         recovery_pending=source.get('recovery_pending') is True,
         open_bots=[bot(row) for row in opened], closed_bots=[bot(row) for row in closed],
         equity_curve=curve(source.get('equity_curve', []), 2000),
+        equity_hourly=hourly(source.get('equity_hourly', [])),
         totals=numbers(obj(source.get('totals', {})), TOTAL_NUMBERS), groups={}, watchlist={})
     for direction in DIRECTIONS:
         group = obj(obj(source.get('groups', {})).get(direction, {}))
@@ -207,5 +228,10 @@ def events(source):
         row.update(type=item['type'], symbol=symbol(item['symbol'], system=True))
         if item['type'] in WATCH_EVENTS:
             row['replaced_symbol'] = symbol(item['replaced_symbol'], empty=True)
+        if item['type'] == 'DECISION':
+            row.update(action=enum(item['action'], ('open', 'close', 'skip')),
+                       direction=enum(item['direction'], DIRECTIONS),
+                       radar_direction=enum(item['radar_direction'], LABELS),
+                       rule_blocks=[number(code) for code in item['rule_blocks']])
         result.append(row)
     return result

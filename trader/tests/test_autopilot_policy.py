@@ -213,7 +213,63 @@ class PolicyTests(unittest.TestCase):
         sampled = policy.sample(updated, 60_000)
         older = policy.sample(sampled, 30_000)
         self.assertEqual(older['equity_curve'], sampled['equity_curve'])
+        self.assertEqual(older['equity_hourly'], sampled['equity_hourly'])
         self.assertEqual(older['open_bots'][0]['pnl_curve'], sampled['open_bots'][0]['pnl_curve'])
+
+
+class EquityHourlyTests(unittest.TestCase):
+    def test_bucket_creation_and_extension_across_hour_boundary(self):
+        state = policy.new_state(0)
+        state = policy.sample(state, HOUR + 10 * 60_000)
+        state = policy.sample(state, HOUR + 40 * 60_000)
+        self.assertEqual(state['equity_hourly'], [[HOUR, 10_000, 10_000, 10_000, 10_000]])
+        state = policy.sample(state, 2 * HOUR + 5 * 60_000)
+        self.assertEqual(len(state['equity_hourly']), 2)
+        self.assertEqual(state['equity_hourly'][-1][0], 2 * HOUR)
+        self.assertEqual(state['equity_hourly'][-1][1], 10_000)
+
+    def test_high_low_close_extend_within_one_hour(self):
+        state = policy.new_state(0)
+        base = 5 * HOUR
+        equity0 = policy.snapshot(state, base, {})['equity']
+        state['equity_hourly'] = []
+        state['equity_curve'] = []
+        # Simulate one sample per minute with equity moving up then down.
+        values = [equity0 - 3, equity0 + 7, equity0 - 1]
+        for i, value in enumerate(values):
+            state['archived_net'] = value - 10_000
+            state = policy.sample(state, base + i * 60_000)
+        bucket = state['equity_hourly'][-1]
+        self.assertEqual(bucket[0], base)
+        self.assertEqual(bucket[1], values[0])
+        self.assertEqual(bucket[2], max(values))
+        self.assertEqual(bucket[3], min(values))
+        self.assertEqual(bucket[4], values[-1])
+
+    def test_seven_day_cap_evicts_oldest_and_keeps_chronological(self):
+        state = policy.new_state(0)
+        for h in range(1, 200):
+            state = policy.sample(state, h * HOUR)
+        self.assertEqual(len(state['equity_hourly']), 168)
+        self.assertEqual(state['equity_hourly'][0][0], (200 - 168) * HOUR)
+        self.assertEqual(state['equity_hourly'][-1][0], 199 * HOUR)
+        starts = [bucket[0] for bucket in state['equity_hourly']]
+        self.assertEqual(starts, sorted(starts))
+
+    def test_seven_day_window_evicts_sparse_stale_buckets(self):
+        state = policy.sample(policy.new_state(0), HOUR)
+        state = policy.sample(state, 9 * 24 * HOUR)
+        self.assertEqual([bucket[0] for bucket in state['equity_hourly']],
+                         [9 * 24 * HOUR])
+
+    def test_sample_backfills_missing_hourly_list_and_snapshot_exposes_it(self):
+        state = policy.new_state(0)
+        del state['equity_hourly']
+        state = policy.sample(state, 30 * 60_000)
+        self.assertEqual(state['equity_hourly'], [[0, 10_000, 10_000, 10_000, 10_000]])
+        view = policy.snapshot(state, 30 * 60_000, {})
+        self.assertEqual(view['equity_hourly'], state['equity_hourly'])
+        self.assertEqual(view['equity_hourly'][0], [0, 10_000, 10_000, 10_000, 10_000])
 
 
 class FiveXBoundaryTests(unittest.TestCase):

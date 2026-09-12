@@ -68,6 +68,17 @@ class AutopilotPublicTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             public_autopilot.events([event] * 501)
 
+    def test_decision_events_preserve_validated_entry_features(self):
+        event = dict(ts_ms=1, event_id=2, bot_id=3, symbol='RAYUSDTM',
+                     type='DECISION', action='skip', direction='NEUTRAL',
+                     radar_direction='TURNING-UP', radar_score=71.5,
+                     expected_grids_per_hour=14.2, range_width_pct=8.4,
+                     funding_rate=-0.0001, kucoin_ok=1,
+                     rule_blocks=[101, 202], private_number=123)
+        result = public_autopilot.events([event])[0]
+        self.assertEqual(result, {key: value for key, value in event.items()
+                         if key != 'private_number'})
+
     def test_open_and_closed_bot_details_are_projected_without_engine_orders(self):
         from trader.papergrid.engine import open_bot, close_bot
         source = self.source()
@@ -101,3 +112,28 @@ class AutopilotPublicTests(unittest.TestCase):
     def test_untruncated_payload_reports_zero_counts(self):
         result = public_autopilot.safe(self.source())
         self.assertEqual(result['truncated'], {'closed_bots': 0, 'watchlist': 0})
+
+    def test_hourly_buckets_pass_through_and_are_validated(self):
+        source = self.source()
+        source['equity_hourly'] = [[3_600_000, 10_000, 10_010, 9_990, 10_005],
+                                   [7_200_000, 10_005, 10_005, 9_980, 9_980]]
+        result = public_autopilot.safe(source)
+        self.assertEqual(result['equity_hourly'], source['equity_hourly'])
+        # Closed-vocabulary style: malformed buckets are rejected, not republished.
+        for bad in ([[3_600_000, 10_000, 10_010, 9_990]],            # wrong arity
+                    [[3_600_000, 10_000, 10_010, 9_990, float('nan')]],  # nonfinite
+                    [[3_600_000, 10_000, 9_990, 10_010, 10_005]],    # high below low
+                    [[3_600_000, 10_000, 10_010, 9_990, 11_000]],    # close outside range
+                    [[7_200_000, 1, 2, 3, 4], [3_600_000, 1, 2, 3, 4]],  # unordered
+                    [[True, 1, 2, 3, 4]]):                           # bool stamp
+            source['equity_hourly'] = bad
+            with self.assertRaises(ValueError):
+                public_autopilot.safe(source)
+
+    def test_hourly_buckets_are_capped_at_seven_days(self):
+        source = self.source()
+        source['equity_hourly'] = [[i * 3_600_000, 10_000, 10_001, 9_999, 10_000]
+                                   for i in range(1, 300)]
+        result = public_autopilot.safe(source)
+        self.assertEqual(len(result['equity_hourly']), 168)
+        self.assertEqual(result['equity_hourly'][-1][0], 299 * 3_600_000)

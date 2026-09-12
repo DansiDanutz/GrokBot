@@ -1,5 +1,6 @@
 """Single-pass daemon coordinator; all transport and time are injectable."""
 from copy import deepcopy
+from itertools import groupby
 from pathlib import Path
 from sqlite3 import Error as DatabaseError
 import sys
@@ -50,7 +51,9 @@ class Runner:
         allowed = set(policy.new_state(0)) | {'runtime', 'event_seq', 'pending_events', 'pending_notifications', 'pending_watchlists'}
         if self.state.get('schema_version') != 1 or set(self.state) - allowed:
             raise ValueError('unsupported autopilot state')
-        for key in ('open_bots', 'closed_bots', 'equity_curve'):
+        # States written before the hourly candle aggregate get an empty list.
+        self.state.setdefault('equity_hourly', [])
+        for key in ('open_bots', 'closed_bots', 'equity_curve', 'equity_hourly'):
             if not isinstance(self.state.get(key), list):
                 raise ValueError('invalid autopilot state list')
         self.state.setdefault('runtime', dict(quotes={}, kucoin_ok=False,
@@ -106,10 +109,12 @@ class Runner:
             updates.extend((c['ts_ms'], bot['symbol'], c) for c in
                            candles_after(self.database, bot['symbol'], bot['last_ts_ms'], now))
         events = []
-        for at, symbol, candle in sorted(updates, key=lambda row: (row[0], row[1])):
+        ordered = sorted(updates, key=lambda row: (row[0], row[1]))
+        for at, rows in groupby(ordered, key=lambda row: row[0]):
             if self.stop is not None and self.stop.is_set():
                 raise RuntimeError('recovery interrupted')
-            events.extend(self._apply({symbol: candle}))
+            batch = {symbol: candle for _, symbol, candle in rows}
+            events.extend(self._apply(batch))
             if not self.state['equity_curve'] or at > self.state['equity_curve'][-1][0]:
                 self.state = policy.sample(self.state, at)
         self.recovered = True

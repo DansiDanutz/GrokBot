@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from trader.autopilot import policy
 from trader.autopilot.runtime import Runner, guarded_paths
 from trader.autopilot.storage import read_json, atomic_json, read_events
 from trader.data.store import Store
@@ -121,6 +122,35 @@ class RuntimeTests(unittest.TestCase):
         self.assertGreater(fills, 0)
         again = self.runner(); again.pass_once()
         self.assertEqual(again.state['open_bots'][0]['engine']['fills'], fills)
+
+    def test_recovery_applies_all_symbols_at_timestamp_before_sampling(self):
+        runner = self.runner()
+        runner.state['open_bots'] = [
+            {'engine': {'symbol': 'A', 'last_ts_ms': NOW}},
+            {'engine': {'symbol': 'XBTUSDTM', 'last_ts_ms': NOW}},
+        ]
+        at = NOW + 60_000
+        candles = {
+            'A': [dict(ts_ms=at, price=101.)],
+            'XBTUSDTM': [dict(ts_ms=at, price=99.)],
+        }
+        runner._apply = unittest.mock.Mock(return_value=[])
+        with patch('trader.autopilot.runtime.ingest_open_minutes'), \
+                patch('trader.autopilot.runtime.candles_after',
+                      side_effect=lambda _, symbol, _last, _now: candles[symbol]), \
+                patch('trader.autopilot.runtime.policy.sample',
+                      side_effect=lambda state, _at: state) as sample:
+            runner._recover(at)
+        runner._apply.assert_called_once_with({
+            'A': candles['A'][0], 'XBTUSDTM': candles['XBTUSDTM'][0]})
+        sample.assert_called_once_with(runner.state, at)
+
+    def test_rejects_non_list_hourly_state(self):
+        state = policy.new_state(NOW)
+        state['equity_hourly'] = {'bad': 'shape'}
+        atomic_json(self.state, state)
+        with self.assertRaisesRegex(ValueError, 'invalid autopilot state list'):
+            self.runner()
 
     def test_unchanged_pass_has_at_most_thirty_second_heartbeat_write(self):
         atomic_json(self.radar, dict(schema_version=1, asof_ms=NOW, rows=[], sections={}))

@@ -119,6 +119,14 @@ svg.curve{width:100%;height:auto;display:block}
 .tip-text{fill:var(--mut);font:500 11px var(--mono)}
 .tip-text.strong{fill:var(--text);font-weight:700}
 .axes{display:flex;justify-content:space-between;gap:12px;font:500 11px/1.4 var(--mono);color:var(--mut);margin-top:8px}
+/* hourly candles */
+.candle.up{fill:var(--up)}.candle.down{fill:var(--dn)}
+.candle-wick{stroke-width:1.4;vector-effect:non-scaling-stroke}
+.candle-wick.up{stroke:var(--up)}.candle-wick.down{stroke:var(--dn)}
+.slot-hi{fill:rgba(255,255,255,.045)}
+.hourly-tick{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+.hourly-count{fill:var(--mut);font:600 10px var(--mono);text-anchor:middle}
+.hourly-hour{text-anchor:middle}
 /* watchlist */
 .columns{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:8px}
 .columns>div>h3{font:700 10.5px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--mut);margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
@@ -170,11 +178,12 @@ footer{font-size:11.5px;color:var(--mut);margin-top:24px;line-height:1.7;max-wid
 <div class="stamp"><span class="pill STALE" id="health">LOADING</span><p id="stamp">Waiting for the first snapshot</p></div>
 </div></header>
 <nav class="main" aria-label="Main"><div class="wrap"><a href="/paper" aria-current="page">Paper desk</a><a href="/radar">Radar</a><a href="/control">Control run</a></div></nav>
-<main class="wrap"><div class="section-nav" aria-label="Paper desk sections"><a href="#account">Account</a><a href="#trade-activity">Buy / Sell</a><a href="#positions">Positions</a><a href="#history">History</a><a href="#account-history">Equity</a><a href="#watchlist">Watchlist</a><a href="#scoring">Scoring</a><a href="#events-panel">Events</a></div><div id="notice" class="notice" hidden></div>
+<main class="wrap"><div class="section-nav" aria-label="Paper desk sections"><a href="#account">Account</a><a href="#trade-activity">Buy / Sell</a><a href="#positions">Positions</a><a href="#history">History</a><a href="#today-hourly">Today</a><a href="#account-history">Equity</a><a href="#watchlist">Watchlist</a><a href="#scoring">Scoring</a><a href="#events-panel">Events</a></div><div id="notice" class="notice" hidden></div>
 <section class="panel" id="account" aria-label="Paper account"><h2>Paper account · USDT</h2><p class="muted">Starting bankroll is separate from current balance and floating PnL. Watchlist candidates are not positions.</p><div class="account-grid" id="account-values"></div></section>
 <section class="panel" id="trade-activity"><h2>BUY / SELL · active paper bots</h2><p class="muted">Latest executed paper fill for each active bot in the available event feed, not an instruction to trade. Green BUY and red SELL describe the fill, not the bot’s trend. Public activity is a published snapshot; local activity updates every 10 seconds.</p><div id="trade-actions"></div></section>
 <section class="panel" id="positions"><h2>Open paper positions</h2><p class="muted">New-entry rules: At least 12 configured grids inside confirmed support / resistance only, with estimated leveraged return greater than 1% per completed grid after both 0.06% fill fees at 5×. Entry targets allow one-order rounding tolerance: Long 40% BUY / 60% SELL; Short 60% BUY / 40% SELL; Neutral 50% / 50% across both books. These are pending-order proportions, not guaranteed profits. Existing bots keep their original ranges and orders; the current split changes as fills occur.</p><p class="muted" id="positions-note">Loading open positions.</p><div id="positions-bots"></div></section>
 <section class="panel" id="history"><h2>Position history</h2><p class="muted">Latest 20 closed paper bots, including their close reason and final accounting. A watchlist promotion is not a position close.</p><div id="history-bots"></div></section>
+<section class="panel" id="today-hourly"><h2>Today · hourly</h2><p class="muted">Account equity per UTC clock hour for the current day — a green candle closes at or above the hour open, a red one below; the wick spans the hour's high to low. The glyph under an hour counts grid bots that were open during it.</p><div class="chartbox" id="hourly"></div><p class="muted">Open counts use open bots plus the newest 20 closed bots, so early-hour counts may undercount.</p></section>
 <section class="panel" id="account-history"><h2>Account history · equity</h2><p class="muted">Equity includes floating PnL. This is an equity curve, not a cash balance history.</p><div class="chartbox" id="curve"></div><div class="axes"><span id="curve-start">No samples yet</span><span id="curve-end"></span></div></section>
 <section class="panel" id="watchlist"><h2>Watchlist</h2><p class="muted">Up to 10 candidates, not 10 trades: Core can open up to 5 bots; Bench waits. An ACTIVE card has an open bot. Moving a coin to Bench does not close its bot; the bot follows its own exit rules.</p><p class="muted" id="watchlist-asof" hidden></p><div class="columns"><div><h3>Core · up to 5</h3><div class="cards" id="core"></div></div><div><h3>Bench · up to 5</h3><div class="cards" id="bench"></div></div></div><details open><summary>Latest watchlist changes · last 24</summary><ul class="feed" id="watch-events"></ul></details></section>
 <section class="panel" id="scoring"><h2>How the score is calculated</h2><p><strong>Score / 100 = component points minus penalties, clamped between 0 and 100.</strong> This is a fixed ranking formula, not a probability of profit. The score does not change the bot’s exit rules.</p><div class="columns"><div><h3>Earned points · maximum 100</h3><ul>
@@ -210,7 +219,7 @@ let lastReport=null,staticMode=false,receivedAt=0,busy=false,lastRenderedKey='';
 let eventCursor=0,eventCursorId=0,eventRows=[],gridHistory=[];
 const eventIndex=new Map(),gridSeen=new Set();
 const botNodes=new Map(),groupNodes=new Map(),cardNodes=new Map();
-let histNodes=null,histTotals=null,chartRefs=null;
+let histNodes=null,histTotals=null,chartRefs=null,hourlyRefs=null;
 const openSort={key:'opened_ms',dir:-1},histSort={key:'closed_ms',dir:-1};
 const svgNS='http://www.w3.org/2000/svg';
 function svgEl(tag,cls,attrs){const n=document.createElementNS(svgNS,tag);if(cls)n.setAttribute('class',cls);for(const [k,v] of Object.entries(attrs||{}))n.setAttribute(k,v);return n;}
@@ -524,6 +533,77 @@ c.xg.hidden=false;}
 function onChartMove(ev){chartPoint(ev.clientX,ev.clientY);}
 function onChartTouch(ev){if(ev.touches&&ev.touches[0])chartPoint(ev.touches[0].clientX,ev.touches[0].clientY);}
 function onChartLeave(){if(chartRefs&&chartRefs.xg)chartRefs.xg.hidden=true;}
+const HC={W:900,H:240,L:14,R:84,T:14,B:44},DAY_MS=86400000,HR_MS=3600000;
+function hourlyChart(report){
+const box=id('hourly');hourlyRefs=null;
+const svg=svgEl('svg','curve',{viewBox:'0 0 '+HC.W+' '+HC.H,role:'img'});
+const now=fin(report.generated_at_ms)?report.generated_at_ms:Date.now();
+const dayStart=Math.floor(now/DAY_MS)*DAY_MS;
+const buckets=arr(report.equity_hourly).filter(b=>Array.isArray(b)&&b.length===5&&b.every(fin)&&b[0]>=dayStart&&b[0]<dayStart+DAY_MS&&b[0]<=now);
+const slotW=(HC.W-HC.L-HC.R)/24,axisY=HC.H-HC.B;
+const frame=()=>{
+  svg.append(svgEl('line','chart-grid',{x1:HC.L,x2:HC.W-HC.R,y1:axisY,y2:axisY}));
+  for(let h=0;h<=24;h++)svg.append(svgEl('line','hourly-tick',{x1:(HC.L+h*slotW).toFixed(2),x2:(HC.L+h*slotW).toFixed(2),y1:axisY,y2:axisY+4}));
+  for(let h=0;h<24;h+=4)svg.append(svgText('chart-label hourly-hour',{x:(HC.L+(h+.5)*slotW).toFixed(1),y:HC.H-8},String(h).padStart(2,'0')));};
+if(!buckets.length){
+  frame();
+  svg.append(svgText('chart-label',{x:HC.L,y:HC.H/2},'No hourly samples yet today'));
+  box.replaceChildren(svg);return;}
+const bots=[...arr(report.open_bots),...arr(report.closed_bots)];
+const counts=Array.from({length:24},(_,h)=>{const s=dayStart+h*HR_MS,e=s+HR_MS;
+  return bots.filter(b=>fin(b.opened_ms)&&b.opened_ms<e&&(fin(b.closed_ms)?b.closed_ms>=s:now>=s)).length;});
+const hi=Math.max(...buckets.map(b=>b[2])),lo=Math.min(...buckets.map(b=>b[3]));
+const pad=((hi-lo)||Math.max(.01,Math.abs(hi)*.004))*.18;
+const min=lo-pad,max=hi+pad,Y=v=>HC.T+(axisY-HC.T)*(1-(v-min)/(max-min));
+svg.setAttribute('aria-label','Hourly equity candles for the current UTC day, '+buckets.length+' hours with samples');
+for(const v of [hi,(hi+lo)/2,lo]){
+  const gy=Y(v);
+  svg.append(svgEl('line','chart-grid',{x1:HC.L,x2:HC.W-HC.R,y1:gy.toFixed(2),y2:gy.toFixed(2)}));
+  svg.append(svgText('chart-label',{x:HC.W-HC.R+8,y:(gy+4).toFixed(2)},fmt(v)));
+}
+frame();
+const byHour=new Map(buckets.map(b=>[Math.round((b[0]-dayStart)/HR_MS),b]));
+for(let h=0;h<24;h++){
+  const b=byHour.get(h);
+  if(!b)continue;
+  const cx=HC.L+(h+.5)*slotW,up=b[4]>=b[1];
+  svg.append(svgEl('line','candle-wick '+(up?'up':'down'),{x1:cx.toFixed(2),x2:cx.toFixed(2),y1:Y(b[2]).toFixed(2),y2:Y(b[3]).toFixed(2)}));
+  const yO=Y(b[1]),yC=Y(b[4]);
+  svg.append(svgEl('rect','candle '+(up?'up':'down'),{x:(HC.L+h*slotW+slotW*.25).toFixed(2),y:Math.min(yO,yC).toFixed(2),width:(slotW*.5).toFixed(2),height:Math.max(1.2,Math.abs(yC-yO)).toFixed(2),rx:1}));
+  if(counts[h]>0)svg.append(svgText('hourly-count',{x:cx.toFixed(2),y:axisY+22},'×'+counts[h]));
+}
+const xg=svgEl('g','xhair');
+const hiBox=svgEl('rect','slot-hi',{y:HC.T,height:axisY-HC.T,width:slotW.toFixed(2)});
+const vline=svgEl('line',null,{x1:0,x2:0,y1:HC.T,y2:axisY});
+const hline=svgEl('line',null,{x1:HC.L,x2:HC.W-HC.R,y1:0,y2:0});
+const dot=svgEl('circle',null,{r:3.5});
+const tip=svgEl('g','tip');
+const tipBox=svgEl('rect',null,{width:252,height:40,rx:6});
+const t1n=svgText('tip-text',{x:10,y:17},''),t2n=svgText('tip-text strong',{x:10,y:33},'');
+tip.append(tipBox,t1n,t2n);xg.append(hiBox,vline,hline,dot,tip);xg.hidden=true;
+svg.append(xg);
+box.replaceChildren(svg);
+hourlyRefs={svg,byHour,counts,Y,slotW,xg,hiBox,vline,hline,dot,tip,t1n,t2n};}
+function hourlyPoint(clientX,clientY){
+const c=hourlyRefs;if(!c||!c.svg.getBoundingClientRect)return;
+const rect=c.svg.getBoundingClientRect();if(!rect.width)return;
+const vx=(clientX-rect.left)*(HC.W/rect.width);
+const h=Math.floor((vx-HC.L)/c.slotW);
+if(h<0||h>23||!c.byHour.has(h)){c.xg.hidden=true;return;}
+const b=c.byHour.get(h),cx=HC.L+(h+.5)*c.slotW,cy=c.Y(b[4]);
+c.hiBox.setAttribute('x',(HC.L+h*c.slotW).toFixed(2));
+c.vline.setAttribute('x1',cx.toFixed(1));c.vline.setAttribute('x2',cx.toFixed(1));
+c.hline.setAttribute('y1',cy.toFixed(1));c.hline.setAttribute('y2',cy.toFixed(1));
+c.dot.setAttribute('cx',cx.toFixed(1));c.dot.setAttribute('cy',cy.toFixed(1));
+const hh=String(h).padStart(2,'0'),nh=String(h+1).padStart(2,'0');
+c.t1n.textContent=hh+':00–'+nh+':00 UTC';
+const chg=b[1]?(b[4]-b[1])/b[1]*100:null;
+c.t2n.textContent='O '+fmt(b[1])+' H '+fmt(b[2])+' L '+fmt(b[3])+' C '+fmt(b[4])+(fin(chg)?' · '+(chg>0?'+':'')+fmt(chg,2)+'%':'')+' · '+c.counts[h]+' open';
+c.tip.setAttribute('transform','translate('+clamp(cx-126,HC.L,HC.W-HC.R-256).toFixed(1)+' '+clamp(cy-50,HC.T,HC.H-90).toFixed(1)+')');
+c.xg.hidden=false;}
+function onHourlyMove(ev){hourlyPoint(ev.clientX,ev.clientY);}
+function onHourlyTouch(ev){if(ev.touches&&ev.touches[0])hourlyPoint(ev.touches[0].clientX,ev.touches[0].clientY);}
+function onHourlyLeave(){if(hourlyRefs&&hourlyRefs.xg)hourlyRefs.xg.hidden=true;}
 function renderTradeActions(){
 const opened=arr(lastReport&&lastReport.open_bots),root=id('trade-actions');
 if(!opened.length){root.replaceChildren(el('p','empty','No active paper bots.'));return;}
@@ -556,13 +636,14 @@ function ingestEvents(payload){
 rememberGrids(arr(payload&&payload.events));
 if(eventIndex.size!==eventRows.length){eventIndex.clear();for(const r of eventRows)eventIndex.set(keyOfEvent(r.e),1);}
 for(const e of arr(payload&&payload.events)){
-  if(!fin(e.ts_ms)||!EVENT_TYPES.has(e.type)||!fin(e.bot_id)||typeof e.symbol!=='string')continue;
-  const k=keyOfEvent(e);
-  if(eventIndex.has(k))continue;
-  eventRows.push({e});eventIndex.set(k,1);
+  if(!fin(e.ts_ms)||!fin(e.bot_id)||typeof e.symbol!=='string')continue;
   const eid=fin(e.event_id)?e.event_id:0;
   if(e.ts_ms>eventCursor){eventCursor=e.ts_ms;eventCursorId=eid;}
   else if(e.ts_ms===eventCursor){eventCursorId=Math.max(eventCursorId,eid);}
+  if(!EVENT_TYPES.has(e.type))continue;
+  const k=keyOfEvent(e);
+  if(eventIndex.has(k))continue;
+  eventRows.push({e});eventIndex.set(k,1);
 }
 eventRows=eventRows.sort((a,b)=>a.e.ts_ms-b.e.ts_ms||(a.e.event_id||0)-(b.e.event_id||0));
 if(eventRows.length>50){eventRows=eventRows.slice(-50);eventIndex.clear();for(const r of eventRows)eventIndex.set(keyOfEvent(r.e),1);}
@@ -577,7 +658,7 @@ if(!report||!fin(report.generated_at_ms)||!fin(report.equity))throw Error('inval
 lastReport=report;rememberGrids(report.completed_grid_events);staticMode=isStatic;
 receivedAt=Math.min(Date.now(),report.generated_at_ms);
 lastRenderedKey=String(report.generated_at_ms)+'|'+(fin(report.published_at_ms)?report.published_at_ms:'');
-headerNumbers(report);account(report);watchlist(report);renderBots(report);equityChart(report);
+headerNumbers(report);account(report);watchlist(report);renderBots(report);equityChart(report);hourlyChart(report);
 const points=arr(report.equity_curve);
 id('curve-start').textContent=points.length?time(points[0][0])+' · '+fmt(points[0][1])+' USDT':'No samples yet';
 id('curve-end').textContent=points.length?time(points.at(-1)[0])+' · '+fmt(points.at(-1)[1])+' USDT':'';
@@ -644,6 +725,8 @@ if(desk&&desk.addEventListener)desk.addEventListener('click',onDeskClick);
 if(hist&&hist.addEventListener)hist.addEventListener('click',onDeskClick);
 const curve=id('curve');
 if(curve&&curve.addEventListener){curve.addEventListener('mousemove',onChartMove);curve.addEventListener('mouseleave',onChartLeave);curve.addEventListener('touchstart',onChartTouch,{passive:true});curve.addEventListener('touchmove',onChartTouch,{passive:true});}
+const hourly=id('hourly');
+if(hourly&&hourly.addEventListener){hourly.addEventListener('mousemove',onHourlyMove);hourly.addEventListener('mouseleave',onHourlyLeave);hourly.addEventListener('touchstart',onHourlyTouch,{passive:true});hourly.addEventListener('touchmove',onHourlyTouch,{passive:true});}
 poll();
 setInterval(poll,10000);
 setInterval(refreshStatus,1000);}
