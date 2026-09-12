@@ -66,7 +66,9 @@ def open_neutral(spec, price, now_ms):
                 pair_entry=price if closing else None))
         seeded = sum(o['pair_entry'] is not None for o in book['orders'])
         if seeded:
-            engine._position_fill(book, quantity * seeded * (1 if direction == 'LONG' else -1), price)
+            # Initial position establishment executes as a market order (taker).
+            engine._position_fill(book, quantity * seeded * (1 if direction == 'LONG' else -1),
+                                  price, taker=True)
         books.append(book)
     bot['hedge_books'] = books
     bot['accounting_model'] = 'independent_hedge_v1'
@@ -142,7 +144,8 @@ def close_neutral(bot, price, at, reason='MANUAL'):
         _fund(book, at)
         quantity = -book['position_contracts']
         if quantity:
-            fee = engine._position_fill(book, quantity, price)
+            # Forced close-out flatten executes as a market order (taker).
+            fee = engine._position_fill(book, quantity, price, taker=True)
             events.append(engine._event(result, at, 'FILL', price=price,
                 contracts=abs(quantity), side=1 if quantity > 0 else -1, fee=fee, book=index))
         book.update(orders=[], closed_ms=at, reason=reason, last_ts_ms=at)

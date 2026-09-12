@@ -1,7 +1,11 @@
-"""Arithmetic grid returns on allocated margin, after both modeled fill fees."""
+"""Arithmetic grid returns on allocated margin, after both modeled fill fees.
+
+A completed grid is a buy+sell pair of resting limit fills at line prices,
+so the round trip pays the MAKER rate on both legs.
+"""
 import math
 from decimal import Decimal, ROUND_FLOOR, ROUND_CEILING
-from trader.papergrid.engine import FEE_RATE
+from trader.papergrid.engine import FEE_RATE_MAKER as FEE_RATE
 
 FEE_SAFETY_MARGIN = .20
 MIN_GRID_PROFIT_PCT = 1.0

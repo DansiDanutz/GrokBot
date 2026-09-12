@@ -125,8 +125,9 @@ class ExitClassificationTests(TempDbCase):
         self.assertEqual(result["best_price"], 112.0)
         self.assertEqual(result["price_6h"], 112.0)
         self.assertEqual(result["classification"], "PREMATURE")
-        # base = notional/exit = 10 units -> (112-100)*10 = 120
-        self.assertAlmostEqual(result["would_have_been_pnl"], 120.0)
+        # base = notional/exit = 10 units -> (112-100)*10 - exit fill fee
+        # (one maker fill at best: 10*112*0.0002 = 0.224)
+        self.assertAlmostEqual(result["would_have_been_pnl"], 119.776)
 
     def test_long_keeps_falling_is_good(self):
         bot = make_bot(realized_pnl=-5.0, fees_paid=0.0)
@@ -152,7 +153,8 @@ class ExitClassificationTests(TempDbCase):
                     path_after(1_789_236_000_000, 360, lambda i: 98.0 if i > 30 else 100.0))
         result = analyze_exit(bot, self.conn)
         self.assertEqual(result["classification"], "PREMATURE")
-        self.assertAlmostEqual(result["would_have_been_pnl"], 20.0)  # (100-98)*10
+        # (100-98)*10 - 10*98*0.0002 (maker exit fill fee) = 19.804
+        self.assertAlmostEqual(result["would_have_been_pnl"], 19.804)
 
     def test_neutral_direction_skips_with_note(self):
         bot = make_bot(direction="NEUTRAL")
@@ -281,8 +283,9 @@ class LiquidationAwareExitTests(TempDbCase):
         self.assertEqual([e["classification"] for e in data["exits"]],
                          ["RISKY_HOLD", "PREMATURE"])
         self.assertEqual(len(data["premature"]), 1)
-        # missed = 120 - (-2) for the PREMATURE bot only; RISKY_HOLD excluded
-        self.assertAlmostEqual(sum(data["premature_costs"]), 122.0)
+        # missed = whb(119.776) - net(-2) for the PREMATURE bot only;
+        # RISKY_HOLD excluded
+        self.assertAlmostEqual(sum(data["premature_costs"]), 121.776)
         props = build_proposals(data, data["proposals"])
         self.assertEqual(len(props["premature_closes"]), 1)
         self.assertEqual(props["premature_closes"][0]["bot_id"], 2)
@@ -393,8 +396,9 @@ class ReportTests(TempDbCase):
         events = [{"ts_ms": start + HOUR, "type": "ERROR", "code": 1}]
         data = build_report("2026-09-12", self._state(bots), self.conn, events, tz=UTC)
         self.assertEqual(len(data["premature"]), 2)
-        # each: whb 120 - net(-5 / -2)
-        self.assertAlmostEqual(sum(data["premature_costs"]), 120 - (-5) + 120 - (-2))
+        # each whb = (112-100)*10 - 10*112*0.0002 = 119.776; missed = whb - net
+        self.assertAlmostEqual(sum(data["premature_costs"]),
+                               119.776 - (-5) + 119.776 - (-2))
         md = render_markdown(data)
         self.assertIn("## 2. Exit quality", md)
         self.assertIn("PREMATURE", md)

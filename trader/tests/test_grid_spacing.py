@@ -12,7 +12,7 @@ class SpacingTests(unittest.TestCase):
 
     def test_count_fits_fixed_range_and_twenty_percent_fee_cushion(self):
         count = choose_count(100, 102)
-        self.assertEqual(count, 6)
+        self.assertEqual(count, 8)  # was 6 at taker 0.0006; maker 0.0002 fits more grids
         result = economics(100, 102, count)
         self.assertTrue(result['viable'])
         self.assertGreaterEqual(result['net_per_unit_low'], .2*result['fees_per_unit_low'])

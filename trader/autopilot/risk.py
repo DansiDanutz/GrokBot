@@ -1,5 +1,7 @@
 """Conservative whole-lot sizing and liquidation guard for adverse grid fills."""
 import math
+# FEE_RATE here is the liquidation/forced-exit fee (taker): an executed
+# liquidation or stop-out fills as a market order, not a resting limit.
 from trader.papergrid.engine import FEE_RATE
 from trader.radar.spacing import economics
 

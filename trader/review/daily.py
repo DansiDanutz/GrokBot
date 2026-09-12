@@ -25,7 +25,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from trader.autopilot.liquidation import estimate as _liquidation_estimate
+from trader.papergrid.engine import FEE_RATE_MAKER
 from trader.review import rules as learned_rules
+
+FEE_MODEL_NOTE = ("fee_model: maker-0.02pct grid fills (since 2026-09-12, was "
+                  "taker-0.06pct; seed/close-out stay taker; liquidation fee "
+                  "unchanged 0.06pct)")
 
 DAY_MS = 86_400_000
 SIX_HOURS_MS = 6 * 3_600_000
@@ -380,7 +385,10 @@ def analyze_exit(bot, conn, now_ms=None, open_price=None, donors=None):
         result["note"] = "position size not recoverable; PnL skipped"
         return result
     sign = 1.0 if direction == "LONG" else -1.0
-    result["would_have_been_pnl"] = sign * (result["best_price"] - exit_price) * base
+    # Would-have-been is net of the hypothetical exit fill: one maker fill
+    # (resting limit) at the best price on the held position.
+    whb_gross = sign * (result["best_price"] - exit_price) * base
+    result["would_have_been_pnl"] = whb_gross - base * result["best_price"] * FEE_RATE_MAKER
     result["classification"] = classify_exit(
         direction, entry, exit_price, interval, net, reason,
         result["best_price"], result["worst_price"],
@@ -736,6 +744,7 @@ def render_markdown(data):
                      "data; auto-learning is disabled for this day.")
     lines.append("")
     lines.append("> All learnings below are PROPOSAL-grade. Nothing auto-applies.")
+    lines.append(f"> {FEE_MODEL_NOTE}.")
 
     lines.append("")
     lines.append("## 1. Day summary")

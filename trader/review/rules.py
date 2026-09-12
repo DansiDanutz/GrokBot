@@ -477,6 +477,10 @@ def render_doctrine(store, props, benefits=None):
              "Do not edit by hand; regenerated after each apply run. Deleting the",
              "rules store returns every behavior to default.",
              "",
+             "fee_model: maker-0.02pct grid fills (since 2026-09-12, was",
+             "taker-0.06pct; seed/close-out stay taker; liquidation fee",
+             "unchanged 0.06pct). Historical bot fees stay as recorded.",
+             "",
              "## Active learned rules",
              ""]
     hold = rules.get("min_hold_hours_before_non_risk_close")

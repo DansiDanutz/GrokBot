@@ -6,11 +6,12 @@ from pathlib import Path
 import unittest
 
 from trader.papergrid import close_bot, open_bot, step
+from trader.papergrid.engine import FEE_RATE_MAKER, FEE_RATE_TAKER
 
 
 FIXTURES = Path(__file__).resolve().parents[2] / "tests/fixtures/papergrid"
 BOUNDARY = 8 * 60 * 60 * 1000
-FEE = 0.0006
+FEE = FEE_RATE_TAKER  # seed/close-out fills stay taker; grid fills are maker
 
 
 def specification(direction="NEUTRAL", **changes):
@@ -67,6 +68,25 @@ class PaperGridTests(unittest.TestCase):
                 self.assertEqual(exact["position_contracts"], sign * 2 * exact["contracts_per_line"])
                 finished, _ = step(bot, dict(ts_ms=1, price=bot['range_high'] if sign == 1 else bot['range_low']))
                 self.assertEqual(finished['position_contracts'], 0)
+
+    def test_grid_round_trip_pays_maker_one_third_of_taker(self):
+        # Two identical LONG bots walk the same one-grid path; the control
+        # bot is forced to pay the taker rate on its grid fills. Same seed
+        # fee (taker) on both, so the fee delta is purely the grid fills.
+        maker_bot = open_bot(specification("LONG"), 100, 0)
+        taker_bot = open_bot(specification("LONG", fee_rate_maker=FEE_RATE_TAKER),
+                             100, 0)
+        seed_fees = maker_bot["fees_paid"]
+        target = maker_bot["lines"][3]  # one adjacent sell line above the empty
+        maker_bot, _ = step(maker_bot, {"ts_ms": 1000, "price": target})
+        taker_bot, _ = step(taker_bot, {"ts_ms": 1000, "price": target})
+        self.assertGreater(maker_bot["completed_grids"], 0)
+        maker_grid_fees = maker_bot["fees_paid"] - seed_fees
+        taker_grid_fees = taker_bot["fees_paid"] - seed_fees
+        self.assertAlmostEqual(maker_grid_fees * 3, taker_grid_fees, places=10)
+        self.assertAlmostEqual(maker_grid_fees, taker_grid_fees / 3)
+        self.assertAlmostEqual(maker_bot["fee_rate_maker"], FEE_RATE_MAKER)
+        self.assertAlmostEqual(maker_bot["fee_rate_taker"], FEE_RATE_TAKER)
 
     def test_multiline_tick_fills_at_each_limit_in_price_order(self):
         bot = open_bot(specification(), 100, 0)

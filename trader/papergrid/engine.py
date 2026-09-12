@@ -4,7 +4,15 @@ from copy import deepcopy
 import math
 from decimal import Decimal
 
-FEE_RATE = 0.0006
+# Fill-fee model (KuCoin USDT-M linear futures):
+#   Grid-line fills rest as limit orders at line prices -> MAKER.
+#   The initial position seed and the forced close-out flatten execute as
+#   market orders -> TAKER (this is also what liquidation.py charges: an
+#   executed liquidation is a forced market fill at the taker rate).
+# Grid bots may override either rate via spec['fee_rate_maker'/'fee_rate_taker'].
+FEE_RATE_TAKER = 0.0006
+FEE_RATE_MAKER = 0.0002
+FEE_RATE = FEE_RATE_TAKER  # back-compat alias; liq-style math (risk.py) imports this
 FUNDING_INTERVAL_MS = 8 * 60 * 60 * 1000
 CLOSE_REASONS = ('LABEL_FLIP', 'RANGE_BREAK', 'STOP_LOSS', 'DROPPED', 'MAX_AGE', 'MANUAL', 'PROFILE_UPDATE', 'RISK_LIMIT')
 
@@ -26,7 +34,7 @@ def _event(bot, at, kind, **numbers):
     return dict(ts_ms=at, bot_id=bot['bot_id'], symbol=bot['symbol'], type=kind, **numbers)
 
 
-def _position_fill(bot, quantity, price):
+def _position_fill(bot, quantity, price, *, taker=False):
     old, average = bot['position_contracts'], bot['avg_entry']
     new = old + quantity
     if old == 0 or old * quantity > 0:
@@ -38,7 +46,9 @@ def _position_fill(bot, quantity, price):
             new = 0.0
         bot['avg_entry'] = 0.0 if new == 0 else price if old * new < 0 else average
     bot['position_contracts'] = new
-    fee = abs(quantity) * price * FEE_RATE
+    key = 'fee_rate_taker' if taker else 'fee_rate_maker'
+    default = FEE_RATE_TAKER if taker else FEE_RATE_MAKER
+    fee = abs(quantity) * price * bot.get(key, default)
     bot['fees_paid'] += fee
     bot['fills'] += 1
     return fee
@@ -108,6 +118,8 @@ def _open_single_bot(spec, price, now_ms):
     bot['opening_price'] = price
     bot['risk_metadata_at_ms'] = now_ms
     bot['quantity_is_observed'] = spec.get('quantity_is_observed', 0)
+    bot['fee_rate_maker'] = _number(spec['fee_rate_maker']) if 'fee_rate_maker' in spec else FEE_RATE_MAKER
+    bot['fee_rate_taker'] = _number(spec['fee_rate_taker']) if 'fee_rate_taker' in spec else FEE_RATE_TAKER
     bot.update(lines=lines, orders=[], empty_line=empty, contracts_per_line=quantity,
                fills=0, completed_grids=0, grid_profit=0.0, realized_pnl=0.0,
                unrealized_pnl=0.0, position_contracts=0.0, avg_entry=0.0,
@@ -129,7 +141,9 @@ def _open_single_bot(spec, price, now_ms):
             order['pair_entry'] = price if order['paired_line'] is not None else None
     seed_count = sum(order['paired_line'] is not None for order in bot['orders'])
     if seed_count:
-        _position_fill(bot, quantity * seed_count * (1 if spec['direction'] == 'LONG' else -1), price)
+        # Initial position establishment executes as a market order (taker).
+        _position_fill(bot, quantity * seed_count * (1 if spec['direction'] == 'LONG' else -1),
+                       price, taker=True)
     _mark(bot, price)
     return bot
 
@@ -236,7 +250,8 @@ def close_bot(bot, price, now_ms, reason):
     events = []
     quantity = -result['position_contracts']
     if quantity:
-        fee = _position_fill(result, quantity, price)
+        # Forced close-out flatten executes as a market order (taker).
+        fee = _position_fill(result, quantity, price, taker=True)
         events.append(_event(result, now_ms, 'FILL', price=price,
                              contracts=abs(quantity), side=1 if quantity > 0 else -1, fee=fee))
     result.update(orders=[], closed_ms=now_ms, reason=reason, last_ts_ms=now_ms)
