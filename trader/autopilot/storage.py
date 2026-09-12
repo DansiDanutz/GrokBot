@@ -14,6 +14,11 @@ import tempfile
 
 MAX_BYTES = 2 * 1024 * 1024
 MAX_EVENT_BYTES = 65536
+# In-process parse cache for read_events: mtime+size keyed per file so repeated
+# dashboard polls skip re-parsing unchanged event logs. Bounded and invalidated
+# on any file change; entries hold only validated rows, never raw bytes.
+_EVENT_FILE_CACHE_LIMIT = 128
+_event_file_cache = {}
 EVENT_TYPES = frozenset({"OPEN", "FILL", "GRID", "CLOSE", "RANGE_BREAK",
                          "STOP_LOSS", "RESERVE", "ALERT", "RECOVER", "ERROR",
                          "PROMOTE", "DEMOTE", "DROP", "DIRECTION_CHANGE"})
@@ -251,6 +256,21 @@ class EventLog:
             os.close(directory_fd)
 
 
+def _event_rows(path):
+    """Validated rows for one event file, cached until its mtime or size changes."""
+    path = _safe(path)
+    info = os.stat(path)
+    stamp = (info.st_mtime_ns, info.st_size)
+    cached = _event_file_cache.get(path)
+    if cached is not None and cached[0] == stamp:
+        return cached[1]
+    rows = [validate_event(_decode(line)) for line in _read(path, MAX_BYTES).splitlines()]
+    if len(_event_file_cache) >= _EVENT_FILE_CACHE_LIMIT:
+        _event_file_cache.pop(next(iter(_event_file_cache)))
+    _event_file_cache[path] = (stamp, rows)
+    return rows
+
+
 def read_events(directory, since_ms, limit=500, *, after_event_id=None, latest=False):
     """Return at most 500 events after a timestamp or composite timestamp/ID cursor.
 
@@ -272,8 +292,7 @@ def read_events(directory, since_ms, limit=500, *, after_event_id=None, latest=F
         raise ValueError("event history exceeds retention cap")
     def rows():
         for path in paths:
-            for line in _read(path, MAX_BYTES).splitlines():
-                event = validate_event(_decode(line))
+            for event in _event_rows(path):
                 if (event["ts_ms"] > since_ms or
                         (after_event_id is not None and event["ts_ms"] == since_ms
                          and event.get("event_id", 0) > after_event_id)):

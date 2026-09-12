@@ -139,13 +139,23 @@ def bot(source):
     return result
 
 
+def _newest(rows, limit, stamp_key):
+    """Deterministically keep the newest rows by stamp, preserving source order."""
+    if len(rows) <= limit:
+        return rows, 0
+    keep = sorted(sorted(range(len(rows)), key=lambda i: rows[i].get(stamp_key) or 0,
+                         reverse=True)[:limit])
+    return [rows[i] for i in keep], len(rows) - limit
+
+
 def safe(source):
     source = obj(source)
     if source.get('schema_version') != 1:
         raise ValueError('invalid snapshot schema')
     opened, closed = rows(source.get('open_bots', [])), rows(source.get('closed_bots', []))
-    if len(opened) > 5 or len(closed) > 20:
+    if len(opened) > 5:
         raise ValueError('public bot limit exceeded')
+    closed, dropped_closed = _newest(closed, 20, 'closed_ms')
     result = numbers(source, ('generated_at_ms', 'equity', 'change_24h_pct', 'change_7d_pct',
         'peak_equity', 'max_drawdown_pct', 'heartbeat_ms', 'tick_age_s', 'radar_age_min',
         'watchlist_asof_ms'))
@@ -160,11 +170,14 @@ def safe(source):
             open_bots=[b for b in result['open_bots'] if b['direction'] == direction],
             closed_bots=[b for b in result['closed_bots'] if b['direction'] == direction],
             totals=numbers(obj(group.get('totals', {})), TOTAL_NUMBERS))
+    dropped_watchlist = 0
     for tier in ('core', 'bench'):
         entries = rows(obj(source.get('watchlist', {})).get(tier, []))
         if len(entries) > 5:
-            raise ValueError('watchlist limit exceeded')
+            dropped_watchlist += len(entries) - 5
+            entries = entries[:5]
         result['watchlist'][tier] = [watch_entry(entry) for entry in entries]
+    result['truncated'] = dict(closed_bots=dropped_closed, watchlist=dropped_watchlist)
     result['watchlist_history'] = [watch_event(row)
         for row in rows(source.get('watchlist_history', []))[-48:]]
     def total(key):

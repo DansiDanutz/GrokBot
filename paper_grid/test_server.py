@@ -2,9 +2,10 @@ import http.client
 from http.server import ThreadingHTTPServer
 import json
 import re
+import threading
+import time
 from pathlib import Path
 import tempfile
-import threading
 import unittest
 from unittest.mock import patch
 
@@ -144,6 +145,38 @@ class ServerTests(unittest.TestCase):
                 self.monitor.loop()
         self.assertIsNone(self.monitor.last_error)
         self.assertEqual(self.monitor.health()['last_audit_error'],'ValueError')
+
+    def test_read_only_health_comes_from_autopilot_snapshot(self):
+        from trader.autopilot.storage import atomic_json
+        snapshot = self.monitor.runtime / 'autopilot.json'
+        readonly = ThreadingHTTPServer(('127.0.0.1', 0), server.make_handler(
+            self.monitor, 0, autopilot_snapshot=snapshot, read_only=True))
+        readonly.RequestHandlerClass = server.make_handler(
+            self.monitor, readonly.server_port, autopilot_snapshot=snapshot, read_only=True)
+        self.addCleanup(readonly.server_close)
+        self.addCleanup(readonly.shutdown)
+        threading.Thread(target=readonly.serve_forever, daemon=True).start()
+        def request():
+            conn = http.client.HTTPConnection('127.0.0.1', readonly.server_port, timeout=3)
+            conn.request('GET', '/api/health', headers={'Host': f'localhost:{readonly.server_port}'})
+            response = conn.getresponse()
+            content = response.read()
+            conn.close()
+            return response, json.loads(content)
+        _, missing = request()
+        self.assertEqual(missing['source'], 'trader-autopilot-file')
+        self.assertFalse(missing['worker_alive'])
+        self.assertIsNone(missing['tick_age_s'])
+        self.assertIn('not the zmarty experiment', missing['note'])
+        now_ms = int(time.time() * 1000)
+        atomic_json(snapshot, dict(schema_version=1, equity=10000, generated_at_ms=now_ms,
+                                   heartbeat_ms=now_ms, tick_age_s=3.5, kucoin_ok=True))
+        _, fresh = request()
+        self.assertTrue(fresh['worker_alive'])
+        self.assertEqual(fresh['tick_age_s'], 3.5)
+        atomic_json(snapshot, dict(schema_version=1, equity=10000, generated_at_ms=now_ms - 120000,
+                                   heartbeat_ms=now_ms - 120000, tick_age_s=9.0, kucoin_ok=True))
+        self.assertFalse(request()[1]['worker_alive'])
 
 
 if __name__ == '__main__':

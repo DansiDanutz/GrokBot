@@ -143,6 +143,23 @@ class StorageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "size"):
             read_events(self.root, 0)
 
+    def test_event_reader_caches_parsed_files_until_they_change(self):
+        from trader.autopilot import storage
+        log = EventLog(self.root)
+        event = {"ts_ms": 1, "bot_id": 1, "symbol": "RAYUSDTM", "type": "FILL", "price": 1.5}
+        log.append([event])
+        self.assertEqual(read_events(self.root, 0), [event])
+        reads = []
+        original_read = storage._read
+        def counting(path, max_bytes):
+            reads.append(path)
+            return original_read(path, max_bytes)
+        with patch.object(storage, "_read", counting):
+            self.assertEqual(read_events(self.root, 0), [event])
+            self.assertEqual(reads, [])
+        log.append([dict(event, ts_ms=2, price=1.6)])
+        self.assertEqual([e["ts_ms"] for e in read_events(self.root, 0)], [1, 2])
+
 
 def read_json_line(path):
     import json

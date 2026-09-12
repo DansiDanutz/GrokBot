@@ -96,6 +96,20 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue({'ERROR', 'ALERT', 'RECOVER'} <= {e['type'] for e in events})
         self.assertNotIn('provider secret', self.state.read_text())
 
+    def test_local_policy_error_keeps_kucoin_ok_and_logs_code_5(self):
+        runner = self.runner(); runner.pass_once()
+        self.clock[0] += 10000
+        def broken(updates):
+            raise RuntimeError('local accounting bug')
+        runner._apply = broken
+        view = runner.pass_once()
+        self.assertTrue(view['kucoin_ok'])
+        self.assertEqual(view['tick_age_s'], 0)
+        events = read_events(self.state.parent, 0)
+        self.assertIn(5, {e.get('code') for e in events if e['type'] == 'ERROR'})
+        self.assertNotIn('local accounting bug', self.state.read_text())
+        self.assertNotIn('local accounting bug', (self.state.parent / 'events.jsonl').read_text())
+
     def test_restart_backfill_and_duplicate_pass_do_not_refill(self):
         runner = self.runner(); runner.pass_once()
         with Store(self.database) as store:

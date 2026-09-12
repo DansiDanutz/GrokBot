@@ -84,3 +84,20 @@ class AutopilotPublicTests(unittest.TestCase):
         closed['reason'] = 'private reason'
         with self.assertRaises(ValueError):
             public_autopilot.safe(source)
+
+    def test_overflow_truncates_newest_closed_bots_and_watchlist_with_note(self):
+        source = self.source()
+        source['closed_bots'] = [dict(symbol='RAYUSDTM', direction='LONG',
+                                      closed_ms=1000 + 100 * i) for i in range(25)]
+        source['watchlist']['core'] = [dict(symbol='RAYUSDTM', direction='NEUTRAL',
+            score=50 + i, since_ms=1, rank=i + 1) for i in range(7)]
+        result = public_autopilot.safe(source)
+        self.assertEqual(result['truncated'], {'closed_bots': 5, 'watchlist': 2})
+        self.assertEqual([row['closed_ms'] for row in result['closed_bots']],
+                         [1500 + 100 * i for i in range(20)])
+        self.assertEqual(len(result['groups']['LONG']['closed_bots']), 20)
+        self.assertEqual([row['rank'] for row in result['watchlist']['core']], [1, 2, 3, 4, 5])
+
+    def test_untruncated_payload_reports_zero_counts(self):
+        result = public_autopilot.safe(self.source())
+        self.assertEqual(result['truncated'], {'closed_bots': 0, 'watchlist': 0})

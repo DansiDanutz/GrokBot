@@ -25,3 +25,6 @@ DECISION_INTERVAL_S = 300
 SNAPSHOT_MAX_INTERVAL_S = 30
 TICK_STALE_ALERT_S = 180
 KUCOIN_DOWN_ALERT_S = 300
+# System ERROR event codes (type ERROR, bot_id 0, symbol SYSTEM) in events.jsonl.
+LOCAL_ERROR = 5  # policy/engine failure after a successful transport pass;
+                 # kucoin_ok stays unchanged and the tick continues.

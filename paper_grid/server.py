@@ -77,7 +77,8 @@ def _tailnet_host(value):
 
 
 def make_handler(monitor, port, *, autopilot_snapshot=None, events_dir=None,
-                 radar_snapshot=None, tailnet_host=None, tailnet_port=443):
+                 radar_snapshot=None, tailnet_host=None, tailnet_port=443,
+                 read_only=False):
     allowed_hosts = {f'127.0.0.1:{port}', f'localhost:{port}'}
     if tailnet_host is not None:
         host = _tailnet_host(tailnet_host)
@@ -97,6 +98,25 @@ def make_handler(monitor, port, *, autopilot_snapshot=None, events_dir=None,
                 payload = analytics.build(monitor.runtime)
                 analytics_cache.update(at=time.monotonic(), payload=payload)
             return analytics_cache['payload']
+
+    def read_only_health():
+        # No monitor thread in read-only mode: derive liveness from the autopilot
+        # snapshot the trader daemon writes. This reports the trader paper
+        # pipeline, not the zmarty experiment the full worker health describes.
+        result = dict(server_time=time.time(), source='trader-autopilot-file',
+                      note='Trader paper pipeline health; not the zmarty experiment.',
+                      worker_alive=False, last_poll_at=None, last_error=None,
+                      tick_age_s=None)
+        try:
+            data = read_json(autopilot_snapshot)
+        except (OSError, ValueError):
+            return result
+        stamps = [value for value in (data.get('heartbeat_ms'), data.get('generated_at_ms'))
+                  if type(value) in (int, float)]
+        age = time.time() - max(stamps) / 1000 if stamps else None
+        result['worker_alive'] = age is not None and age < 90
+        result['tick_age_s'] = data.get('tick_age_s')
+        return result
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -171,7 +191,8 @@ def make_handler(monitor, port, *, autopilot_snapshot=None, events_dir=None,
                     from paper_grid import audits
                     payload = {'reports': audits.list_reports(monitor.runtime)}
                 else:
-                    payload = monitor.health() if path == '/api/health' else experiment.report(monitor.runtime)
+                    payload = (read_only_health() if read_only else monitor.health()) \
+                        if path == '/api/health' else experiment.report(monitor.runtime)
                 content = json.dumps(payload, allow_nan=False).encode()
             except Exception as error:
                 content = json.dumps({'error': type(error).__name__, 'message': 'Report unavailable; account state preserved.'}).encode()
@@ -204,7 +225,8 @@ def main(argv=None):
     monitor = Monitor(args.runtime)
     server = ThreadingHTTPServer(('127.0.0.1', args.port), make_handler(monitor, args.port,
         autopilot_snapshot=args.autopilot_snapshot, radar_snapshot=args.radar_snapshot,
-        events_dir=args.events_dir, tailnet_host=args.tailnet_host, tailnet_port=args.tailnet_port))
+        events_dir=args.events_dir, tailnet_host=args.tailnet_host, tailnet_port=args.tailnet_port,
+        read_only=args.read_only))
     awake = None
     if not args.read_only and sys.platform == 'darwin':
         try:

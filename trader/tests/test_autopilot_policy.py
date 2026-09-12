@@ -184,6 +184,17 @@ class PolicyTests(unittest.TestCase):
         self.assertLessEqual(len(view['closed_bots'][0]['pnl_curve']), 120)
         self.assertLess(len(json.dumps(view)), 2*1024*1024)
 
+    def test_window_changes_are_none_without_an_older_equity_sample(self):
+        state = policy.new_state(0)
+        state['equity_curve'] = [[2 * HOUR, 10_000]]
+        view = policy.snapshot(state, 3 * HOUR, {})
+        self.assertIsNone(view['change_24h_pct'])
+        self.assertIsNone(view['change_7d_pct'])
+        state['equity_curve'] = [[HOUR, 10_000], [2 * HOUR, 9_900]]
+        view = policy.snapshot(state, 26 * HOUR, {})
+        self.assertAlmostEqual(view['change_24h_pct'], 100 * (10_000 / 9_900 - 1))
+        self.assertIsNone(view['change_7d_pct'])
+
     def test_reject_invalid_profile_before_open(self):
         for field, value in [('price', float('nan')), ('range_low', float('inf')),
                              ('funding_pct', float('nan')), ('grids', 0), ('step_pct', -1)]:

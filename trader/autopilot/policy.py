@@ -368,7 +368,11 @@ def snapshot(state, now_ms, health):
     equity = _equity(state)
     def change(hours):
         prior = [point[1] for point in state['equity_curve'] if point[0] <= now_ms - hours*HOUR_MS]
-        base = prior[-1] if prior else PAPER_EQUITY_USDT
+        if not prior:
+            # No sample older than the window: report unknown rather than
+            # implying a 0% move from the starting equity.
+            return None
+        base = prior[-1]
         return 100*(equity/base-1) if base else 0
     return dict(schema_version=1, generated_at_ms=now_ms, equity=equity,
                 peak_equity=state['peak_equity'], max_drawdown_pct=state['max_drawdown_pct'],

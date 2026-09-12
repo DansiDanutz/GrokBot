@@ -2,12 +2,13 @@
 from copy import deepcopy
 from pathlib import Path
 from sqlite3 import Error as DatabaseError
+import sys
 import time
 
 from trader.autopilot import policy
 from trader.autopilot.liquidation import enrich
 from trader.autopilot.constants import (MAJORS, DECISION_INTERVAL_S, SNAPSHOT_MAX_INTERVAL_S,
-                                        TICK_STALE_ALERT_S, KUCOIN_DOWN_ALERT_S)
+                                        TICK_STALE_ALERT_S, KUCOIN_DOWN_ALERT_S, LOCAL_ERROR)
 from trader.autopilot.market import ingest_open_minutes, candles_after
 from trader.autopilot.storage import atomic_json, read_json, EventLog, _safe
 from trader.data.kucoin_public import PublicClient
@@ -195,16 +196,6 @@ class Runner:
             return self._persist(self.now_ms())
         try:
             rows = self._transport(tick=True).all_tickers()
-            now = self.now_ms()
-            required = set(MAJORS) | {w['engine']['symbol'] for w in self.state['open_bots']}
-            quotes = {r['symbol']: r for r in rows if r['symbol'] in required and r['ts_ms'] <= now}
-            previous = self.state['runtime']['quotes']
-            quotes = {s: r for s, r in quotes.items() if r['ts_ms'] >= previous.get(s, {}).get('ts_ms', 0)}
-            if self.recovered:
-                events.extend(self._apply(quotes))
-            meta = self.state['runtime']
-            meta['quotes'] = {s: quotes.get(s, previous.get(s)) for s in required if s in quotes or s in previous}
-            meta.update(kucoin_ok=True, kucoin_down_since_ms=None, last_tick_ms=now)
         except (OSError, ValueError, RuntimeError, DatabaseError):
             now = self.now_ms()
             meta = self.state['runtime']
@@ -212,6 +203,25 @@ class Runner:
             if meta['kucoin_down_since_ms'] is None:
                 meta['kucoin_down_since_ms'] = now
             events.append(_system(now, 'ERROR', 1))
+        else:
+            now = self.now_ms()
+            required = set(MAJORS) | {w['engine']['symbol'] for w in self.state['open_bots']}
+            quotes = {r['symbol']: r for r in rows if r['symbol'] in required and r['ts_ms'] <= now}
+            previous = self.state['runtime']['quotes']
+            quotes = {s: r for s, r in quotes.items() if r['ts_ms'] >= previous.get(s, {}).get('ts_ms', 0)}
+            if self.recovered:
+                try:
+                    events.extend(self._apply(quotes))
+                except (ValueError, RuntimeError, DatabaseError) as error:
+                    # Local policy/engine failures are not exchange outages: leave
+                    # kucoin_ok set from the successful pass and continue the tick.
+                    # Only the exception type is logged; messages may carry secrets.
+                    print('autopilot local error: ' + type(error).__name__,
+                          file=sys.stderr, flush=True)
+                    events.append(_system(now, 'ERROR', LOCAL_ERROR))
+            meta = self.state['runtime']
+            meta['quotes'] = {s: quotes.get(s, previous.get(s)) for s in required if s in quotes or s in previous}
+            meta.update(kucoin_ok=True, kucoin_down_since_ms=None, last_tick_ms=now)
         meta = self.state['runtime']
         due = force_decision or radar_changed or now - meta['last_decision_ms'] >= DECISION_INTERVAL_S * 1000
         if (due and self.recovered and meta['kucoin_ok']
