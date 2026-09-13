@@ -6,14 +6,33 @@ import unittest
 
 from trader.autopilot import policy
 from trader.radar.rates import expected_grids_per_hour
+from trader.radar.spacing import economics
 
 HOUR = 3_600_000
+
+
+def range_fixture(candidate):
+    """Synthetic entry provenance for offline policy tests, never market evidence."""
+    low, high, count = candidate['range_low'], candidate['range_high'], candidate['grids']
+    try:
+        interval = economics(low, high, count, tick_size=candidate['tick_size'])['interval']
+    except ValueError:
+        return {}
+    return dict(version=1, method='repeated_hourly_pivots_v1', status='VERIFIED',
+        venue='KuCoin', timeframe='1h', contiguous=True, expected_candles=168,
+        observed_candles=168, coverage_ratio=1, pivot_confirmation_candles=2,
+        window_start_ms=-168*HOUR, window_end_ms=0, analysis_asof_ms=0, candle_asof_ms=0,
+        candles_sha256='a'*64, original_bounds=[low, high], rounded_bounds=[low, high],
+        selected_support=dict(price=low,touches=2,pivot_times_ms=[-10*HOUR,-5*HOUR],confirmed_at_ms=[-7*HOUR,-2*HOUR]),
+        selected_resistance=dict(price=high,touches=2,pivot_times_ms=[-9*HOUR,-4*HOUR],confirmed_at_ms=[-6*HOUR,-HOUR]),
+        grid_count=count,grid_interval=interval,actual_upper_line=low+count*interval,
+        fee_rate_maker=.0006,fee_rate_taker=.0006)
 
 
 def row(symbol, direction='LONG', **extra):
     low, high = {'LONG': (80, 130), 'TURNING-UP': (80, 130),
                  'SHORT': (70, 120), 'TURNING-DOWN': (70, 120), 'NEUTRAL': (75, 125)}[direction]
-    result = dict(maintain_margin=.005, risk_limit=1000000, multiplier=.001, lot_size=1, symbol=symbol, direction=direction, range_verified=1, price=100, range_low=low,
+    result = dict(tick_size=.0001, maintain_margin=.005, risk_limit=1000000, multiplier=.001, lot_size=1, symbol=symbol, direction=direction, range_verified=1, price=100, range_low=low,
                 range_high=high, low_7d=92, high_7d=108, atr_4h_pct=4,
                 atr_1h_pct=6.2, turnover_24h_usdt=8_000_000, step_pct=.8,
                 grids=70, rank_score=10, expected_grids_per_hour=14,
@@ -22,6 +41,7 @@ def row(symbol, direction='LONG', **extra):
     result.update(extra)
     result.setdefault('support', result['range_low'])
     result.setdefault('resistance', result['range_high'])
+    result.setdefault('range_evidence', range_fixture(result))
     return result
 
 

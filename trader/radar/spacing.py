@@ -1,11 +1,11 @@
 """Arithmetic grid returns on allocated margin, after both modeled fill fees.
 
-A completed grid is a buy+sell pair of resting limit fills at line prices,
-so the round trip pays the MAKER rate on both legs.
+A completed grid pays the Futures Trading Bot fixed fee on both legs.
+The return floor applies to each pair's allocated margin, excluding funding.
 """
 import math
 from decimal import Decimal, ROUND_FLOOR, ROUND_CEILING
-from trader.papergrid.engine import FEE_RATE_MAKER as FEE_RATE
+from trader.papergrid.engine import BOT_FEE_RATE as FEE_RATE
 
 FEE_SAFETY_MARGIN = .20
 MIN_GRID_PROFIT_PCT = 1.0
@@ -23,18 +23,19 @@ def economics(low, high, grids, safety_margin=FEE_SAFETY_MARGIN, *,
     if tick_size:
         tick=Decimal(str(tick_size))
         interval=(interval/tick).to_integral_value(rounding=ROUND_FLOOR)*tick
+    actual_high = float(Decimal(str(low)) + grids*interval)
     interval=float(interval)
-    # Upper configured boundary is conservative even if tick truncation leaves a remainder.
+    # The engine emits these arithmetic lines; an unused tick remainder is not a pair.
     def pair(buy, sell):
         fees=(buy+sell)*FEE_RATE
         net=sell-buy-fees
         margin_price=sell if direction == 'SHORT' else buy
         return net, fees, net/margin_price*leverage*100
     net, fees, maximum=pair(low,low+interval)
-    _, _, minimum=pair(high-interval,high)
+    _, _, minimum=pair(actual_high-interval,actual_high)
     if direction == 'NEUTRAL':
-        minimum *= (high-interval)/high  # Short closing pairs use sell-side margin.
-    return dict(interval=interval, step_pct=interval/low*100,
+        minimum *= (actual_high-interval)/actual_high  # Short closing pairs use sell-side margin.
+    return dict(interval=interval, actual_upper_line=actual_high, step_pct=interval/low*100,
                 net_per_unit_low=net, fees_per_unit_low=fees,
                 profit_pct_min=minimum, profit_pct_max=maximum,
                 viable=interval > 0 and minimum > MIN_GRID_PROFIT_PCT + 1e-10

@@ -4,12 +4,11 @@ from copy import deepcopy
 import math
 from decimal import Decimal
 
-# Fill-fee model (KuCoin USDT-M linear futures):
-#   Grid-line fills rest as limit orders at line prices -> MAKER.
-#   The initial position seed and the forced close-out flatten execute as
-#   market orders -> TAKER (this is also what liquidation.py charges: an
-#   executed liquidation is a forced market fill at the taker rate).
-# Grid bots may override either rate via spec['fee_rate_maker'/'fee_rate_taker'].
+# KuCoin Futures Trading Bot uses a fixed 0.06% maker/taker fee:
+# https://www.kucoin.com/support/21960469554201
+# New bots persist that schedule. Existing ledgers retain their stored rates;
+# the historical generic fallback remains for snapshots predating stored fees.
+BOT_FEE_RATE = 0.0006
 FEE_RATE_TAKER = 0.0006
 FEE_RATE_MAKER = 0.0002
 FEE_RATE = FEE_RATE_TAKER  # back-compat alias; liq-style math (risk.py) imports this
@@ -118,8 +117,8 @@ def _open_single_bot(spec, price, now_ms):
     bot['opening_price'] = price
     bot['risk_metadata_at_ms'] = now_ms
     bot['quantity_is_observed'] = spec.get('quantity_is_observed', 0)
-    bot['fee_rate_maker'] = _number(spec['fee_rate_maker']) if 'fee_rate_maker' in spec else FEE_RATE_MAKER
-    bot['fee_rate_taker'] = _number(spec['fee_rate_taker']) if 'fee_rate_taker' in spec else FEE_RATE_TAKER
+    bot['fee_rate_maker'] = _number(spec['fee_rate_maker']) if 'fee_rate_maker' in spec else BOT_FEE_RATE
+    bot['fee_rate_taker'] = _number(spec['fee_rate_taker']) if 'fee_rate_taker' in spec else BOT_FEE_RATE
     bot.update(lines=lines, orders=[], empty_line=empty, contracts_per_line=quantity,
                fills=0, completed_grids=0, grid_profit=0.0, realized_pnl=0.0,
                unrealized_pnl=0.0, position_contracts=0.0, avg_entry=0.0,

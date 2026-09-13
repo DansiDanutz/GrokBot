@@ -6,17 +6,17 @@ class ReturnFloorTests(unittest.TestCase):
     def test_ray_long_matches_fee_deducted_form(self):
         e = economics(1.4, 2, 70, tick_size=.0001, leverage=5)
         self.assertAlmostEqual(e['interval'], .0085)
-        # maker fees (0.0002/grid leg) since 2026-09-12; was 1.53/2.43 at taker 0.0006
-        self.assertAlmostEqual(e['profit_pct_min'], 1.93, delta=.01)
-        self.assertAlmostEqual(e['profit_pct_max'], 2.84, delta=.01)
+        # Bot-specific 0.06% fees; the actual final line is 1.995 after tick rounding.
+        self.assertAlmostEqual(e['profit_pct_min'], 1.54, delta=.01)
+        self.assertAlmostEqual(e['profit_pct_max'], 2.43, delta=.01)
         self.assertTrue(e['viable'])
 
     def test_ray_neutral_matches_fee_deducted_form(self):
-        e = economics(1.1, 2, 70, tick_size=.0001, leverage=5)
+        e = economics(1.1, 2, 70, tick_size=.0001, leverage=5, direction='NEUTRAL')
         self.assertAlmostEqual(e['interval'], .0128)
-        # maker fees; was 2.61/5.21 at taker 0.0006
-        self.assertAlmostEqual(e['profit_pct_min'], 3.02, delta=.01)
-        self.assertAlmostEqual(e['profit_pct_max'], 5.62, delta=.01)
+        # Both neutral books use the bot-specific 0.06% fee.
+        self.assertAlmostEqual(e['profit_pct_min'], 2.61, delta=.01)
+        self.assertAlmostEqual(e['profit_pct_max'], 5.21, delta=.01)
 
     def test_every_grid_must_strictly_exceed_one_percent(self):
         self.assertFalse(economics(100, 102, 10)['viable'])
@@ -34,22 +34,22 @@ class ReturnFloorTests(unittest.TestCase):
 
     def test_exactly_one_percent_and_short_worst_pair(self):
         # boundary where the worst pair nets exactly the 1% floor, under the
-        # maker rate (0.0002/leg) used since 2026-09-12 (was .0012/.0006)
-        delta = 100 * (.002 + .0004) / (1 - .0002)
+        # bot rate (0.0006/leg).
+        delta = 100 * (.002 + .0012) / (1 - .0006)
         self.assertFalse(economics(100,100+delta,1)['viable'])
         n=choose_count(1.4,2,tick_size=.0001,direction='SHORT')
         e=economics(1.4,2,n,tick_size=.0001,direction='SHORT')
         self.assertGreater(e['profit_pct_min'],1)
         for i in range(n):
             buy=1.4+i*e['interval']; sell=buy+e['interval']
-            self.assertGreater((sell-buy-.0002*(buy+sell))/sell*500,1)
+            self.assertGreater((sell-buy-.0006*(buy+sell))/sell*500,1)
 
     def test_neutral_must_cover_short_pair_margin_too(self):
-        # boundary recomputed for maker fees (0.0002/leg): the neutral
+        # Boundary for bot fees (0.0006/leg): the neutral
         # short-pair margin discount makes this range non-viable for NEUTRAL
-        # while LONG still clears the 1% floor (was 1..1.0296 under taker)
-        self.assertTrue(economics(1,1.02205,9,direction='LONG')['viable'])
-        self.assertFalse(economics(1,1.02205,9,direction='NEUTRAL')['viable'])
+        # while LONG still clears the 1% floor.
+        self.assertTrue(economics(1,1.0296,9,direction='LONG')['viable'])
+        self.assertFalse(economics(1,1.0296,9,direction='NEUTRAL')['viable'])
 
     def test_pivot_medians_align_inward_to_contract_tick(self):
         self.assertEqual(align_bounds(1.40005,1.99995,.0001),(1.4001,1.9999))

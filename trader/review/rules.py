@@ -313,6 +313,14 @@ def plan_changes(props, current_rules, today_iso):
                                          + "; " + reason)
             else:
                 _defer(entry, reason)
+    quality = totals.get("accounting_quality") or {}
+    if quality.get("status") == "PROVISIONAL":
+        reason = "provisional accounting: unresolved funding or recovery reconciliation"
+        for entry in planned:
+            if entry.get("status") == "defer":
+                entry["defer_reason"] = entry.get("defer_reason", "insufficient evidence") + "; " + reason
+            else:
+                _defer(entry, reason)
     return planned
 
 
