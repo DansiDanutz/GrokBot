@@ -117,6 +117,20 @@ class WatchlistTests(unittest.TestCase):
         self.assertEqual(state['core'][0]['score'], 81)
         self.assertEqual(state['bench'][0]['since_ms'], 10)
 
+    def test_entries_carry_the_deciding_rank_score_and_grid_rate(self):
+        candidates = [dict(row('A', 80), rank_score=12.5, expected_grids_per_hour=18.4),
+                      row('B', 70)]
+        state, _ = update(initial(), candidates, 0, 1)
+        entry = next(e for e in state['core'] if e['symbol'] == 'A')
+        self.assertEqual(entry['rank_score'], 12.5)
+        self.assertEqual(entry['expected_grids_per_hour'], 18.4)
+        # Rows from an older scan simply carry nothing; the seat still works.
+        absent = next(e for e in state['core'] if e['symbol'] == 'B')
+        self.assertIsNone(absent['rank_score'])
+        self.assertIsNone(absent['expected_grids_per_hour'])
+        # The seat itself is still decided by score, not by rank_score.
+        self.assertEqual([e['symbol'] for e in state['core']], ['A', 'B'])
+
     def test_history_and_swap_count_retention(self):
         state, _ = update(initial(), rows(), 0, 1)
         state['swap_times'] = [0, 30 * 24 * HOUR]

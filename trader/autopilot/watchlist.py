@@ -18,8 +18,12 @@ def _order(entry):
 
 
 def _entry(row, now_ms, previous=None):
+    """Tier entry. `score` gates the seat; `rank_score` decides entry order
+    inside a radar section, so the desk can show both (absent on older rows)."""
     return {'symbol': row['symbol'], 'direction': row['direction'],
             'score': row['score'], 'score_parts': deepcopy(row['score_parts']),
+            'rank_score': row.get('rank_score'),
+            'expected_grids_per_hour': row.get('expected_grids_per_hour'),
             'since_ms': previous['since_ms'] if previous else now_ms, 'rank': 0}
 
 

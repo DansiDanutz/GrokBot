@@ -46,6 +46,38 @@ class AutopilotPublicTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             public_autopilot.safe(source)
 
+    def test_watchlist_publishes_rank_score_as_an_optional_non_negative_number(self):
+        source = self.source()
+        entry = dict(symbol='RAYUSDTM', direction='NEUTRAL', score=71, since_ms=1,
+                     rank=1, score_parts=[], rank_score=12.5,
+                     expected_grids_per_hour=18.4)
+        source['watchlist']['core'] = [entry]
+        published = public_autopilot.safe(source)['watchlist']['core'][0]
+        self.assertEqual(published['rank_score'], 12.5)
+        self.assertEqual(published['expected_grids_per_hour'], 18.4)
+        # Absent on older entries, and never negative or free text.
+        source['watchlist']['core'] = [{k: v for k, v in entry.items()
+                                        if k not in ('rank_score', 'expected_grids_per_hour')}]
+        absent = public_autopilot.safe(source)['watchlist']['core'][0]
+        self.assertIsNone(absent['rank_score'])
+        self.assertIsNone(absent['expected_grids_per_hour'])
+        for bad in (-1, 'private text', float('nan'), True):
+            source['watchlist']['core'] = [dict(entry, rank_score=bad)]
+            with self.assertRaises(ValueError):
+                public_autopilot.safe(source)
+
+    def test_rank_score_survives_the_whole_decide_to_publish_path(self):
+        from trader.autopilot import policy
+        from trader.tests.test_autopilot_policy import radar, row
+        state, _ = policy.decide(policy.new_state(0),
+                                 radar(long=[row('RAYUSDTM', rank_score=42.5)]), {}, 0, 'a')
+        view = policy.snapshot(state, 0, dict(heartbeat_ms=0, tick_age_s=0,
+                                              kucoin_ok=True, radar_age_min=1))
+        published = public_autopilot.safe(view)['watchlist']['core'][0]
+        self.assertEqual(published['symbol'], 'RAYUSDTM')
+        self.assertEqual(published['rank_score'], 42.5)
+        self.assertGreater(published['expected_grids_per_hour'], 0)
+
     def test_rejects_bool_nonfinite_oversized_and_invalid_symbols(self):
         for key, value in [('equity', True), ('tick_age_s', float('inf'))]:
             source = self.source()

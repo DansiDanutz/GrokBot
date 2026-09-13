@@ -37,6 +37,22 @@ assert(roots.get('history-bots').textContent.includes('Radar direction conflicte
 assert(roots.get('core').textContent.includes('ACTIVE'));
 assert(roots.get('bench').textContent.includes('BENCH'));
 assert(roots.get('watch-events').textContent.includes('No watchlist replacements recorded yet'));
+
+// rank_score chip: the number that actually decides entry order inside a section.
+run(`render({...lastReport,watchlist:{core:[{symbol:'RAY',direction:'LONG',score:71,rank_score:12.4,expected_grids_per_hour:18.4,score_parts:[]},{symbol:'SOL',direction:'LONG',score:60,rank_score:44.5,expected_grids_per_hour:9.1,score_parts:[]}],bench:[]}},true)`);
+assert(roots.get('core').textContent.includes('rank 12.4'));
+assert(roots.get('core').textContent.includes('rank 44.5'));
+const rankChip=roots.get('core').children[0].children[0].children[4];
+assert.equal(rankChip.className,'rank-chip');
+assert(rankChip.getAttribute('title').includes('rank_score'));
+assert(rankChip.getAttribute('title').includes('score is the watchlist gate'));
+assert.equal(roots.get('watchlist-order-note').hidden,false);
+run(`render({...lastReport,watchlist:{core:[{symbol:'RAY',direction:'LONG',score:71,rank_score:44.5,score_parts:[]},{symbol:'SOL',direction:'LONG',score:60,rank_score:12.4,score_parts:[]}],bench:[]}},true)`);
+assert.equal(roots.get('watchlist-order-note').hidden,true);
+run(`render({...lastReport,watchlist:{core:[{symbol:'RAY',direction:'TURNING-DOWN',score:71,score_parts:[]}],bench:[{symbol:'SOL',direction:'LONG',score:60,score_parts:[]}]},open_bots:[lastReport.open_bots[0]]},true)`);
+assert(!roots.get('core').textContent.includes('rank '));
+assert.equal(roots.get('watchlist-order-note').hidden,true);
+assert(page.includes('entries pick by rank'));
 assert(roots.get('events').textContent.includes('OPEN'));
 run(`ingestEvents({events:[{ts_ms:200,event_id:10,bot_id:1,symbol:'RAY',type:'FILL',side:1,price:1.55,contracts:17,fee:.01581}]})`);
 assert(roots.get('trade-actions').textContent.includes('BUY'));
