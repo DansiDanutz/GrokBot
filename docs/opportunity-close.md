@@ -20,6 +20,24 @@ Unconditional, unchanged: `RANGE_BREAK`, `STOP_LOSS`, `RISK_LIMIT` (account
 protection) and `PROFILE_UPDATE` (which rebuilds a stale specification rather
 than abandoning a coin).
 
+### Ceiling on the deferral
+
+A deferral must not become an unbounded stale position: "no better candidate
+right now" can persist for days in a thin market, and `STOP_LOSS` at −12% of
+notional is a floor, not a policy. So
+`constants.OPPORTUNITY_HOLD_MAX_AGE_HOURS = 2 * MAX_AGE_HOURS` (144h) caps it —
+once a bot's age passes the ceiling the gate stops deferring and the `MAX_AGE`
+close proceeds unconditionally, with the usual `DECISION action=close` event.
+
+The ceiling is **`MAX_AGE`-only**. `LABEL_FLIP` and `DROPPED` are the radar
+changing its opinion rather than the bot going stale, so they keep deferring at
+any age: a bot whose label flipped back and forth for a week is not stale, it is
+simply unlucky in its radar coverage.
+
+One related consequence worth knowing: while the radar is unavailable, `labels`
+and `sections` are empty, so the gate sees no candidate and defers — except past
+the ceiling, where age alone ends it.
+
 Candidate admission reuses policy's own helpers — `_candidates`, `_eligibility`,
 `_trend_gate_blocks`, `_cooldown_gate_blocks` — so there is exactly one
 definition of "eligible candidate". Two details matter:

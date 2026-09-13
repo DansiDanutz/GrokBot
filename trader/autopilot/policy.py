@@ -26,6 +26,7 @@ from trader.autopilot.constants import (
     LEVERAGE_TREND, LEVERAGE_NEUTRAL, STEP_NEUTRAL_PCT, NEUTRAL_RESERVE_USDT,
     MAJORS, MAJORS_MAX, MOVERS_MAX, MIN_EXPECTED_GRIDS_PER_HOUR,
     COOLDOWN_HOURS, MAX_AGE_HOURS, OPPORTUNITY_COST_CLOSE,
+    OPPORTUNITY_HOLD_MAX_AGE_HOURS,
 )
 
 HOUR_MS = 3_600_000
@@ -167,10 +168,16 @@ def _opportunity_gate(state, sections, wrapper, reason, labels, rules, now_ms, s
     is kept. The bot keeps trading its grids; the normal path resumes as soon as
     the label flips back or a better candidate appears. One RULE_BLOCK per bot
     per radar scan, latched on the wrapper like the min-hold gate.
+
+    A MAX_AGE close is deferred only up to OPPORTUNITY_HOLD_MAX_AGE_HOURS, so a
+    thin market cannot hold a stale position open indefinitely.
     """
     from trader.autopilot import opportunity  # local: opportunity imports policy
     if reason not in OPPORTUNITY_CLOSE_REASONS or not _opportunity_enabled(rules):
         return reason
+    if (reason == 'MAX_AGE' and now_ms - wrapper['engine']['opened_ms']
+            >= OPPORTUNITY_HOLD_MAX_AGE_HOURS * HOUR_MS):
+        return reason  # stale beyond the ceiling: it leaves regardless
     better, detail = opportunity.better_candidate_exists(
         state, sections, wrapper, labels, now_ms, rules)
     if better:

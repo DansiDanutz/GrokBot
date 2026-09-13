@@ -25,6 +25,11 @@ MAX_AGE_HOURS = 72
 # Kill switch: set False (or the learned rule opportunity_cost_close) to restore
 # the unconditional close path.
 OPPORTUNITY_COST_CLOSE = True
+# Ceiling on that deferral, for MAX_AGE only: a bot that has outlived its thesis
+# leaves even when the market offers nothing better, so a thin market cannot hold
+# a stale position open forever. LABEL_FLIP and DROPPED are the radar changing
+# its opinion, not the bot going stale, and keep deferring.
+OPPORTUNITY_HOLD_MAX_AGE_HOURS = 2 * MAX_AGE_HOURS
 TICK_INTERVAL_S = 10
 DECISION_INTERVAL_S = 300
 SNAPSHOT_MAX_INTERVAL_S = 30

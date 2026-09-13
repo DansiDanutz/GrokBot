@@ -10,7 +10,8 @@ from datetime import date, timedelta
 from unittest import mock
 
 from trader.autopilot import opportunity, policy
-from trader.autopilot.constants import PROMOTION_MARGIN
+from trader.autopilot.constants import (MAX_AGE_HOURS, OPPORTUNITY_HOLD_MAX_AGE_HOURS,
+                                        PROMOTION_MARGIN)
 from trader.autopilot.storage import validate_event
 from trader.review import rules as learned_rules
 from trader.tests.test_autopilot_policy import legacy_closes, radar, row
@@ -99,6 +100,45 @@ class HoldsWithoutABetterCoinTests(unittest.TestCase):
         # would vacate: a non-risk close puts the symbol into cooldown.
         held, _ = policy.decide(state, radar(short=[strong('A', 'SHORT')]), {}, 1, 'b')
         self.assertEqual(len(held['open_bots']), 1)
+
+
+class MaxAgeCeilingTests(unittest.TestCase):
+    """A stale bot leaves even when the market offers nothing better."""
+
+    def _decide_at(self, hours, report=None):
+        state = open_weak_long()
+        return policy.decide(state, report or radar(long=[weak('A')]), {},
+                             int(hours * HOUR), 'b')
+
+    def test_the_ceiling_is_twice_the_max_age(self):
+        self.assertEqual(OPPORTUNITY_HOLD_MAX_AGE_HOURS, 2 * MAX_AGE_HOURS)
+
+    def test_under_the_ceiling_a_max_age_bot_is_still_held(self):
+        held, events = self._decide_at(OPPORTUNITY_HOLD_MAX_AGE_HOURS - 1)
+        self.assertEqual(len(held['open_bots']), 1)
+        self.assertEqual(held['closed_bots'], [])
+        self.assertTrue(blocks(events, policy.DECISION_RULES['opportunity_hold']))
+
+    def test_past_the_ceiling_a_max_age_bot_closes_without_any_candidate(self):
+        closed, events = self._decide_at(OPPORTUNITY_HOLD_MAX_AGE_HOURS)
+        self.assertEqual(closed['closed_bots'][0]['engine']['reason'], 'MAX_AGE')
+        self.assertFalse(blocks(events, policy.DECISION_RULES['opportunity_hold']))
+        close = next(e for e in events if e['type'] == 'DECISION' and e['action'] == 'close')
+        self.assertEqual(close['rule_blocks'], [policy.DECISION_CLOSE_REASONS['MAX_AGE']])
+
+    def test_the_ceiling_does_not_release_a_label_flip(self):
+        held, events = self._decide_at(OPPORTUNITY_HOLD_MAX_AGE_HOURS + 24,
+                                       radar(short=[weak('A', 'SHORT')]))
+        self.assertEqual(len(held['open_bots']), 1)
+        self.assertEqual(held['closed_bots'], [])
+        self.assertTrue(blocks(events, policy.DECISION_RULES['opportunity_hold']))
+
+    def test_the_ceiling_does_not_release_a_dropped_bot(self):
+        state, _ = policy.decide(open_weak_long(), radar(), {}, 1, 'b')
+        ceiling = int(OPPORTUNITY_HOLD_MAX_AGE_HOURS * HOUR) + HOUR
+        held, events = policy.decide(state, radar(), {}, ceiling, 'c')
+        self.assertEqual(len(held['open_bots']), 1)
+        self.assertTrue(blocks(events, policy.DECISION_RULES['opportunity_hold']))
 
 
 class ClosesWhenABetterCoinIsFreeTests(unittest.TestCase):
