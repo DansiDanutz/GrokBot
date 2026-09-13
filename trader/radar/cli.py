@@ -2,8 +2,10 @@
 
 import argparse
 import json
+import time
 from pathlib import Path
 
+from trader.radar import liquidity_levels
 from trader.radar.radar import analyse
 
 
@@ -35,11 +37,20 @@ def main(argv=None, printer=print):
     parser.add_argument("--json", required=True)
     parser.add_argument("--asof-ms", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--liquidation-clusters",
-                        help="advisory derived liquidation-cluster file")
+                        help="advisory derived liquidation-cluster file; "
+                             "omit to refresh and read the default one")
+    parser.add_argument("--no-liquidation-clusters", action="store_true",
+                        help="skip the advisory annotation entirely")
     parser.add_argument("--telegram-chat-id")
     parser.add_argument("--telegram-state")
     args = parser.parse_args(argv)
     report = analyse(args.database, args.asof_ms, args.liquidation_clusters)
+    if not args.liquidation_clusters and not args.no_liquidation_clusters:
+        now = args.asof_ms if args.asof_ms is not None else int(time.time() * 1000)
+        entered = [row["symbol"] for rows in report["sections"].values() for row in rows]
+        path = liquidity_levels.refresh(liquidity_levels.DEFAULT_PATH,
+                                        args.database, entered, now)
+        report = liquidity_levels.annotate(report, path, now)
     destination = Path(args.json).expanduser().absolute()
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name("." + destination.name + ".pending")
