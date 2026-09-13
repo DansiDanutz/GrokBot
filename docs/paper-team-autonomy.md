@@ -1,7 +1,8 @@
 # Autonomous paper team: current operation
 
-Grid Desk Lead coordinates eight review assistants and the existing operations
-bot across two native rooms. The existing deterministic engine discovers eligible
+Grid Desk Lead coordinates the trading and research rooms. Paper Desk Secretary
+is the main user contact, linked to Lead and the existing records steward in
+Paper Desk Office: ten participants overall. The existing deterministic engine discovers eligible
 positions and manages paper trading; its existing07:00 pipeline alone writes
 supported learned rules. The team supplies research, technical interpretation,
 evaluation, outcome review and an owned needs backlog.
@@ -115,3 +116,15 @@ independent work and attribute blocks; do not invent data or ask for routine
 permission to proceed.
 
 _Last verified: 2026-09-13_
+
+
+## Range and cost release
+
+The [range-assurance release](paper-team-range-assurance.md) is deployed as
+`f02703afcb57278d96b9c99063663cdb2f22a2b2` (PR53). It requires entry provenance,
+official bot-fee economics and durable dossiers, preserves observed boundary
+closes through funding/recovery failures, and defers learning on unresolved
+accounting. Legacy layouts failing the fee floor use the existing non-risk
+PROFILE_UPDATE hold. Secretary direct-contact and release readback are verified.
+This explicit user-requested release does not widen the scheduled engineering
+phase. First unattended controller completion remains unverified.

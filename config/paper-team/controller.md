@@ -59,7 +59,9 @@ send one concise cue, for example:
 
 Never claim a manually sent acceptance cue was a scheduled invocation. Do not
 read app databases, use undocumented APIs, acquire new connections or add agents.
-Other bots and existing legacy routines remain outside this controller.
+The newly configured Paper Desk Secretary receives material user-facing hand-offs
+through the Office room; it is not a scheduler. Unrelated bots and existing
+legacy routines remain outside this controller.
 
 The Lead routes all research and specialist work. The existing operations bot
 submits validated seven-field requests to the installed bridge; it never invokes
@@ -91,3 +93,75 @@ risk gate in the standing contract; results may justify tested improvements,
 never fabricated performance or copied social entries.
 
 _Last verified: 2026-09-13_
+
+
+## Secretary, range assurance and final-response routing
+
+The participant count is ten; the two original six-member rooms are unchanged.
+Office hand-offs (Secretary, Lead, existing steward) and private board readback
+are observed; the native steward acknowledgment and Lead closure are verified. Acceptance includes the native steward acknowledgment and Lead closure recorded below.
+
+The single Codex heartbeat remains hourly :15 and the native timer stays PAUSED.
+Lead owns operational orchestration; the existing steward alone writes board.json;
+Paper Desk Secretary is the main user contact. After the board write/readback
+receipt, Lead sends Secretary a concise material result and any unresolved user
+request, with task/request ID, owner, source_asof, assigned_at, updated_at, actual
+status, receipt/version and final_response status/reference. Inspect that hand-off
+and the final response before marking user-request closure. A missing report is
+UNKNOWN; a blocked receipt is BOARD_PERSIST_BLOCKED, not DONE. Do not duplicate a
+final response or send unchanged hourly summaries to the Secretary.
+
+Controller review must preserve the distinction between the mandated range/fee
+policy and issue #52 implementation status. Complete-bar freshness/history,
+range dossiers, 0.06% both-side futures-bot fees and strict observed boundary-exit
+exception handling are DEPLOYED_VERIFIED at production f02703 following the
+explicitly requested controlled release. Instruction edits alone are not that evidence. New inactive rotation
+is NOT_IMPLEMENTED and remains a scoped need/shadow evaluation, with validated
+replacement/net-cost benefit and minimum-hold conditions. No assistant gains
+runtime write or trade authority from the user's request for an explanation.
+
+
+## Office acceptance evidence — 2026-09-13
+
+Parent-verified evidence: Secretary QA at 01:53:12 UTC; Lead relay at 01:53:53 UTC;
+steward Office board entry written at 01:54:21 UTC, native acknowledgment at
+01:54:41 UTC, board readback at 01:55:00 UTC and Lead closure at 01:55:22 UTC.
+The Office hand-off is verified complete. Current-cost dossier QA02 was sent at
+01:57:44 UTC; Secretary returned the five-position table at 01:58:50 UTC and the
+steward persisted its result at 01:59:05 UTC (native acknowledgment 01:59:23 UTC).
+This verifies the user-request → Lead → steward → Secretary → record path.
+
+
+## Verified range-assurance release — 2026-09-13
+
+PR #53 merged to `f02703afcb57278d96b9c99063663cdb2f22a2b2`, the verified production
+HEAD. Tested head: `6062d392a8680c67f5dd0ae4d85facc6375b3fec`. Independent review,
+Mac/Linux CI, 38 Node + 335 paper + 422 trader tests (795 total), and a 270-file
+secret scan passed. The controlled same-label writer/dashboard cutover preserved
+prior bot IDs, ledger start and the unrelated dirty production file.
+
+At 02:18:50 UTC the parent verified HTTP 200 for local health/autopilot/radar,
+a fresh heartbeat, kucoin_ok=true, recovery_pending=false, zero pending funding
+and recovery items, and archive status COMPLETE. New entries require complete
+168-hour history proof, 0.06% both-side bot fees, maximum viable grid selection,
+range dossiers, durable SHA archives and cost scenarios. This is source-time
+acceptance evidence, not an indefinite guarantee of live health.
+
+Legacy dossiers currently remain MISSING; do not manufacture historical entry
+proof. Invalid legacy pair-floor handling uses PROFILE_UPDATE with the existing
+non-risk hold. Post-rollout observation included a held legacy position under
+that rule. Boundary touch/breach risk exits bypass that non-risk hold. Preserve
+historical fee epochs and distinguish these two exit reasons.
+
+The bridge was explicitly repinned to f02703 and context verified at 02:18:06 UTC;
+its installed worker was unchanged. Old 724-source evaluation receipts remain
+historical. Sanitized deployment-range-assurance.json and engineering-status.json
+were prepared under team-evidence and the heartbeat knows this release. Native
+The steward read the new release artifacts and persisted the implementation
+closures at 02:24:22 UTC. Secretary returned the corrected direct-chat answer at
+02:24:42 UTC. Native release handoff is verified; this is not a learned-rule win.
+
+Rotation remains NEEDS_IMPLEMENTATION, heatmap access remains UNAVAILABLE and
+the first unattended Codex-controller completion remains unverified. This
+explicitly requested release does not widen the scheduled 10:15 engineering
+phase: its no-auto-deploy scope and controlled repin ownership remain unchanged.

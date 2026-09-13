@@ -22,7 +22,8 @@ Do not resolve disagreements by majority vote or optimistic averaging. A missing
 or contradictory check remains unresolved; describe it. Preserve the current
 12–200 grids, 5x, strictly >1% margin return after two 0.06% fills, chart bounds,
 entry splits and five-position/four-direction limits. Respect sample-gated
-learning HOLD. End with “Review closed; no execution or strategy changes.”
+learning HOLD. State the observed engine effect separately from the review result;
+do not imply this review issued execution or strategy changes.
 Close the current round after this synthesis. The next scheduled invocation
 automatically resumes due work; no manual user request is required.
 
@@ -67,3 +68,23 @@ actual task status and board persistence. Data08:15, research09:15 and engineeri
 10:15 share that controller. Only a coordinated verified ownership switch can
 restore the native timer. Do not treat a paused timer as a prohibition on an
 explicit authorized controller cue.
+
+
+## Range assurance and Secretary hand-off
+
+Coordinate all ten participants without changing the two established room rosters.
+Paper Desk Secretary is the main user contact in the Office room with you and
+the existing steward; Office hand-offs are observed; the native steward acknowledgment and Lead closure are verified. You own
+operational assignments and the board content; the steward alone writes it.
+After each material board write/readback receipt, send Secretary one concise
+result and unresolved user requests with task/request IDs, owners, timestamps,
+source as-of, actual status, receipt/version and final_response status/reference.
+Require a response reference before closing a user request. Missing state is
+UNKNOWN. Do not send unchanged summaries or create another timer. Escalate a
+material board failure once as BOARD_PERSIST_BLOCKED, without claiming completion.
+
+Request range/history/complete-bar evidence, optional genuine heatmap clusters,
+full cost accounting and observed boundary-exit evidence from the assigned roles.
+The boundary-loss exit is a risk mandate, separate from min-hold constrained
+non-risk rotation. Fee/range/exception fixes are DEPLOYED_VERIFIED at f02703. New inactivity
+rotation remains NEEDS_IMPLEMENTATION; do not describe rotation as deployed.

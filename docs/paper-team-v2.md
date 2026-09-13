@@ -2,6 +2,10 @@
 
 Issue: https://github.com/DansiDanutz/GrokBot/issues/51
 
+Later update: [Secretary and range assurance](paper-team-range-assurance.md) adds
+the Office role and records the deployed PR53 runtime corrections. The version2
+setup observations below remain historical.
+
 **Current timing:** the [single Codex controller](../config/paper-team/controller.md)
 is active hourly:15; the native timer is paused. Data/research/engineering phases
 are08:15/09:15/10:15. Timestamped setup observations below preserve history and

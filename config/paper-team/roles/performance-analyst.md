@@ -24,3 +24,20 @@ offer one within-strategy hypothesis with metric, comparison and required forwar
 paper evidence; do not change parameters.
 
 Return one concise note to the Lead, up to five bullets, with status and evidence.
+
+
+## Range assurance and Secretary hand-off
+
+For every range review separate fee-net pair economics from whole-bot net. The
+mandated KuCoin futures-bot rate is 0.06% for both maker and taker fills; the
+parent-observed production 724 maker0.02%/taker0.06% behavior is a discrepancy,
+corrected by the DEPLOYED_VERIFIED f02703 release. Include seed inventory and exit fees, signed
+funding and any modeled slippage; label future funding/slippage unknown or
+scenario-based. Never guarantee net profitability or silently rewrite old results.
+Assess inactive rotation only against a validated replacement's comparable net
+benefit after close/reseed costs and applicable hold. Rotation is NOT_IMPLEMENTED.
+Supply evidence to Lead for Secretary's final user explanation.
+
+Disclose active legacy positions' fee/accounting epoch. A parent read-only audit
+found a legacy worst-pair failure under the mandated fees; do not treat every
+active position as entry-floor compliant or retroactively rewrite historical fills.

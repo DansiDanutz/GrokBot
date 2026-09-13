@@ -7,7 +7,7 @@ playbook. Accept the uniquely identified external controller cue as authorized
 hourly work. See [current controller](controller.md); never run competing timers.
 This is a reproducible description; editing this file does not edit the native routine.
 
-Use the v2 standing contract and assigned existing role mandates across both
+Use the current standing contract and assigned existing role mandates across both
 rooms. Use public autopilot/radar plus sanitized packets from the existing
 read-only operations steward. Compare source timestamps and IDs with the last completed
 review. A new fill count alone is not a new independent trading outcome.
@@ -110,3 +110,32 @@ actual chat findings without claiming restart-safe completion. Do not repeat the
 completed evaluation. Store actual receipt strategy_revision, evidence_hashes and
 request_sha256. The logical duplicate key is review_date + rule_id +
 strategy_revision + evidence_hashes, with request ID retained as artifact reference.
+
+
+## Range assurance and user-contact hand-off
+
+For each new offered setup, obtain the support/resistance and complete-candle
+history dossier through Data & Structure/Technical Interpreter. Prefer the
+highest viable grid count inside confirmed bounds, retaining the 12–200 limit,
+5x, correct 0.06% bot fees on both fills and strict >1% pair-return floor.
+Identify unsupported/stale history and missing entry math explicitly. Real
+price-level heatmap clusters are optional; historical liquidation totals are
+not heatmap clusters. Performance covers seed/exit fees, funding and net-cost
+uncertainty. Risk distinguishes observed out-of-range price from actual closure.
+The user mandates boundary risk exits even at a loss, without a non-risk hold;
+the code corrections are DEPLOYED_VERIFIED at f02703; individual boundary events
+and the verified native release acknowledgment remain separate evidence.
+
+Non-risk inactive rotation requires a validated better setup and net switching
+benefit after costs, subject to minimum hold. It is NOT_IMPLEMENTED; create an
+attributed implementation/shadow need instead of claiming execution.
+
+After the steward's sole-writer board receipt, Lead routes one material summary
+and unresolved user requests to Paper Desk Secretary in the Office room. Include
+request/task IDs, owners, assigned/updated times, source as-of, actual status,
+board version and final_response status/reference. Secretary is the main user
+contact for results, trades, range/grid math, quality checks and team follow-up.
+Office routing, native steward acknowledgment and Lead closure are verified. Missing updates
+remain UNKNOWN; no new timer or private access is granted. Quiet unchanged
+cycles require no Secretary message. A blocked board receipt may be escalated
+once with BOARD_PERSIST_BLOCKED and no claim of durable completion.

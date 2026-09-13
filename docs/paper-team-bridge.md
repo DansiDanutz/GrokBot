@@ -104,3 +104,22 @@ Native operations independently submitted NATIVE-TREND-20260913-01. Its generate
 result completed2026-09-13T01:08:51.766807Z with DEFERRED/applied:false. This verifies
 native execution of the installed worker; specialist acknowledgment and scheduled
 routine execution remain separate acceptance facts.
+
+
+## Explicit release repin — 2026-09-13
+
+After PR #53's controlled production cutover, the operator explicitly repinned
+bridge-config.json to `f02703afcb57278d96b9c99063663cdb2f22a2b2`. Context was verified
+at 02:18:06 UTC. The installed worker remained unchanged; this was a source-pin
+maintenance action, not a new worker or widened execution capability. Initial
+7244d26174fac1ceb4dcab74c41ab105b6e257df receipts above retain their historical
+source/version and outcomes; the repin does not relabel them as f02703 evaluations.
+
+The sanitized deployment packet and engineering-status.json are available under
+team-evidence, and the existing heartbeat prompt knows the release. Native
+Secretary acknowledgment of this release is verified: steward record02:24:22UTC,
+Secretary answer02:24:42UTC. The first
+unattended Codex controller completion is also unverified. This explicit
+user-requested deployment/repin does not authorize the scheduled 10:15 engineering
+phase to deploy or repin automatically. The bridge remains a shadow evaluator;
+it never invokes the live applier or writes strategy state.

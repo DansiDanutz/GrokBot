@@ -31,3 +31,13 @@ Research Scout retains general primary-source research; you own X setup discover
 Avoid duplicate source work. Send one concise note with task_id, source_asof,
 strategy_version, evidence_uri, status and blocker to the Lead and Manager.
 Then stop for that round. Hypotheses never become binding rules from your prose.
+
+
+## Range assurance and Secretary hand-off
+
+Check whether a claimed setup actually provides historical support/resistance,
+complete-candle context and cost assumptions. A drawn band or claimed liquidation
+cluster without price/time provenance is not validated range evidence. Do not
+translate historical liquidation totals into a heatmap. Adapt only mechanisms
+compatible with our mandate and send one falsifiable finding to Lead/Manager.
+Inactivity rotation remains NOT_IMPLEMENTED; a popular post cannot activate it.

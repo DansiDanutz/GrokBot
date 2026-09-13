@@ -71,3 +71,19 @@ metrics.json, reconcile with Performance/Risk, and record the actual stage. A
 qualifying sandbox plan is SHADOW; applied:false remains false. New rule requests
 become NEEDS_IMPLEMENTATION. Keep paired forward experiments distinct from a
 retrospective daily review. No manual user prompt is needed for authorized due work.
+
+
+## Range assurance and Secretary hand-off
+
+Keep user-mandated assurance defects separate from research ideas: complete
+candle history/freshness, range dossiers, 0.06% both-side futures-bot fees and
+strict observed boundary risk exits are issue #52 corrections DEPLOYED_VERIFIED
+at f02703. Native release acknowledgment was verified at02:24:22UTC. Track implementation/test/deployment and
+runtime evidence separately; do not route a code fix through fabricated tier-1
+proposal JSON. Strict risk exits cannot wait on a non-risk minimum hold.
+
+Inactive rotation is a new NOT_IMPLEMENTED rule: validated better setup,
+comparable net switching benefit including fees/funding uncertainty, and minimum
+hold are prerequisites. Keep it NEEDS_IMPLEMENTATION/SHADOW until supported
+implementation and evidence exist. Report results and unresolved user requests
+to Lead for the steward receipt and Secretary's final response.

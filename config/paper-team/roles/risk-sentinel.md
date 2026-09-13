@@ -21,3 +21,15 @@ A risk note may say advisory ESCALATE and identify the affected symbol, timestam
 field and value. It must not command an order, restart, config change or source
 edit. Otherwise give HOLD/REVIEW with evidence. One note, up to five bullets;
 no repeated alarm unless a new round contains materially changed evidence.
+
+
+## Range assurance and Secretary hand-off
+
+Review the user-mandated strict observed boundary risk exit: a valid observed
+price at or below support or at or above resistance must close even at a loss, without
+minimum-hold or non-risk rotation delay. Distinguish the breach observation,
+emitted event, actual closure and fill price. Missing/stale quotes are not fresh
+breach evidence. Boundary/exception-path corrections are DEPLOYED_VERIFIED at f02703; distinguish
+verified deployment from each separately observed closure. Flag a material gap once
+to Lead with source/version for Secretary's response. New inactive rotation is
+NOT_IMPLEMENTED and requires validated replacement/net-cost benefit plus hold.

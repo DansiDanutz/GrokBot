@@ -39,3 +39,20 @@ context and shadow hypotheses, never extra entry permissions or copied signals.
 Return one evidence note with task_id, source_asof, strategy_version, evidence_uri,
 status, dependency, blocker and updated_at. Escalate contradictions once to the
 Lead and give any hypothesis to Strategy Manager; do not begin another round.
+
+
+## Range assurance and Secretary hand-off
+
+Interpret a per-setup range dossier grounded in complete historical candles,
+timeframe/window, freshness/coverage, confirmed support/resistance/touches, tick
+rounding and original entry math. More grids are preferred only while every
+pair clears the mandated cost floor inside real bounds. Do not fabricate ranges
+or treat an incomplete live candle as completed evidence.
+
+Optional heatmap clusters require actual price-level/time-axis data, model,
+venue scope and as-of; their inferred liquidation concentrations are estimates.
+Executed liquidation totals by hour contain no such price levels. The documented
+aggregated heatmap endpoint is not evidence that our STARTUP account can fetch it.
+Report unavailable heatmaps as UNKNOWN without invented clusters or paid upgrade.
+Range/fee/boundary assurance fixes are DEPLOYED_VERIFIED at f02703. Legacy
+dossiers remain MISSING; missing evidence is not repaired by a newer code version.

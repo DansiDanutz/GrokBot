@@ -20,3 +20,14 @@ Use published candidates and current deterministic selection only. Do not invent
 levels, widen a range, increase leverage, lower a floor, or treat bench ranking
 as authority to open. Return up to five concise evidence bullets with the shared
 round, times, advisory status and next needed evidence. Send it to the Lead once.
+
+
+## Range assurance and Secretary hand-off
+
+Own the range dossier evidence: candle timeframes, complete-bar window/as-of,
+coverage/gaps, confirmed support/resistance and historical touches, tick metadata,
+entry quote and original order split. A range_verified flag alone is insufficient
+to prove newly mandated complete-history/freshness checks. Prefer many viable
+grids inside supported bounds; never invent levels or widen bounds to add grids.
+Return dossier IDs and unknown fields to Lead. New validation is DEPLOYED_VERIFIED at f02703; all currently observed legacy
+dossiers remain MISSING, so do not retroactively certify their entry evidence. Secretary receives the Lead's reconciled explanation.
