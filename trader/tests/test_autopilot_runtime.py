@@ -258,6 +258,34 @@ class RuntimeTests(unittest.TestCase):
         before = copy.deepcopy(result)
         runner._apply(update)
         self.assertEqual(runner.state['open_bots'][0]['engine'], before)
+    def test_counterfactual_records_the_policy_skips_of_a_decision_pass(self):
+        runner = self.runner()
+        runner.pass_once()  # opens A
+        self.clock[0] += 10000
+        runner.pass_once(force_decision=True)  # A is now a duplicate_symbol skip
+
+        files = sorted((self.root / 'autopilot' / 'counterfactual').glob('*.jsonl'))
+        self.assertEqual(len(files), 1)
+        records = [json.loads(line) for line in files[0].read_text().splitlines()]
+        self.assertTrue(records)
+        self.assertEqual({r['symbol'] for r in records}, {'A'})
+        self.assertTrue(all(r['spec']['symbol'] == 'A' for r in records))
+
+    def test_counterfactual_failure_never_disturbs_trading(self):
+        runner = self.runner()
+        runner.pass_once()
+        self.clock[0] += 10000
+        before = copy.deepcopy(runner.state)
+        directory = self.root / 'autopilot' / 'counterfactual'
+        written = sorted(p.read_text() for p in directory.glob('*.jsonl'))
+        with patch('trader.autopilot.counterfactual.record', side_effect=RuntimeError('boom')):
+            view = runner.pass_once(force_decision=True)
+
+        self.assertTrue(view['kucoin_ok'])
+        self.assertEqual(len(runner.state['open_bots']), 1)
+        self.assertEqual([w['engine']['bot_id'] for w in runner.state['open_bots']],
+                         [w['engine']['bot_id'] for w in before['open_bots']])
+        self.assertEqual(sorted(p.read_text() for p in directory.glob('*.jsonl')), written)
 
 
 if __name__ == '__main__':
