@@ -122,10 +122,19 @@ def _private_descriptor(path):
         descriptor = _open_private_component(
             path.name, os.O_RDONLY | os.O_NONBLOCK, directory)
         metadata = os.fstat(descriptor)
-        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
-                or stat.S_IMODE(metadata.st_mode) != PRIVATE_FILE_MODE
-                or not 0 <= metadata.st_size <= MAX_SECRETS_BYTES):
-            raise CoinGlassError('API key unavailable')
+        # Name the cause. Every one of these needs a different first move, and
+        # collapsing them into one sentence once sent two investigations after
+        # a key that was present the whole time. The path and the key itself
+        # are never part of the message.
+        if not stat.S_ISREG(metadata.st_mode):
+            raise CoinGlassError('API key unavailable: not a regular file')
+        if metadata.st_uid != os.getuid():
+            raise CoinGlassError('API key unavailable: wrong owner')
+        if stat.S_IMODE(metadata.st_mode) != PRIVATE_FILE_MODE:
+            raise CoinGlassError('API key unavailable: file mode must be %s'
+                                 % oct(PRIVATE_FILE_MODE))
+        if not 0 <= metadata.st_size <= MAX_SECRETS_BYTES:
+            raise CoinGlassError('API key unavailable: file too large')
         return descriptor
     except BaseException:
         if descriptor is not None:
@@ -141,12 +150,15 @@ def _secret_text(path):
         with os.fdopen(descriptor, 'rb') as handle:
             payload = handle.read(MAX_SECRETS_BYTES + 1)
         if len(payload) > MAX_SECRETS_BYTES:
-            raise CoinGlassError('API key unavailable')
+            raise CoinGlassError('API key unavailable: file too large')
         return payload.decode('utf-8')
     except CoinGlassError:
         raise
-    except (OSError, UnicodeError, ValueError):
-        raise CoinGlassError('API key unavailable') from None
+    except (OSError, UnicodeError, ValueError) as error:
+        # A full filesystem, a revoked permission and a bad encoding are not a
+        # missing credential. Carry the kind, never the operating system's text.
+        raise CoinGlassError('API key unavailable: unreadable (%s)'
+                             % type(error).__name__) from None
 
 
 def read_api_key(path=None):
