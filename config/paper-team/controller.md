@@ -1,5 +1,13 @@
 # Current paper-team controller
 
+> **Correction, 2026-09-13.** This file says the native timer stays PAUSED and
+> that enabling it would create a second competing scheduler. That was true while
+> the Codex heartbeat existed: it was both the timer and the thing that actually
+> drove the assistants. Its replacement, the launchd `trader.team` controller,
+> only computes and publishes `team.json` — it cannot wake a native bot. So the
+> Lead's native routine at :15 must be **re-enabled**. One decides the work, the
+> other causes it to happen; they are not two schedulers for the same job.
+
 Authoritative scheduling configuration after the September13 acceptance checks:
 
 | Component | State and cadence |

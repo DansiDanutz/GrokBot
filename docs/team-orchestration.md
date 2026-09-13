@@ -237,12 +237,23 @@ and the standing contract.
    prefixed by the standing contract (`config/paper-team/contract.md`), plus the
    linking paragraph above. Until that bot exists, the controller reports it as
    `NOT_INSTALLED` and its daily audit dispatch waits.
-3. Flip `installed=False` to `True` for `discovery_auditor` in
-   `trader/team/roster.py` once the bot answers, so the controller starts holding
-   it to the same 24h idle budget as the other review roles.
-4. Leave the native timer paused. There is one controller: the launchd job at
-   minute 15. Copy the plist example to `~/Library/LaunchAgents`, then bootstrap
-   it. It carries no credentials.
+3. The `discovery_auditor` roster flag was flipped to installed on 2026-09-13
+   once the bot existed and joined the room, so the controller holds it to the
+   same 24h idle budget as the other review roles.
+4. **Re-enable Grid Desk Lead's native routine at :15.** Corrected 2026-09-13,
+   the same evening this shipped. Earlier guidance here said to leave the native
+   timer paused, and that was wrong the moment the Codex heartbeat died.
+
+   A launchd job can compute and publish, but it cannot wake a native bot. The
+   heartbeat used to be both the scheduler *and* the actor; replacing it with a
+   script replaced only the scheduler. With the timer paused, no assistant ever
+   runs, so `team.json` is published every hour into silence and every dispatch
+   blocks — no matter how correctly the linking paragraphs are pasted.
+
+   The two do not compete, because they do different jobs: the launchd
+   controller decides what the work is, and the Lead's routine is what makes
+   anyone do it. Copy the plist example to `~/Library/LaunchAgents` and
+   bootstrap it; it carries no credentials.
 5. Ask existing Dan's Senior Developer to write one receipt per answered
    dispatch under `team-evidence/receipts/`. Without receipts, every dispatch
    blocks after two hours and every role is reported idle — which is the correct
