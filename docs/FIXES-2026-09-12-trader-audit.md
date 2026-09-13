@@ -106,6 +106,11 @@ Live service topology (unchanged by this pack):
       static snapshot 3 min old at check time; 404-avoidance logic in place
 - [x] 24h/7d KPIs → both `None` → rendered "—%" on young account (correct per 2.2)
 
+### 3.1 Final acceptance checklist
+
+- [x] Merge → confirm publisher cycle after merge deploys clean.
+- [x] Human glance: position-row expand + chart hover on the live site.
+
 ## 4. Known non-goals / follow-ups for Codex
 
 - **Candlestick charts** need OHLC exposure to the frontend (new API route
