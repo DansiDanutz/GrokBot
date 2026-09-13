@@ -27,6 +27,7 @@ def facts(**over):
         publisher_success_age_s=180,
         coinglass_status='pass', coinglass_symbols_ok=9, coinglass_symbols_requested=9,
         disk_free_bytes=21 * 1024 ** 3,
+        team_cycle_age_s=600, team_idle_roles=[], team_blocked=[],
     )
     base.update(over)
     return base
@@ -106,6 +107,34 @@ class DoctorTests(unittest.TestCase):
             for check in checks.assess(facts(**over))['checks']:
                 if check['status'] == 'fail':
                     self.assertTrue(check['where'], 'no remedy pointer on %s' % check['name'])
+
+    def test_a_team_controller_that_stopped_cycling_is_a_failure(self):
+        """The 13 Sept stall: the controller died and no bot was ever dispatched."""
+        got = run(team_cycle_age_s=9 * 3600)
+        self.assertEqual(got['team']['status'], 'fail')
+        self.assertIn('9.0 hours', got['team']['detail'])
+        self.assertIn('stalled', got['team']['where'])
+
+    def test_no_controller_reading_is_unknown_not_healthy(self):
+        got = run(team_cycle_age_s=None)
+        self.assertEqual(got['team']['status'], 'unknown')
+
+    def test_an_idle_role_warns_and_names_the_role_and_its_room(self):
+        got = run(team_idle_roles=['Risk Sentinel'])
+        self.assertEqual(got['team']['status'], 'warn')
+        self.assertIn('Risk Sentinel', got['team']['detail'])
+        self.assertIn('dispatch.json', got['team']['where'])
+        self.assertIn('room', got['team']['where'])
+
+    def test_a_blocked_dispatch_warns_without_failing_the_circle(self):
+        report = checks.assess(facts(team_blocked=['Performance Analyst']))
+        got = {c['name']: c for c in report['checks']}
+        self.assertEqual(got['team']['status'], 'warn')
+        self.assertIn('Performance Analyst', got['team']['detail'])
+        self.assertEqual(report['exit_code'], 0)
+
+    def test_a_fresh_cycle_with_every_role_answering_is_ok(self):
+        self.assertEqual(run()['team']['status'], 'ok')
 
     def test_unknown_facts_never_read_as_healthy(self):
         """A missing reading is not a passing reading."""

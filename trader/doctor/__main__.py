@@ -71,7 +71,20 @@ def gather(now_ms=None, database=None):
         f['disk_free_bytes'] = shutil.disk_usage(db.parent if db.parent.exists() else Path.home()).free
     except OSError:
         f['disk_free_bytes'] = None
+    f.update(_team(_json(ROOT / 'team-evidence' / 'dispatch.json') or {}, now))
     return f
+
+
+def _team(board, now_ms):
+    """The team controller's own board: is anyone waiting on an answer?"""
+    cycled = board.get('last_cycle_at_ms')
+    roster = board.get('roster') or []
+    return dict(
+        team_cycle_age_s=(now_ms - cycled) / 1000 if cycled else None,
+        team_idle_roles=sorted(r.get('name') or '' for r in roster
+                               if r.get('status') == 'IDLE'),
+        team_blocked=sorted({r.get('role_name') or '' for r in board.get('dispatches') or []
+                             if r.get('status') == 'BLOCKED'}))
 
 
 MARK = {'ok': 'ok  ', 'warn': 'WARN', 'fail': 'FAIL', 'unknown': '??  '}

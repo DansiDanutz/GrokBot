@@ -14,6 +14,7 @@ RADAR_MAX_AGE_MIN = 90                  # hourly job plus generous slack
 ENTRY_STALL_H = 3
 PUBLISHER_MAX_AGE_S = 900               # three missed five-minute cycles
 BLACKOUT_MIN_ROWS = 50
+TEAM_STALE_S = 2 * 3600                 # hourly :15 controller plus one miss
 
 _RANK = {'ok': 0, 'warn': 1, 'unknown': 2, 'fail': 3}
 
@@ -116,7 +117,29 @@ def _disk(f):
     return _check('disk', 'ok', '%.1f GiB free' % gib)
 
 
-CHECKS = (_collector, _radar, _autopilot, _publisher, _coinglass, _disk)
+def _team(f):
+    age = f.get('team_cycle_age_s')
+    if age is None:
+        return _check('team', 'unknown', 'no controller reading',
+                      'has com.danslab.trader-team-controller ever run?')
+    if age > TEAM_STALE_S:
+        return _check('team', 'fail', 'last controller cycle %.1f hours ago'
+                      % (age / 3600),
+                      'com.danslab.trader-team-controller did not fire; '
+                      'the whole team is stalled and nobody is being dispatched')
+    idle, blocked = f.get('team_idle_roles') or [], f.get('team_blocked') or []
+    if idle or blocked:
+        parts = []
+        if idle:
+            parts.append('idle: ' + ', '.join(idle))
+        if blocked:
+            parts.append('blocked: ' + ', '.join(blocked))
+        return _check('team', 'warn', '; '.join(parts),
+                      "dispatch.json; the role's room in the Grok Bot app")
+    return _check('team', 'ok', 'controller cycled %.0fs ago, no idle role' % age)
+
+
+CHECKS = (_collector, _radar, _autopilot, _publisher, _coinglass, _disk, _team)
 
 
 def assess(facts):
