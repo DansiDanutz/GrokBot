@@ -11,6 +11,7 @@ import json
 from trader.radar.rates import K_STANDARD, K_MAJOR, expected_grids_per_hour
 from trader.radar.scoring import score_row
 from trader.radar.support import assess
+from trader.radar.liquidity_levels import annotate
 from trader.radar.layout import select_range, layout_valid
 from trader.radar.spacing import economics, choose_count, align_bounds
 
@@ -123,8 +124,12 @@ def _sections(rows):
     return result
 
 
-def analyse(database, asof_ms=None):
-    """Read one SQLite snapshot and return the prototype's deterministic radar."""
+def analyse(database, asof_ms=None, liquidation_clusters=None):
+    """Read one SQLite snapshot and return the prototype's deterministic radar.
+
+    ``liquidation_clusters`` is an optional derived-cluster file; when given,
+    rows gain advisory ``liq_*`` fields and never change otherwise.
+    """
     path = Path(database).expanduser().absolute()
     if not path.is_file() or path.is_symlink():
         raise ValueError("database must be a regular non-symlink file")
@@ -260,10 +265,11 @@ def analyse(database, asof_ms=None):
             continue
         rows.append(row)
     rows.sort(key=lambda row: (-row["rank_score"], row["symbol"]))
-    return {"schema_version": 1, "generated_at_ms": int(time.time() * 1000),
+    report = {"schema_version": 1, "generated_at_ms": int(time.time() * 1000),
             "asof_ms": now, "constants": {"standard_step_pct": STANDARD_STEP_PCT,
             "major_step_pct": MAJOR_STEP_PCT, "k_standard": K_STANDARD, "k_major": K_MAJOR},
             "filters": {"min_turnover_usdt": MIN_TURNOVER_USDT,
             "max_spread_pct": MAX_SPREAD_PCT, "min_listing_age_days": MIN_LISTING_AGE_DAYS,
             "max_snapshot_age_min": MAX_SNAPSHOT_AGE_MIN},
             "rows": rows, "sections": _sections(rows)}
+    return report if liquidation_clusters is None else annotate(report, liquidation_clusters, now)

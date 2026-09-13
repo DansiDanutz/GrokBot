@@ -34,10 +34,12 @@ def main(argv=None, printer=print):
     parser.add_argument("--database", required=True)
     parser.add_argument("--json", required=True)
     parser.add_argument("--asof-ms", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--liquidation-clusters",
+                        help="advisory derived liquidation-cluster file")
     parser.add_argument("--telegram-chat-id")
     parser.add_argument("--telegram-state")
     args = parser.parse_args(argv)
-    report = analyse(args.database, args.asof_ms)
+    report = analyse(args.database, args.asof_ms, args.liquidation_clusters)
     destination = Path(args.json).expanduser().absolute()
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name("." + destination.name + ".pending")
