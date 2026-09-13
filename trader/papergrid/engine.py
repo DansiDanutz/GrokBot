@@ -6,8 +6,10 @@ from decimal import Decimal
 
 # KuCoin Futures Trading Bot uses a fixed 0.06% maker/taker fee:
 # https://www.kucoin.com/support/21960469554201
-# New bots persist that schedule. Existing ledgers retain their stored rates;
-# the historical generic fallback remains for snapshots predating stored fees.
+# New bots persist that schedule; bots opened with stored rates keep them.
+# Legacy snapshots predating stored fees fall back to FEE_RATE_MAKER below,
+# which books their future grid fills at 0.02% against a 0.06% booked
+# history — a known within-ledger inconsistency, pending a unification call.
 BOT_FEE_RATE = 0.0006
 FEE_RATE_TAKER = 0.0006
 FEE_RATE_MAKER = 0.0002

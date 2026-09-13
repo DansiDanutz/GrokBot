@@ -13,8 +13,9 @@ import sqlite3
 from trader.data.store import _safe_path
 
 FEE_RATE = 0.0006  # liquidation fee: an executed liquidation is a forced
-                   # market fill, so it stays at the taker rate even though
-                   # grid-line fills moved to maker (engine.FEE_RATE_MAKER).
+                   # market fill, so it stays at the taker rate. Grid-line
+                   # fills are charged the same fixed 0.06% maker/taker
+                   # schedule (see engine.BOT_FEE_RATE).
                    # `fee_rate` in results is display/model metadata.
 MAX_AGE_MS = 120 * 60_000
 MAX_RAW_BYTES = 65_536
