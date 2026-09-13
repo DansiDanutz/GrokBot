@@ -361,6 +361,55 @@ def radar_flip_hysteresis_proposal(props):
 
 
 # ---------------------------------------------------------------------------
+# counterfactual cost of the caps (STAGED — tier-2 advisory only)
+
+COUNTERFACTUAL_COST_USD = 25.0
+CAPACITY_BLOCKS = ("bot_capacity", "direction_cap")
+LEARNED_BLOCK_PREFIX = "learned_"
+
+
+def _block_cost(blocks, names):
+    """Summed replayed net and candidate count over the named rule blocks."""
+    rows = [blocks[name] for name in names if isinstance(blocks.get(name), dict)]
+    return {"net": round(sum(float(row.get("sum_net", 0.0) or 0.0) for row in rows), 4),
+            "n": sum(int(row.get("count", 0) or 0) for row in rows),
+            "names": [name for name in names if isinstance(blocks.get(name), dict)]}
+
+
+def _cost_note(rule, cost, headline):
+    return {"rule": rule, "tier": 2, "action": "review", "value": cost["net"],
+            "evidence": ("{} — {} skipped candidate(s) blocked by {} replayed to "
+                         "${:.2f} net over the day (threshold ${:.0f}); PROPOSAL (advisory "
+                         "only): review whether that refusal is still earning its "
+                         "keep".format(headline, cost["n"], ", ".join(cost["names"]),
+                                       cost["net"], COUNTERFACTUAL_COST_USD))}
+
+
+def counterfactual_proposals(counterfactual):
+    """Tier-2 advisories from the skipped-decision replay; never auto-applied.
+
+    Fires only when a refusal demonstrably cost money: capacity_cost when the
+    hard caps (bot_capacity/direction_cap) blocked more than
+    COUNTERFACTUAL_COST_USD of replayed net, learned_rule_cost when the learned
+    gates did. A negative sum means the block saved money and says nothing.
+    """
+    blocks = (((counterfactual or {}).get("summary") or {}).get("by_rule_block")) or {}
+    if not isinstance(blocks, dict):
+        return []
+    notes = []
+    capacity = _block_cost(blocks, CAPACITY_BLOCKS)
+    if capacity["net"] > COUNTERFACTUAL_COST_USD:
+        notes.append(_cost_note("capacity_cost", capacity,
+                                "the slot caps turned away profitable entries"))
+    learned_names = sorted(name for name in blocks if name.startswith(LEARNED_BLOCK_PREFIX))
+    learned = _block_cost(blocks, learned_names)
+    if learned["net"] > COUNTERFACTUAL_COST_USD:
+        notes.append(_cost_note("learned_rule_cost", learned,
+                                "a learned rule blocked profitable entries"))
+    return notes
+
+
+# ---------------------------------------------------------------------------
 # review status (dashboard feed), fail-closed
 
 
