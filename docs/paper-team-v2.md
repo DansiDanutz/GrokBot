@@ -2,6 +2,11 @@
 
 Issue: https://github.com/DansiDanutz/GrokBot/issues/51
 
+**Current timing:** the [single Codex controller](../config/paper-team/controller.md)
+is active hourly:15; the native timer is paused. Data/research/engineering phases
+are08:15/09:15/10:15. Timestamped setup observations below preserve history and
+do not override that current controller contract.
+
 This extension adds dedicated X setup research, rule-lifecycle management and
 technical interpretation to the existing five assistants. Grid Desk Lead remains
 the orchestrator and sole owner of the existing hourly review routine. This
@@ -246,3 +251,35 @@ applied:false. The generated metrics match the same sample/coverage hold. Final
 full verification passed677tests (38Node+328paper+287trader+24bridge), and the
 staged-secret gate passed267trackedfiles. Independent review rechecked cached
 receipt integrity and isolated source imports with no remaining concrete blocker.
+
+
+The native cross-room result received Risk's note01:10:27UTC, Performance's note
+01:11:03UTC and Lead closure01:11:28UTC. A persistence gap was caught: board.json
+still held00:56:41UTC and omitted that result. Steward updated it01:13:34UTC with
+native result, Manager/Performance/Risk notes, worker phases and PR status. The
+routine now requires board write/readback before durable completion and actual
+receipt hashes for duplicate detection; the initial request-ID-only evidence
+reference was replaced at01:16:35UTC with strategy revision, actual evidence hashes
+and request hash through the same existing steward task.
+
+Commit60da1261b8544d0e1a63cd355c1a50a2c181a4de passed both latest-head integration
+runs on macOS and Ubuntu. PR50 remains open/unmerged. This follow-up records
+native persistence calibration; it changes no evaluator or trading code.
+
+
+A real scheduling gap was detected after the intended04:15 local invocation. At
+01:17:21UTC the native Lead reported its supported automation_status as never run,
+matching the freshly reopened UI. Saved ID paper-grid-team-hourly-evidence-review
+was enabled with hourly:15 Europe/Bucharest; next-run and queued/skipped metadata
+were not exposed. Configuration alone is not accepted as unattended execution.
+A bounded re-arm test of this same routine (temporary minute22, then restore:15)
+was requested at01:19:24UTC, with no manual review or duplicate schedule. Final
+outcome is recorded in the local audit artifact after observation.
+
+
+Scheduler handoff: native cadence restored:15 and pause confirmed04:24:50 local.
+The Lead reported a late server running signal01:24:19UTC while UI still showed
+no history; no completed scheduled result is claimed. Steward recorded ownership
+handoff01:26:02UTC. The existing Codex heartbeat was updated in place to hourly:15,
+with data08:15, research09:15 and engineering10:15. First unattended external
+invocation remains unproven. See controller.md for recovery/dedup boundaries.

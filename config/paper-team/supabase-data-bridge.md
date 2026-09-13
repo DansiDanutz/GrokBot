@@ -1,11 +1,12 @@
 # Supabase evidence feed
 
 Installed Codex heartbeat: `paper-team-supabase-evidence-bridge`, named
-Paper team — data and improvement worker. Its08:55 Europe/Bucharest phase
-refreshes this data feed; its10:55 phase processes one scoped engineering need.
+Paper team — hourly controller and improvements. Its08:15 Europe/Bucharest phase
+refreshes this data feed; its10:15 phase processes one scoped engineering need.
 The app permits one heartbeat per task, so both phases share this worker and
-maintain per-date phase outcomes in support-worker-state.json. This complements
-the single native hourly routine and is not a trading process or strategy writer.
+maintain per-date phase outcomes in controller-state.json. The same heartbeat
+triggers the Lead hourly; the native timer remains paused. This is not a trading
+process or strategy writer. See [current controller](controller.md).
 
 Read the current canonical autopilot snapshot and take its generated_at_ms and
 open_bots, at most five. Validate symbols against `^[A-Z0-9]+USDTM$`; normalize

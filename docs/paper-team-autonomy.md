@@ -1,165 +1,117 @@
-# Autonomous paper-team acceptance design
+# Autonomous paper team: current operation
 
-Design reviewed against repository instructions and recorded native observations
-on 2026-09-13. This document is an acceptance design, not evidence that integrations
-ran. It extends [version 2](paper-team-v2.md) while preserving the deterministic
-paper executor and the existing daily 07:00 gated rule writer.
+Grid Desk Lead coordinates eight review assistants and the existing operations
+bot across two native rooms. The existing deterministic engine discovers eligible
+positions and manages paper trading; its existing07:00 pipeline alone writes
+supported learned rules. The team supplies research, technical interpretation,
+evaluation, outcome review and an owned needs backlog.
 
-## Minimum integration
+## One controller
 
-Use the **existing Lead-owned hourly routine**, one recoverable cross-room task
-board, and the existing steward's **read-only market inputs and isolated evidence outputs**. Give every
-assignment an owner, expected result and recorded completion evidence. Verify a
-scheduled round and restart recovery before calling the system autonomous. A
-new multi-agent framework, exchange connector or execution engine is unnecessary.
+The [Codex controller](../config/paper-team/controller.md) is ACTIVE hourly:15
+Europe/Bucharest. It sends one identified cycle cue to the existing Lead and
+performs daily08:15 data and10:15 engineering phases. Daily X/primary-source
+research is due09:15 within the Lead's playbook, or the first later catch-up that
+date. Every daily phase is deduplicated.
 
-The Lead coordinates **Paper Grid Trading Team** and **Paper Grid Research & Data**;
-Strategy Manager owns proposal states; existing Dan’s Senior Developer supplies
-bounded market/reviewer evidence through its current access. This bridge reports
-results to the team and cannot write strategy or grant new account access. The
-installed request worker runs bounded retrospective evaluations into its sandbox.
+The native hourly timer is PAUSED, with its :15 cadence and instructions retained.
+Its04:15 scheduled invocation could not be verified. A re-armed04:22 test still
+showed no UI history at04:24; the Lead subsequently reported a late running signal
+at01:24:19UTC. That signal is not proof of completed scheduled collaboration.
+The handoff prevents competing timers while keeping the platform issue visible.
+Do not claim that no native run ever started or that its scheduler was repaired.
+The first unattended Codex dispatch remains to be observed. Manual workflow
+acceptance and configured scheduling are separate facts.
 
-## Gaps between instructions and observed runtime
+## The hourly cycle
 
-| Gap | Minimum acceptance condition |
+1. Controller recovers its control state and the steward-owned board. It reconciles
+   a pending prior cycle before sending another cue. Completed/working cycle IDs
+   are not redispatched.
+2. Lead recovers board, overdue needs, daily research due state and source health
+   before any quiet exit. It checks current autopilot and radar core/bench as
+   separate candidate sets, not substitutes for open_bots.
+3. Data & Structure identifies candidate eligibility and rejection evidence.
+   Technical Interpreter verifies source scope, then interprets joint market and
+   derivatives evidence. Risk checks existing gates; Performance evaluates net
+   after costs. Manager tracks actual rule outcomes and supported hypotheses.
+4. X Setup Researcher and Research Scout deliver one bounded item each on the due
+   daily pass. A source block is attributed and does not stop independent work.
+   Claims need original source, mechanism, strategy mapping and falsification.
+5. A supported hypothesis can enter the [request bridge](paper-team-bridge.md).
+   Existing steward submits the exact seven-field request; the worker recomputes
+   evidence using the pinned daily evaluator. Maximum one new evaluation per
+   hourly round and three per local date. Logical dedup uses review_date, rule_id,
+   strategy_revision and actual evidence_hashes; request ID is a reference.
+6. Lead reconciles actual specialist replies, proposal stage and engine events.
+   Steward atomically preserves, updates and reads back board.json before durable
+   completion. After one failed retry, record BOARD_PERSIST_BLOCKED and retain
+   the true findings without claiming restart-safe completion.
+
+The controller observes replies and board acknowledgment for at most five minutes
+using short waits. Incomplete work stays PENDING/BLOCKED with its dispatched ID;
+the next wake reconciles it. Quiet notifications do not suppress due work.
+
+## New positions and improvements
+
+New-position discovery uses the current strategy's public radar universe and its
+existing admission evidence. The deterministic engine alone opens eligible paper
+positions. Zero eligible candidates is valid. Preserve confirmed S/R,12–200 grids,
+5x, strictly>1% complete-pair return on allocated margin after both0.06% fills,
+entry splits, max five positions, max four in one direction and all existing
+risk, reserve, activity, sizing, funding and exit controls.
+
+Use OBSERVED → HYPOTHESIS → TEST_READY → SHADOW → eligible existing tier1 /
+DEFERRED / REJECTED → APPLIED_VERIFIED / ROLLED_BACK as evidence states. The
+sandbox worker never applies a rule. A qualifying planner result is SHADOW here;
+a missing gate remains DEFERRED. New identifiers become NEEDS_IMPLEMENTATION,
+not executable model-authored code or a bypass around the existing applier.
+
+Daily engineering selects one OPEN need with resolved dependencies, measurable
+acceptance and an existing issue/PR ownership check. It works in an isolated Codex
+checkout, uses existing dependencies, runs repository checks and reports actual
+commit/PR/CI evidence. No production deployment, auto-merge or new rule writer is
+introduced. Novel rules can gain an offline implementation and shadow experiment;
+forward evidence and review remain necessary before a binding change.
+
+## State and ownership
+
+| Artifact | Writer and purpose |
 | --- | --- |
-| The saved v2 routine is Active and inspected; unattended execution remains unproven. | Inspect the saved current prompt and one actual scheduled run with attributed specialist replies and final synthesis. An Active toggle is insufficient. |
-| Lead's older text asks the “other four roles”; later instructions describe eight review roles across two rooms. | Save one consistent roster/routing mandate; dispatch only relevant specialists, with all assigned work visible on the board. |
-| The early quiet-on-no-change branch can conflict with due daily research. | Evaluate daily research due state and actionable backlog before deciding there is nothing to do. Quiet user notification must not suppress authorized work. |
-| “Read the last board after restart” is an instruction, not verified persistence. | Save and reread a versioned board through an existing supported native memory/artifact surface; after restart, resume an unfinished task and avoid redispatching a completed task for identical evidence. |
-| RD-002 delivered the correct open-position packet and SB-001 transport was verified; Supabase tables remain stale and zmarty-axi returned HTTP 503. | Deliver one sanitized packet or a specific per-source failure. Do not claim a working bridge, repaired ingestion or direct native Supabase access without evidence. |
-| Steward queries currently cover up to five active symbols, which does not discover new candidate positions. | Review public radar sections, core and bench each hourly cycle; refer candidate-specific evidence needs to the backlog. Keep existing private query limits until a concrete authorized change is implemented. |
-| X onboarding is ACCESS_BLOCKED. | Record the failed source/time, use available primary documentation for independent research, and retain X access as a needs item. A missing X post is not a reason to suspend the portfolio review. |
-| Manager's register is not connected to the 07:00 applier; novel-rule application is not wired. | Keep this distinction explicit. Existing tier-1 execution is observed through generated records; novel rules stay in evidence/test/shadow development. |
+| team-evidence/controller-state.json | Codex: hourly dispatch and daily phase receipts, duplicate prevention. |
+| team-evidence/board.json | Existing steward on Lead instruction: assigned owners, states, dependencies, acceptance and actual result references; preserve prior versions. |
+| team-evidence/supabase-market-context.json | Codex data phase: sanitized market archive packet, real source timestamps, coverage and historical status. |
+| team-evidence/engineering-status.json | Codex engineering phase: one need's tested result, PR, blocker and next action. |
+| team-evidence/operator/ | Operator-managed installed executable/config; native roles do not edit it. |
+| team-experiments/inbox/ | Native steward: new validated requests only. |
+| team-experiments/results/ | Verified worker: immutable generated reports, metrics, source/input hashes and acknowledgments. |
+| Production trading state and learned rules | Existing engine and existing daily applier only. |
 
-## Autonomous cycle and new-position discovery
+Lead tracks assigned work; unreported private activity is UNKNOWN. Keep task
+state, canonical advisory HOLD/REVIEW/ESCALATE, rule lifecycle and engine effect
+separate. A PR is READY_FOR_REVIEW, not APPLIED. Native and Codex control records
+are same-user workflow boundaries, not OS security isolation.
 
-Every hourly :15 invocation uses UTC evidence timestamps and Europe/Bucharest
-calendar dates for schedule bookkeeping:
+## Verification and remaining needs
 
-1. Recover the last board and daily completion marker. Reconcile actual assignee
-   updates and source versions. Missing private state is UNKNOWN, never DONE.
-2. Read current autopilot and radar, check freshness and coverage, and obtain a
-   bounded steward packet when required. Inspect new eligible radar/core/bench
-   candidates, openings, closes, admission failures and changes in net outcomes.
-3. Determine independently whether daily research is due, whether a material
-   portfolio/data change needs specialist review, and whether a backlog item has
-   new evidence or a dependency that became available. Process due work even when
-   the portfolio is unchanged.
-4. Assign bounded tasks in the appropriate room. Each specialist replies once.
-   Retry a missing hand-off once, then record BLOCKED and continue independent
-   tasks. Do not ping a blocked dependency every hour without changed evidence.
-5. Reconcile the board, proposal register and actual runtime outcomes. Save one
-   synthesis plus updated task states. Notify the user only for a meaningful
-   finding, completed improvement, failure or required action; otherwise remain
-   quiet while retaining completion evidence.
+RD-002 correctly selected all five open positions and passed technical scope
+validation. SB-001 verified sanitized Supabase file transport, preserving stale
+DOT-only data and four missing symbols. The installed worker and native request
+NATIVE-TREND-20260913-01 generated DEFERRED/applied:false from real September12
+evidence. Risk, Performance and Lead acknowledged it; completed board and actual
+evidence hashes were read back at01:16:35UTC.
 
-At 09:15 daily, or the first later invocation when that local date is unfinished,
-request one X setup investigation and one primary-source check. Require a source,
-mechanism, existing-strategy mapping and falsification condition. Deduplicate by
-local date, source/version and task ID. Record DONE or DONE_WITH_GAPS after the
-bounded pass; an access block must not cause endless same-day research retries.
-Carry unresolved access needs separately. A delayed first run can execute this
-pass without creating another routine.
+The native board recorded scheduler handoff at01:26:02UTC. Initial code passed
+677tests and macOS/Ubuntu CI; cached false-application and import-shadowing review
+findings were fixed and independently rechecked. Final receipt evidence belongs
+in the [living audit](paper-team-audit.html), with latest-head CI attribution.
 
-New-position discovery means examining the existing strategy's broader public
-radar universe and explaining why candidates pass or fail. The deterministic
-engine alone promotes/adopts eligible candidates and opens paper positions under
-its current rules. A research post, specialist preference or empty portfolio slot
-never becomes extra entry authority. Preserve 12–200 grids, 5x, the strict >1%
-per-pair margin-return floor after two 0.06% fills, confirmed chart bounds, entry
-splits, five-position and four-per-direction caps and all existing risk gates.
+Open needs: first unattended external dispatch, native scheduler observability,
+actual app-restart recovery, original X grid-source access, stale Supabase
+coverage, Zmarty health503, interval-matched funding reconciliation, original
+entry-split evidence and unimplemented forward experiments. CoinGlass heatmap
+entitlement and positive trading expectancy are not claimed. Continue authorized
+independent work and attribute blocks; do not invent data or ask for routine
+permission to proceed.
 
-## Needs backlog and orchestrator visibility
-
-Keep one board with task_id, owner, status, source_asof, strategy_version,
-evidence_uri, dependency, blocker and updated_at. Add need_type, expected_result,
-next_check_trigger and acceptance_evidence for needs discovered from operation.
-Task states are OPEN, ASSIGNED, IN_PROGRESS, BLOCKED, DONE or DONE_WITH_GAPS;
-UNKNOWN records missing reported state. These are separate from proposal states.
-
-| Initial need | Owner | Initial evidence state | Completion evidence |
-| --- | --- | --- | --- |
-| Current v2 schedule and daily dispatch | Grid Desk Lead | Saved prompt verified; unattended run pending | Saved prompt plus actual unattended run history. |
-| Durable cross-room board and restart recovery | Grid Desk Lead | Write/read verified; restart untested | Persisted board readback; unfinished task resumed and completed task deduplicated. |
-| RD-002 market/reviewer packet | Operations/data steward | Verified | Attributed read-only packet with per-source as-of, coverage, units and version. |
-| Stale SmartTrading ingestion / zmarty-axi failure | Operations/data steward | Known source gap | Root-cause evidence and a scoped repair work item; fresh per-table/per-symbol checks if a repair is later implemented. |
-| Public X setup access | X Setup Researcher | ACCESS_BLOCKED | Original accessible post or explicit failed retrieval with alternative evidence, without invented content. |
-| New candidate evidence and admission reasons | Data & Structure | Must be checked each relevant radar version | Candidate/source IDs, engine eligibility evidence or precise missing field. |
-| Rule outcome reconciliation | Strategy Manager | Integration acceptance pending | Generated evaluation, real application/no-change result and matching active state. |
-
-The Lead owns every assignment's follow-through, not omniscient knowledge of
-other agents. A role acknowledgment does not prove task completion. Resolve
-conflicting data through evidence, and leave blocked work attributed rather than
-silently dropping it. Create new needs automatically when missing data, recurring
-failure, unclear accounting or a useful within-strategy capability is discovered.
-
-Authorized research, public reads, evidence review, task assignment and backlog
-maintenance proceed without asking “should I continue?” A need that requires
-implementation becomes a concrete scoped work item with owner, tests and
-acceptance evidence. Research assistants must not invent credentials, execute
-runtime edits or imply the task board itself grants missing write authority.
-
-## Results-to-improvement lifecycle
-
-Use `OBSERVED -> HYPOTHESIS -> TEST_READY -> SHADOW -> ELIGIBLE_TIER1 / DEFERRED /
-REJECTED -> APPLIED_VERIFIED / ROLLED_BACK`. Attach cohort/window, net costs,
-coverage, strategy version, expected benefit and a falsification criterion.
-Separate correlated observations and completed grids from independent closed
-outcomes. A result-driven system must be able to reject its own hypothesis.
-
-For existing implemented tier-1 rules, preserve the current 07:00 deterministic
-evaluator and applier, exact rule-specific sample/coverage/benefit gates and
-three-application daily cap. Do not replace their generated evidence with LLM
-prose. The learned seven-day symbol cooldown differs from ordinary six-hour
-post-close cooldown. A dry-run can publish status counts while leaving active
-rules unchanged; APPLIED_VERIFIED needs an actual non-dry-run result and matching
-active state. NO_CHANGE with a reason is a valid observed execution outcome.
-
-Novel rules become scoped implementation/test needs and remain SHADOW until the
-necessary reviewed implementation, meaningful tests and forward paper evidence
-exist. Define baseline, comparable windows, fee/funding accounting, success and
-failure thresholds, and rollback evidence before promotion. The Manager cannot
-rename a new idea “tier 1” to make it executable. Broader implementation ownership
-and release integration must be explicit in the work item; this documentation
-neither installs such an integration nor expands the current writer's scope.
-
-## Evidence required to claim completion
-
-Demonstrate one scheduled hourly round, one daily research pass or its legitimate
-catch-up, one recoverable board transition, one completed steward hand-off or
-honest partial failure, and one needs item followed through to its acceptance
-result. Verify that the Lead knows all assigned tasks and labels unreported work
-UNKNOWN. Verify existing deterministic execution continues independently and
-that the Manager accurately distinguishes proposed, deferred and applied rules.
-
-Until these artifacts are observed, report the system as configured with the
-specific integration gaps above. No extra routine, code, dependency, deployment,
-source mutation or strategy change is included in this design document.
-
-
-## Subsequent acceptance updates
-
-The gaps table above records the initial review, not current completion claims.
-The current saved native routine was inspected after the autonomy update; it
-checks due research/backlog before quiet exit and scans core/bench separately.
-RD-002 delivered and verified all five open symbols. Native board.json was created
-and independently read; actual restart recovery is still untested. SB-001 native
-steward read completed01:02:27UTC and correctly labeled the source historical.
-See [version2 observations](paper-team-v2.md) for source and exact times.
-
-An executable [research-request bridge](paper-team-bridge.md) now closes the
-Manager-request/evaluator-result path for the three existing hypotheses. Initial
-real replay returned a gated deferral. It does not turn the Manager into a rule
-writer or validate the separate paired-forward-experiment ideas. Final native
-acknowledgment, schedule invocation and release checks are recorded separately.
-
-
-The installed Codex support heartbeat now has two daily phases:08:55 sanitized
-Supabase feed and10:55 one evidence-backed engineering need. The latter works in
-an isolated Codex checkout, runs required tests and prepares the relevant PR,
-then writes engineering-status.json for native steward/Lead intake. It cannot
-change production strategy/state or merge/deploy its own result. Novel-rule
-implementations remain shadow work until measured forward evidence and review.
-One heartbeat hosts both phases because the app permits only one per task;
-there is no duplicate native routine. First scheduled phase execution is unproven.
+_Last verified: 2026-09-13_

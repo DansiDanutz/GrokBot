@@ -29,7 +29,9 @@ chat history and generated snapshots remain local.
 ## Native paper review team
 
 The [expanded review team](docs/paper-team-v2.md) collaborates in the native Grok Bot
-**Paper Grid Trading Team** group, with one hourly Lead-owned routine.
+core and research/data rooms. Grid Desk Lead orchestrates the team; the
+[single Codex controller](config/paper-team/controller.md) supplies hourly cues.
+The native timer is paused after scheduling acceptance remained inconclusive.
 [Reproducible instructions](config/paper-team/contract.md) preserve the deployed
 grid strategy and keep the existing deterministic paper engine as sole executor.
 The [research and source limits](docs/paper-team-research.md) cover primary code,

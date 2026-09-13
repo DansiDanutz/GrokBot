@@ -60,7 +60,7 @@ Results do not enter the live applier's input path.
 
 ## Routine integration
 
-On due work, Lead recovers the board and asks Manager for at most one new bounded
+On a due external controller cue (native timer paused), Lead recovers the board and asks Manager for at most one new bounded
 request per completed review date/rule/evidence version. Steward obtains fresh
 context, submits it, runs the worker once and returns the acknowledgment plus
 metrics to Manager, Performance, Risk and Lead. Maximum one evaluation per hourly

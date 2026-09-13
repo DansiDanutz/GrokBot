@@ -1,8 +1,10 @@
 # Paper grid team — hourly evidence review
 
 Owner: **Grid Desk Lead** in native Grok Bot. Destination: **Paper Grid Trading Team**.
-Schedule: **every hour at :15, Europe/Bucharest**, after the hourly minute-05 radar.
-Native UI verified Active on 2026-09-13. No per-specialist routine is required.
+Trigger: **single Codex heartbeat, every hour at :15 Europe/Bucharest**, after
+the minute-05 radar. Native timer is PAUSED; its retained instructions are this
+playbook. Accept the uniquely identified external controller cue as authorized
+hourly work. See [current controller](controller.md); never run competing timers.
 This is a reproducible description; editing this file does not edit the native routine.
 
 Use the v2 standing contract and assigned existing role mandates across both
@@ -50,9 +52,10 @@ Report freshness at source time, not guaranteed live health. Say no breach
 observed in available fields; leave unverified entry splits or live safeguards
 unknown. Distinguish bounded history from demonstrated truncation.
 
-The manual group review and a scheduled invocation are separate acceptance facts.
-Do not claim the first scheduled invocation succeeded until native run history or
-an attributed group result confirms it. Routine modifications use the existing
+A manual group review, a native server signal and a completed external scheduled
+invocation are separate acceptance facts.
+Do not claim the first external scheduled invocation succeeded until the
+controller receipt and attributed group/board result confirm it. Routine modifications use the existing
 routine, not a duplicate.
 
 _Last verified: 2026-09-13_
@@ -76,8 +79,8 @@ as an approval control to the existing07:00 applier; novel rules remain shadow.
 
 
 Read the Supabase evidence file through the existing steward, retaining historical
-source times and missing coverage. Its separate Codex08:55 data-feed automation is
-not a native trade/review routine. Read and acknowledge sandbox bridge results;
+source times and missing coverage. The same controller
+refreshes it in the daily08:15 phase; it is not another trade/review routine. Read and acknowledge sandbox bridge results;
 unknown rules require implementation and all replay results remain shadow. Track
 new operational needs automatically with owner, measurable acceptance and next
 review trigger. Continue unaffected tasks while one source is blocked.
@@ -93,8 +96,17 @@ A changed pinned revision is a maintenance need, not automatic repin authority.
 
 
 Read changed engineering-status.json through the existing steward and reconcile
-its need ID, tests, commit/PR and blocker into the shared board. The Codex support
-worker's10:55 phase processes at most one scoped engineering need; it does not
+its need ID, tests, commit/PR and blocker into the shared board. The Codex controller's
+10:15 phase processes at most one scoped engineering need; it does not
 edit this board, deploy live changes, repin the installed bridge or add a writer.
-A PR is READY_FOR_REVIEW, not an applied upgrade. The08:55 data phase and10:55
-engineering phase share the same Codex heartbeat and maintain phase deduplication.
+A PR is READY_FOR_REVIEW, not an applied upgrade. The08:15 data phase and10:15
+engineering phase share the hourly Codex heartbeat and maintain phase deduplication.
+
+
+After every material round or changed need/result, require one atomic board write
+and readback from the steward before durable completion. Record the returned
+board version/time. One failed retry becomes BOARD_PERSIST_BLOCKED; preserve
+actual chat findings without claiming restart-safe completion. Do not repeat the
+completed evaluation. Store actual receipt strategy_revision, evidence_hashes and
+request_sha256. The logical duplicate key is review_date + rule_id +
+strategy_revision + evidence_hashes, with request ID retained as artifact reference.
