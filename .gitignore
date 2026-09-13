@@ -13,3 +13,6 @@ __pycache__/
 .vercel/
 .paper-runtime/
 .publisher-state/
+
+# worktree convenience symlink, not just a directory
+node_modules
