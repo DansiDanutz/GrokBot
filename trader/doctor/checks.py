@@ -67,11 +67,18 @@ def _autopilot(f):
         return _check('autopilot', 'fail', 'last tick %ds ago' % age,
                       'autopilot is alive but not ticking; check its log')
     free = max(0, f.get('max_bots', 0) - f.get('open_bots', 0))
-    since = f.get('hours_since_open')
-    if free and f.get('core_candidates', 0) and since is not None and since >= ENTRY_STALL_H:
+    # How long the SLOT has stood empty, not how long since the last entry. A
+    # desk that runs full for five hours and then closes a bot has a brand-new
+    # vacancy and a five-hour-old last entry; judging it on the latter fails a
+    # desk that is behaving perfectly, which is how this check first fired.
+    waiting = f.get('vacancy_age_h')
+    if waiting is None:
+        waiting = f.get('hours_since_open')
+    if free and f.get('core_candidates', 0) and waiting is not None \
+            and waiting >= ENTRY_STALL_H:
         return _check('autopilot', 'fail',
-                      '%d free slot(s) and %d candidate(s), no entry in %.1fh'
-                      % (free, f['core_candidates'], since),
+                      '%d free slot(s) and %d candidate(s), nothing opened in %.1fh'
+                      % (free, f['core_candidates'], waiting),
                       'entries are blocked; read the DECISION rule_blocks')
     return _check('autopilot', 'ok', '%d of %d slots in use, ticking'
                   % (f.get('open_bots', 0), f.get('max_bots', 0)))

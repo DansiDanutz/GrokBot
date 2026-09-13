@@ -23,7 +23,7 @@ def facts(**over):
         radar_generated_ms=NOW - 20 * 60_000,
         radar_rows=356, radar_verified=224, core_candidates=11,
         autopilot_tick_age_s=3, open_bots=5, max_bots=5,
-        hours_since_open=1.2,
+        hours_since_open=1.2, vacancy_age_h=0.2,
         publisher_success_age_s=180,
         coinglass_status='pass', coinglass_symbols_ok=9, coinglass_symbols_requested=9,
         disk_free_bytes=21 * 1024 ** 3,
@@ -65,7 +65,9 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(got['radar']['status'], 'fail')
 
     def test_free_slots_with_candidates_and_no_entry_is_a_stall(self):
-        got = run(open_bots=2, hours_since_open=7.0)
+        # The vacancy age is the signal; the last-entry time alone would fail a
+        # desk that simply ran full and has only just closed something.
+        got = run(open_bots=2, hours_since_open=7.0, vacancy_age_h=7.0)
         self.assertEqual(got['autopilot']['status'], 'fail')
         self.assertIn('slot', got['autopilot']['detail'].lower())
 
@@ -141,3 +143,34 @@ class DoctorTests(unittest.TestCase):
         got = run(radar_generated_ms=None, publisher_success_age_s=None)
         self.assertNotEqual(got['radar']['status'], 'ok')
         self.assertNotEqual(got['publisher']['status'], 'ok')
+
+
+class VacancyTests(unittest.TestCase):
+    """A free slot is only a stall once it has been free for a while.
+
+    The first live FAIL of this check was a false alarm: CAKEUSDTM closed at
+    21:59, the doctor ran at 22:01, and the desk was judged on a last entry
+    4.6h old. The decision pass had not even come round yet.
+    """
+
+    def test_a_slot_that_just_freed_is_not_a_stall(self):
+        report = run(open_bots=4, hours_since_open=4.6, vacancy_age_h=0.03)
+        self.assertEqual(report['autopilot']['status'], 'ok')
+
+    def test_a_slot_empty_past_the_threshold_is_a_stall(self):
+        report = run(open_bots=4, hours_since_open=9.0, vacancy_age_h=4.0)
+        self.assertEqual(report['autopilot']['status'], 'fail')
+        self.assertIn('4.0h', report['autopilot']['detail'])
+
+    def test_an_empty_slot_with_no_candidates_is_not_a_stall(self):
+        report = run(open_bots=4, core_candidates=0, vacancy_age_h=9.0)
+        self.assertEqual(report['autopilot']['status'], 'ok')
+
+    def test_a_full_desk_is_never_a_stall(self):
+        report = run(open_bots=5, hours_since_open=40.0, vacancy_age_h=40.0)
+        self.assertEqual(report['autopilot']['status'], 'ok')
+
+    def test_an_unknown_vacancy_age_falls_back_to_the_last_entry(self):
+        """A daemon that has never closed anything still reports a real stall."""
+        report = run(open_bots=4, hours_since_open=6.0, vacancy_age_h=None)
+        self.assertEqual(report['autopilot']['status'], 'fail')

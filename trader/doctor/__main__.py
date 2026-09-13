@@ -28,6 +28,20 @@ def _last_line_json(path):
         return None
 
 
+def _vacancy_age_h(snap, now_ms):
+    """Hours the newest empty slot has stood empty, or None when unknowable.
+
+    A slot only frees when a bot closes, so the newest close dates the newest
+    vacancy. With several slots free this reports the youngest, which under-
+    reports rather than crying wolf - the safe direction for an alarm.
+    """
+    if not (snap.get('closed_bots') or []):
+        return None
+    closed = [b.get('closed_ms') for b in snap['closed_bots']
+              if isinstance(b.get('closed_ms'), (int, float))]
+    return (now_ms - max(closed)) / 3_600_000 if closed else None
+
+
 def gather(now_ms=None, database=None):
     now = now_ms if now_ms is not None else int(time.time() * 1000)
     f = dict(now_ms=now)
@@ -57,6 +71,7 @@ def gather(now_ms=None, database=None):
     f['open_bots'] = len(snap.get('open_bots') or [])
     f['max_bots'] = snap.get('max_bots') or 5
     f['hours_since_open'] = snap.get('hours_since_open')
+    f['vacancy_age_h'] = _vacancy_age_h(snap, now)
 
     pub = _json(ROOT / 'vercel-publisher' / 'publisher.json') or {}
     last = pub.get('last_success_at')
