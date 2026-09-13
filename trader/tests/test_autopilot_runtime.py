@@ -9,7 +9,7 @@ from unittest.mock import patch
 from trader.autopilot.runtime import Runner, guarded_paths
 from trader.autopilot.storage import read_json, atomic_json, read_events
 from trader.data.store import Store
-from trader.tests.test_autopilot_policy import radar, row
+from trader.tests.test_autopilot_policy import legacy_closes, radar, row
 
 NOW = 1789142400000
 
@@ -73,6 +73,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(view['tick_age_s'], 0)
         self.assertEqual(runner.state['runtime']['last_tick_ms'], self.clock[0])
 
+    @legacy_closes()
     def test_radar_mtime_triggers_decision_and_cooldown(self):
         runner = self.runner()
         runner.pass_once()

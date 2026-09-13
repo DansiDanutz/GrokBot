@@ -22,7 +22,10 @@ def local_today(now_ms=NOW):
 
 def set_rules(**kwargs):
     rules_dict = {"min_hold_hours_before_non_risk_close": None,
-                  "require_trend_alignment": False, "symbol_cooldowns": {}}
+                  "require_trend_alignment": False, "symbol_cooldowns": {},
+                  # These suites predate T6 and exercise the other gates in
+                  # isolation; the opportunity-cost gate has its own suite.
+                  "opportunity_cost_close": False}
     rules_dict.update(kwargs)
     return mock.patch.object(policy, "_learned_rules", return_value=rules_dict)
 

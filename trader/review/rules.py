@@ -38,6 +38,9 @@ EMPTY_RULES = {
     "require_trend_alignment": False,
     "symbol_cooldowns": {},
     # radar_flip_hysteresis_cycles: absent by default (staged, OFF).
+    # opportunity_cost_close: absent by default; the constant
+    # trader.autopilot.constants.OPPORTUNITY_COST_CLOSE decides until a store
+    # overrides it. Absent keeps every existing store valid.
 }
 
 DEFAULT_STORE_PATH = str(Path.home() / "Sandbox" / "grokbot" / "autopilot" / "learned-rules.json")
@@ -88,6 +91,9 @@ def validate_store(data):
                                        or not isinstance(hysteresis, int)
                                        or not 1 <= hysteresis <= 100):
             errors.append("radar_flip_hysteresis_cycles must be an integer between 1 and 100")
+        opportunity = rules.get("opportunity_cost_close")
+        if opportunity is not None and not isinstance(opportunity, bool):
+            errors.append("opportunity_cost_close must be a boolean or absent")
         cooldowns = rules.get("symbol_cooldowns")
         if not isinstance(cooldowns, dict):
             errors.append("symbol_cooldowns must be an object")
