@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Circle doctor. Read-only: it reports and notifies, it never restarts anything.
+  Edge-triggered, so a sustained fault alerts once and recovery alerts once.
+  Install is a deliberate act: copy to ~/Library/LaunchAgents, set the chat id,
+  then bootstrap. The Telegram token is read by credential-exec.py from a private
+  0600 file; never place a token in this plist.
+-->
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.danslab.trader-doctor</string>
+  <key>ProcessType</key><string>Background</string>
+  <key>WorkingDirectory</key><string>/Users/davidai/ZCodeProject/GrokBot-prod</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>scripts/credential-exec.py</string>
+    <string>--credentials</string>
+    <string>/Users/davidai/.config/danslab/credentials/telegram.json</string>
+    <string>--</string>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>-m</string>
+    <string>trader.doctor.alert</string>
+    <string>--chat-id</string>
+    <string>REPLACE_WITH_CHAT_ID</string>
+  </array>
+  <key>StartInterval</key><integer>300</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/Users/davidai/Sandbox/grokbot/autopilot/doctor.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/davidai/Sandbox/grokbot/autopilot/doctor.err.log</string>
+</dict></plist>
