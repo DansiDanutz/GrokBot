@@ -16,7 +16,7 @@ class RosterTests(unittest.TestCase):
         for identifier in ids:
             self.assertRegex(identifier, r'\A[a-z][a-z0-9_]*\Z')
 
-    def test_the_ten_installed_participants_plus_the_proposed_auditor(self):
+    def test_the_eleven_participants_are_all_installed(self):
         names = {role['name'] for role in roster.native()}
         self.assertEqual(names, {
             'Grid Desk Lead', 'Data & Structure', 'Risk Sentinel',
@@ -24,7 +24,7 @@ class RosterTests(unittest.TestCase):
             'Strategy Manager', 'Technical Interpreter',
             "Dan's Senior Developer", 'Paper Desk Secretary', 'Discovery Auditor'})
         installed = [r for r in roster.native() if r['installed']]
-        self.assertEqual(len(installed), 10)
+        self.assertEqual(len(installed), 11)
 
     def test_every_trigger_is_a_known_event_or_standing_dispatch(self):
         for role in roster.ROLES:
@@ -64,13 +64,17 @@ class RosterTests(unittest.TestCase):
                                        daily_review=26.0, counterfactual=26.0,
                                        doctor=1.0, controller=2.0))
 
-    def test_the_discovery_auditor_is_declared_but_not_installed(self):
-        """Dan has to add this bot in the app; the controller must not pretend."""
+    def test_the_discovery_auditor_is_installed_and_watches_discovery(self):
+        """Added in the app 2026-09-13 and confirmed in the Office room.
+
+        The flag says the bot exists, never that it answers. Silence still
+        blocks its dispatch and reports it idle, which is the honest signal.
+        """
         auditor = roster.BY_ID['discovery_auditor']
-        self.assertFalse(auditor['installed'])
+        self.assertTrue(auditor['installed'])
         self.assertEqual(auditor['triggers'], ('DISCOVERY',))
-        self.assertTrue(all(role['installed'] for role in roster.ROLES
-                            if role['id'] != 'discovery_auditor'))
+        self.assertEqual(auditor['rooms'], ('Paper Desk Office',))
+        self.assertTrue(all(role['installed'] for role in roster.ROLES))
 
     def test_review_roles_get_a_day_and_the_steward_six_hours(self):
         self.assertEqual(roster.max_idle_h('risk_sentinel'), 24.0)

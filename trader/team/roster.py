@@ -71,10 +71,11 @@ ROLES = (
     _native('technical_interpreter', 'Technical Interpreter',
             (TRADING_ROOM, RESEARCH_ROOM),
             ('BOT_OPENED', 'LIQ_CLUSTERS_READY'), TRADING_ROOM),
-    # Dan has not added this bot in the app yet; the controller must say so
-    # rather than quietly counting a role that cannot answer.
+    # Added in the app on 2026-09-13 and confirmed a member of the Office room.
+    # Its first answer, not this flag, is what proves it can actually work: an
+    # installed role that stays silent blocks and reports idle, which is correct.
     _native('discovery_auditor', 'Discovery Auditor', (OFFICE_ROOM,),
-            ('DISCOVERY',), OFFICE_ROOM, installed=False),
+            ('DISCOVERY',), OFFICE_ROOM),
     _role('senior_developer', "Dan's Senior Developer", 'steward',
           (RESEARCH_ROOM, OFFICE_ROOM),
           ('team-evidence/board.json', 'team-evidence/receipts/',

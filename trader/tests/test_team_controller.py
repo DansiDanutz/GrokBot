@@ -7,6 +7,7 @@ for a cue that could not arrive.
 """
 import json
 import unittest
+from unittest.mock import patch
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -153,16 +154,37 @@ class ReconciliationTests(unittest.TestCase):
         self.assertEqual(row['status'], 'IDLE')
         self.assertIn(('grid_desk_lead', 'ROLE_IDLE'), roles_of(created))
 
-    def test_the_uninstalled_auditor_is_never_blocked_only_not_installed(self):
+    def test_an_uninstalled_role_is_never_blocked_only_not_installed(self):
+        """A gap Dan has to close is not a role failing to answer.
+
+        Pinned to a synthetic uninstalled role so the rule survives whichever
+        bots actually exist in the app on any given day.
+        """
+        absent = dict(roster.BY_ID['discovery_auditor'], installed=False)
+        patched = dict(roster.BY_ID, discovery_auditor=absent)
+        roles = tuple(absent if r['id'] == 'discovery_auditor' else r
+                      for r in roster.ROLES)
         state = quiet_state(markers=dict(quiet_state()['markers'], discovery_date=None))
-        state, created, summary = controller.cycle(state, facts(), NOW)
-        discovery = [r for r in created if r['event'] == 'DISCOVERY'][0]
-        after, _, summary = controller.cycle(state, facts(), NOW + 5 * HOUR_MS)
+        with patch.object(roster, 'BY_ID', patched), \
+                patch.object(roster, 'ROLES', roles):
+            state, created, summary = controller.cycle(state, facts(), NOW)
+            discovery = [r for r in created if r['event'] == 'DISCOVERY'][0]
+            after, _, summary = controller.cycle(state, facts(), NOW + 5 * HOUR_MS)
         row = [r for r in after['dispatches']
                if r['dispatch_id'] == discovery['dispatch_id']][0]
         self.assertEqual(row['status'], 'NOT_INSTALLED')
         self.assertEqual([r['status'] for r in summary['roster']
                           if r['role'] == 'discovery_auditor'], ['NOT_INSTALLED'])
+
+    def test_an_installed_role_that_never_answers_does_block(self):
+        """The installed flag is not a promise that the bot works."""
+        state = quiet_state(markers=dict(quiet_state()['markers'], discovery_date=None))
+        state, created, _ = controller.cycle(state, facts(), NOW)
+        discovery = [r for r in created if r['event'] == 'DISCOVERY'][0]
+        after, _, _ = controller.cycle(state, facts(), NOW + 5 * HOUR_MS)
+        row = [r for r in after['dispatches']
+               if r['dispatch_id'] == discovery['dispatch_id']][0]
+        self.assertEqual(row['status'], 'BLOCKED')
 
     def test_an_engineering_result_file_closes_the_engineering_dispatch(self):
         state = quiet_state(markers=dict(quiet_state()['markers'], phase_dates={}))

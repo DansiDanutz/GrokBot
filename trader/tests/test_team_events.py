@@ -4,10 +4,11 @@ The markers a cycle persists are the whole mechanism, so every test here runs
 two cycles: the first must speak, the second must stay silent.
 """
 import unittest
+from unittest.mock import patch
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from trader.team import events
+from trader.team import events, roster
 
 ZONE = ZoneInfo('Europe/Bucharest')
 
@@ -155,9 +156,23 @@ class EventTests(unittest.TestCase):
         self.assertEqual(fired[0]['payload']['role'], "Dan's Senior Developer")
 
     def test_an_uninstalled_role_is_never_called_idle(self):
+        """A bot Dan has not added cannot answer, so silence is not its fault.
+
+        Pinned to a synthetic uninstalled role rather than whichever real one
+        happens to be missing today: the rule outlives any particular bot.
+        """
+        absent = dict(roster.BY_ID['discovery_auditor'], installed=False)
+        with patch.object(roster, 'BY_ID',
+                          dict(roster.BY_ID, discovery_auditor=absent)):
+            fired = events.derive(facts(role_idle_h=dict(discovery_auditor=99.0)),
+                                  quiet())
+        self.assertEqual(names(fired), [])
+
+    def test_an_installed_role_that_stays_silent_is_called_idle(self):
+        """The flag says the bot exists, never that it answers."""
         fired = events.derive(facts(role_idle_h=dict(discovery_auditor=99.0)),
                               quiet())
-        self.assertEqual(names(fired), [])
+        self.assertEqual(names(fired), ['ROLE_IDLE'])
 
     def test_a_gap_longer_than_two_hours_is_a_resume(self):
         fired = events.derive(facts(), quiet(cycle_at_ms=NOW - 9 * 3_600_000))
