@@ -31,18 +31,18 @@ That is what the installed services run. Build each item in a worktree under
 - [x] **T4 Liquidation-cluster derivation** — merged `1e754e6`, gate green (473 trader).
       First live file: 60 symbols, e.g. 4USDTM carries $14,394 of implied short
       liquidations 1.25% above spot. Producer plist shipped as an example, not installed.
-- [ ] **T5 Hedge trigger** — when inventory loss outruns grid profit and price approaches a
+- [x] **T5 Hedge trigger** (SHIPPED OFF) — when inventory loss outruns grid profit and price approaches a
       cluster, open an offsetting leg instead of closing. Backtest against the closed bots
       FIRST. Evidence today: closed bots = grid +593.13 / directional −760.62.
 - [x] **T6 Opportunity-cost close** — non-risk closes (LABEL_FLIP, MAX_AGE, DROPPED) only
       fire when an eligible better candidate exists. Risk closes stay unconditional.
 - [x] **T7 Surface rank_score in the UI** — the desk shows the number that decides order.
-- [ ] **T8 Agent-influence interface** — agents may adjust entry decisions, every influence
+- [x] **T8 Agent-influence interface** (SHIPPED OFF) — agents may adjust entry decisions, every influence
       logged as a DECISION event with agent identity + delta, single flag reverts to
       deterministic-only. Build AFTER T3 so influence can be scored.
-- [ ] **T9 Full system audit** — every GrokBot checkout, every service, every link and the
+- [x] **T9 Full system audit** — every GrokBot checkout, every service, every link and the
       team connections. Publish as an artifact, update the fleet dashboard.
-- [ ] **T10 Team orchestration controller** — `python -m trader.team`, hourly :15, replaces
+- [x] **T10 Team orchestration controller** — `python -m trader.team`, hourly :15, replaces
       the dead Codex heartbeat. Derives events from the live circle, dispatches each to the
       role that owns it, reconciles receipts, escalates idle and blocked roles, publishes
       `/data/team.json` so every native bot can read its own work. Adds a seventh doctor
@@ -81,3 +81,50 @@ That is what the installed services run. Build each item in a worktree under
   a restart is the cutover. Radar also needs `--liquidation-clusters` added to its installed
   plist before the annotation reaches a scan.
 
+## Cutover state at the end of 2026-09-13
+
+Everything below is merged on `design/polish` and gated green on the merged result:
+**38 node + 351 paper + 720 trader + 24 team**. Switch state in `constants.py`:
+
+| Switch | Value | Why |
+|---|---|---|
+| `OPPORTUNITY_COST_CLOSE` | **True** | Dan's decision; backtest is weak but the structure is right |
+| `HEDGE_ENABLED` | **False** | +40.11 over 23 bots, but one bot decides the sign |
+| `AGENT_INFLUENCE_ENABLED` | **False** | turn on after the controller has run a full day unattended |
+
+**Nothing is running yet.** These four steps are Dan's, and were blocked by the session
+sandbox rather than by judgement:
+
+```sh
+cd /Users/davidai/ZCodeProject/GrokBot-prod
+launchctl kickstart -k gui/$(id -u)/com.danslab.trader-autopilot      # the cutover
+
+sed 's/REPLACE_WITH_CHAT_ID/424184493/' config/launchd/com.danslab.trader-doctor.plist.example \
+  > ~/Library/LaunchAgents/com.danslab.trader-doctor.plist
+cp config/launchd/com.danslab.trader-team-controller.plist.example \
+  ~/Library/LaunchAgents/com.danslab.trader-team-controller.plist
+plutil -lint ~/Library/LaunchAgents/com.danslab.trader-doctor.plist \
+             ~/Library/LaunchAgents/com.danslab.trader-team-controller.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.danslab.trader-doctor.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.danslab.trader-team-controller.plist
+```
+
+Then in the Grok Bot app: add the **Discovery Auditor** bot (role text in
+`config/paper-team/roles/discovery-auditor.md`) and paste each role's linking paragraph
+from `docs/team-orchestration.md` so every bot reads its own dispatches from
+`/data/team.json`. Twelve dispatches are already waiting.
+
+Audit report: https://claude.ai/code/artifact/1d4c4036-1744-49a3-b915-2b923466a895
+
+## Still open after this pass
+
+- **Q6 is only half closed.** The X researcher can produce a hypothesis and the bridge
+  scores it, but a genuinely new rule still returns NEEDS_IMPLEMENTATION and no code is
+  written. Automating that is the next real piece of work.
+- **The hedge and the influence channel are unproven**, by design. Both need the replay to
+  accumulate a bigger sample before their switches are worth flipping.
+- **A concurrent session was writing into `~/Sandbox/grokbot/wt-hedge`** during this work;
+  its competing hedge draft is preserved in the session scratchpad. Check no second session
+  is still editing these worktrees.
+
+_Last verified: 2026-09-13_
