@@ -30,6 +30,20 @@ OPPORTUNITY_COST_CLOSE = True
 # a stale position open forever. LABEL_FLIP and DROPPED are the radar changing
 # its opinion, not the bot going stale, and keep deferring.
 OPPORTUNITY_HOLD_MAX_AGE_HOURS = 2 * MAX_AGE_HOURS
+# Agent influence over entry ordering (T8). The desk reads one sanitized file
+# written by the team's operations steward; agents may reorder admitted
+# candidates (BOOST) or remove one for a scan (VETO) and nothing else. Ships
+# dark: the owner turns it on here, or the learned rule agent_influence_enabled
+# overrides it. OFF means the file is never even read.
+AGENT_INFLUENCE_ENABLED = False
+# Per-candidate ceiling on the ordering delta one scan may grant, in score
+# points, and the ceiling on the sum granted across the whole scan. Over-cap
+# values clamp (and are logged); they never reject the file.
+INFLUENCE_MAX_DELTA = 10.0
+INFLUENCE_MAX_TOTAL_DELTA = 20.0
+# A forgotten file must not steer the desk for days: records older than this
+# are ignored entirely.
+INFLUENCE_MAX_AGE_MIN = 90
 TICK_INTERVAL_S = 10
 DECISION_INTERVAL_S = 300
 SNAPSHOT_MAX_INTERVAL_S = 30
@@ -43,3 +57,5 @@ ENTRY_STALL_ALERT_H = 3
 # System ERROR event codes (type ERROR, bot_id 0, symbol SYSTEM) in events.jsonl.
 LOCAL_ERROR = 5  # policy/engine failure after a successful transport pass;
                  # kucoin_ok stays unchanged and the tick continues.
+INFLUENCE_ERROR = 6  # the agent-influence file was rejected (any fail-closed
+                     # case); the desk traded deterministically for that scan.

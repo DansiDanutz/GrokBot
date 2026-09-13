@@ -41,6 +41,9 @@ EMPTY_RULES = {
     # opportunity_cost_close: absent by default; the constant
     # trader.autopilot.constants.OPPORTUNITY_COST_CLOSE decides until a store
     # overrides it. Absent keeps every existing store valid.
+    # agent_influence_enabled: absent by default (T8 ships dark); the constant
+    # trader.autopilot.constants.AGENT_INFLUENCE_ENABLED decides until a store
+    # overrides it.
 }
 
 DEFAULT_STORE_PATH = str(Path.home() / "Sandbox" / "grokbot" / "autopilot" / "learned-rules.json")
@@ -94,6 +97,9 @@ def validate_store(data):
         opportunity = rules.get("opportunity_cost_close")
         if opportunity is not None and not isinstance(opportunity, bool):
             errors.append("opportunity_cost_close must be a boolean or absent")
+        agent_influence = rules.get("agent_influence_enabled")
+        if agent_influence is not None and not isinstance(agent_influence, bool):
+            errors.append("agent_influence_enabled must be a boolean or absent")
         cooldowns = rules.get("symbol_cooldowns")
         if not isinstance(cooldowns, dict):
             errors.append("symbol_cooldowns must be an object")
@@ -412,6 +418,44 @@ def counterfactual_proposals(counterfactual):
     if learned["net"] > COUNTERFACTUAL_COST_USD:
         notes.append(_cost_note("learned_rule_cost", learned,
                                 "a learned rule blocked profitable entries"))
+    return notes
+
+
+# ---------------------------------------------------------------------------
+# agent influence cost (T8, STAGED — tier-2 advisory only)
+
+INFLUENCE_COST_USD = 25.0
+
+
+def influence_proposals(influence):
+    """Tier-2 advisories when an agent's influence demonstrably cost money.
+
+    `influence` is trader.autopilot.influence_audit.summarize(...). One
+    `influence_cost` note per agent whose net influence over the day is worse
+    than -INFLUENCE_COST_USD, priced against the counterfactual replay of the
+    entries their vetoes turned away. Never auto-applies: the only levers are
+    the kill switch and the steward's file.
+    """
+    agents = ((influence or {}).get("agents")) or {}
+    if not isinstance(agents, dict):
+        return []
+    notes = []
+    for agent, row in sorted(agents.items()):
+        if not isinstance(row, dict):
+            continue
+        net = float(row.get("net_usdt", 0.0) or 0.0)
+        if net >= -INFLUENCE_COST_USD:
+            continue
+        notes.append({
+            "rule": "influence_cost", "tier": 2, "action": "review", "value": net,
+            "agent_id": agent,
+            "evidence": ("agent {} influenced {} entry decision(s) ({} veto(es), {} priced) "
+                         "for a net ${:.2f} over the day (threshold -${:.0f}); PROPOSAL "
+                         "(advisory only): review that agent's say, or turn the influence "
+                         "channel off".format(agent, int(row.get("influences", 0) or 0),
+                                              int(row.get("vetoes", 0) or 0),
+                                              int(row.get("matched_vetoes", 0) or 0),
+                                              net, INFLUENCE_COST_USD))})
     return notes
 
 

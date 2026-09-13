@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "generated_at_ms": 1789200000000,
+  "records": [
+    {
+      "agent_id": "x_setup_researcher",
+      "symbol": "PUMPUSDTM",
+      "direction": "SHORT",
+      "verb": "BOOST",
+      "delta": 6.0,
+      "reason_code": 1,
+      "evidence_ref": "2026-09-13.x-setup-0412#PUMPUSDTM"
+    },
+    {
+      "agent_id": "risk_sentinel",
+      "symbol": "RAVEUSDTM",
+      "direction": "NEUTRAL",
+      "verb": "VETO",
+      "delta": 0,
+      "reason_code": 5,
+      "evidence_ref": "2026-09-13.liq-clusters-0405#RAVEUSDTM"
+    },
+    {
+      "agent_id": "performance_analyst",
+      "symbol": "CAKEUSDTM",
+      "direction": "LONG",
+      "verb": "BOOST",
+      "delta": 4.5,
+      "reason_code": 4,
+      "evidence_ref": "2026-09-13.closed-bot-review#CAKEUSDTM"
+    }
+  ]
+}
