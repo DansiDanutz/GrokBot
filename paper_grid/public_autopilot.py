@@ -151,6 +151,14 @@ def score_parts(source):
     return result
 
 
+def _optional_non_negative(source, key):
+    """Published as-is when present; absent on entries from an older scan."""
+    value = number(source.get(key))
+    if value is not None and value < 0:
+        raise ValueError('invalid watchlist measurement')
+    return value
+
+
 def watch_entry(source):
     source = obj(source)
     result = numbers(source, ('score', 'since_ms', 'rank'))
@@ -158,7 +166,10 @@ def watch_entry(source):
         raise ValueError('invalid watchlist score')
     result.update(symbol=symbol(source.get('symbol')),
                   direction=enum(source.get('direction'), LABELS),
-                  score_parts=score_parts(source.get('score_parts', [])))
+                  score_parts=score_parts(source.get('score_parts', [])),
+                  rank_score=_optional_non_negative(source, 'rank_score'),
+                  expected_grids_per_hour=_optional_non_negative(
+                      source, 'expected_grids_per_hour'))
     return result
 
 

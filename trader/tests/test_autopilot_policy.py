@@ -3,12 +3,18 @@ from copy import deepcopy
 import json
 from pathlib import Path
 import unittest
+from unittest import mock
 
 from trader.autopilot import policy
 from trader.radar.rates import expected_grids_per_hour
 from trader.radar.spacing import economics
 
 HOUR = 3_600_000
+
+
+def legacy_closes():
+    """Opportunity-cost kill switch OFF: the unconditional non-risk close path."""
+    return mock.patch.object(policy, 'OPPORTUNITY_COST_CLOSE', False)
 
 
 def range_fixture(candidate):
@@ -96,6 +102,7 @@ class PolicyTests(unittest.TestCase):
         self.assertFalse(policy.eligible(state, row(symbol), 'SHORT', 'short', 301_000))
         self.assertTrue(any(e['type'] == 'CLOSE' for e in events))
 
+    @legacy_closes()
     def test_drop_requires_two_distinct_scans_and_other_closes(self):
         state, _ = policy.decide(policy.new_state(0), radar(long=[row('A')]), {}, 0, 'a')
         state, _ = policy.decide(state, radar(), {}, 1, 'b')
@@ -112,6 +119,7 @@ class PolicyTests(unittest.TestCase):
                 state, _ = policy.decide(state, report, {}, 73 * HOUR if reason == 'MAX_AGE' else 1, 'b')
                 self.assertEqual(state['closed_bots'][0]['engine']['reason'], reason)
 
+    @legacy_closes()
     def test_neutral_bot_on_trending_mover_survives_its_opening_label(self):
         mover = row('RAY', 'LONG', range_low=75, range_high=125, change_24h_pct=24, position_7d=.85)
         state, _ = policy.decide(policy.new_state(0), radar(movers=[mover]), {}, 0, 'a')

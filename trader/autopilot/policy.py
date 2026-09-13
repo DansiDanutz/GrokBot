@@ -25,7 +25,8 @@ from trader.autopilot.constants import (
     PAPER_EQUITY_USDT, MAX_BOTS, NOTIONAL_PER_BOT_USDT, SLOTS, DIRECTION_CAP,
     LEVERAGE_TREND, LEVERAGE_NEUTRAL, STEP_NEUTRAL_PCT, NEUTRAL_RESERVE_USDT,
     MAJORS, MAJORS_MAX, MOVERS_MAX, MIN_EXPECTED_GRIDS_PER_HOUR,
-    COOLDOWN_HOURS, MAX_AGE_HOURS,
+    COOLDOWN_HOURS, MAX_AGE_HOURS, OPPORTUNITY_COST_CLOSE,
+    OPPORTUNITY_HOLD_MAX_AGE_HOURS,
 )
 
 HOUR_MS = 3_600_000
@@ -54,7 +55,11 @@ DECISION_RULES = {
     'learned_trend_alignment': 16,
     'learned_symbol_cooldown': 17,
     'learned_min_hold': 18,
+    'opportunity_hold': 19,
 }
+# Non-risk closes the opportunity-cost gate may defer. PROFILE_UPDATE rebuilds a
+# stale specification rather than abandoning a coin, so it stays unconditional.
+OPPORTUNITY_CLOSE_REASONS = frozenset({'LABEL_FLIP', 'DROPPED', 'MAX_AGE'})
 DECISION_CLOSE_REASONS = {
     'LABEL_FLIP': 101,
     'RANGE_BREAK': 102,
@@ -147,6 +152,47 @@ def _hold_gate(state, wrapper, reason, rules, now_ms, events):
                                         min_hold_hours=min_hold))
     events.append(_wrapper_decision(state, wrapper, now_ms, 'skip',
                                     [DECISION_RULES['learned_min_hold']]))
+    return None
+
+
+def _opportunity_enabled(rules):
+    """Learned override wins when present; the constant decides otherwise."""
+    override = rules.get('opportunity_cost_close')
+    return OPPORTUNITY_COST_CLOSE if override is None else bool(override)
+
+
+def _opportunity_gate(state, sections, wrapper, reason, labels, rules, now_ms, scan_id, events):
+    """Defer a non-risk close while no better coin is free to take the slot.
+
+    Returns the reason unchanged when the close may proceed, None when the bot
+    is kept. The bot keeps trading its grids; the normal path resumes as soon as
+    the label flips back or a better candidate appears. One RULE_BLOCK per bot
+    per radar scan, latched on the wrapper like the min-hold gate.
+
+    A MAX_AGE close is deferred only up to OPPORTUNITY_HOLD_MAX_AGE_HOURS, so a
+    thin market cannot hold a stale position open indefinitely.
+    """
+    from trader.autopilot import opportunity  # local: opportunity imports policy
+    if reason not in OPPORTUNITY_CLOSE_REASONS or not _opportunity_enabled(rules):
+        return reason
+    if (reason == 'MAX_AGE' and now_ms - wrapper['engine']['opened_ms']
+            >= OPPORTUNITY_HOLD_MAX_AGE_HOURS * HOUR_MS):
+        return reason  # stale beyond the ceiling: it leaves regardless
+    better, detail = opportunity.better_candidate_exists(
+        state, sections, wrapper, labels, now_ms, rules)
+    if better:
+        return reason
+    bot, latch = wrapper['engine'], wrapper.setdefault('rule_blocks', {})
+    if latch.get('opportunity_scan') != str(scan_id):
+        latch['opportunity_scan'], latch['opportunity'] = str(scan_id), 0
+    if not latch.get('opportunity'):
+        latch['opportunity'] = 1
+        events.append(_rule_block_event(
+            now_ms, bot, DECISION_RULES['opportunity_hold'],
+            bot_score=round(detail['bot_score'], 4),
+            best_candidate_score=round(detail['candidate_score'], 4)))
+    events.append(_wrapper_decision(state, wrapper, now_ms, 'skip',
+                                    [DECISION_RULES['opportunity_hold']]))
     return None
 
 
@@ -384,6 +430,8 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
                  or not setup_evidence.official_grid_return_valid(bot))):
             reason = 'PROFILE_UPDATE'
         reason = _hold_gate(result, wrapper, reason, rules, now_ms, events)
+        reason = _opportunity_gate(result, sections, wrapper, reason, labels,
+                                   rules, now_ms, scan_id, events)
         if reason:
             wrapper['engine'], emitted = close_bot(bot, prices.get(bot['symbol'], bot['last_price']), now_ms, reason)
             _mark_wrapper(wrapper)

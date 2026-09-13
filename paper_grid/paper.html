@@ -168,6 +168,7 @@ svg.curve{width:100%;height:auto;display:block;cursor:crosshair}
 .card-head strong{font:700 16px/1 var(--mono)}
 .state-tag{margin-left:auto;font:700 9.5px/1 var(--mono);letter-spacing:.12em;color:var(--muted-foreground);border:1px solid var(--border-2);border-radius:999px;padding:4px 8px}
 .score{font:700 18px/1 var(--mono)}
+.rank-chip{font:700 9.5px/1 var(--mono);letter-spacing:.06em;border:1px solid var(--border-2);border-radius:999px;padding:4px 8px;color:var(--muted-foreground);cursor:help}
 .scorebar{display:block;width:100%;height:8px;margin:2px 0 10px}
 .scorebar rect.track{fill:#0a0e14;stroke:var(--border);stroke-width:1}
 .scorebar rect.fill{fill:var(--up)}
@@ -230,7 +231,7 @@ footer{font-size:11.5px;color:var(--muted-foreground);margin-top:24px;line-heigh
 <section class="panel" id="history"><h2>Position history <span class="chip winrate" id="history-winrate" hidden></span></h2><p class="muted">Latest 20 closed paper bots, including their close reason and final accounting. A watchlist promotion is not a position close.</p><div id="history-bots"></div></section>
 <section class="panel" id="today-hourly"><h2>Today · hourly</h2><p class="muted">Account equity per UTC clock hour for the current day — a green candle closes at or above the hour open, a red one below; the wick spans the hour's high to low. The glyph under an hour counts grid bots that were open during it.</p><div class="chartbox" id="hourly"><div class="skeleton sk-chart"></div></div><p class="muted">Open counts use open bots plus the newest 20 closed bots, so early-hour counts may undercount.</p></section>
 <section class="panel" id="account-history"><h2>Account history · equity</h2><p class="muted">Equity includes floating PnL. This is an equity curve, not a cash balance history.</p><div class="chartbox" id="curve"><div class="skeleton sk-chart"></div></div><div class="axes"><span id="curve-start">No samples yet</span><span id="curve-end"></span></div></section>
-<section class="panel" id="watchlist"><h2>Watchlist</h2><p class="muted">Up to 10 candidates, not 10 trades: Core can open up to 5 bots; Bench waits. An ACTIVE card has an open bot. Moving a coin to Bench does not close its bot; the bot follows its own exit rules.</p><p class="muted" id="watchlist-asof" hidden></p><div class="columns"><div><h3>Core · up to 5</h3><div class="cards" id="core"></div></div><div><h3>Bench · up to 5</h3><div class="cards" id="bench"></div></div></div><details open><summary>Latest watchlist changes · last 24</summary><ul class="feed" id="watch-events"></ul></details></section>
+<section class="panel" id="watchlist"><h2>Watchlist</h2><p class="muted">Up to 10 candidates, not 10 trades: Core can open up to 5 bots; Bench waits. An ACTIVE card has an open bot. Moving a coin to Bench does not close its bot; the bot follows its own exit rules.</p><p class="muted" id="watchlist-asof" hidden></p><p class="muted" id="watchlist-order-note" hidden>Cards are ordered by watchlist score; entries pick by rank.</p><div class="columns"><div><h3>Core · up to 5</h3><div class="cards" id="core"></div></div><div><h3>Bench · up to 5</h3><div class="cards" id="bench"></div></div></div><details open><summary>Latest watchlist changes · last 24</summary><ul class="feed" id="watch-events"></ul></details></section>
 <section class="panel" id="scoring"><h2>How the score is calculated</h2><p><strong>Score / 100 = component points minus penalties, clamped between 0 and 100.</strong> This is a fixed ranking formula, not a probability of profit. The score does not change the bot’s exit rules.</p><div class="columns"><div><h3>Earned points · maximum 100</h3><ul>
 <li><strong>Oscillation · 30:</strong> expected grids/hour × 1.5; maximum 30 at 20 grids/hour.</li>
 <li><strong>Trend clarity · 20:</strong> LONG/SHORT = 20; TURNING-UP/DOWN = 14; NEUTRAL in the middle 25–75% of its 7-day range = 16, otherwise 6. LONG/SHORT means the daily and 4-hour trends agree.</li>
@@ -305,6 +306,12 @@ const pos=fin(r.price)&&fin(r.range_low)&&fin(r.range_high)&&r.range_high>r.rang
 svg.append(svgEl('rect',null,{x:0,y:6,width:120,height:4,rx:2}),svgEl('line',null,{x1:pos.toFixed(1),x2:pos.toFixed(1),y1:1,y2:15}));
 td.append(svg,el('small',null,px(r.range_low)+' – '+px(r.range_high)));
 return td;}
+const RANK_TITLE='Entry order inside a radar section is decided by rank_score (oscillation x liquidity); score is the watchlist gate.';
+function rankOrderDiffers(rows){
+const scored=rows.filter(r=>fin(r.rank_score));
+if(scored.length<2)return false;
+const byRank=[...scored].sort((a,b)=>b.rank_score-a.rank_score||(a.symbol<b.symbol?-1:1));
+return scored.some((r,i)=>r.symbol!==byRank[i].symbol);}
 function watchText(e){const who=short(e.symbol),other=short(e.replaced_symbol),scores=fmt(e.score,1)+' vs '+fmt(e.replaced_score,1);if(e.type==='PROMOTE')return who+' promoted'+(other?' over '+other+', '+scores+' · margin '+fmt(e.margin,1):' · score '+fmt(e.score,1));if(e.type==='DEMOTE')return who+' moved to bench · '+scores;if(e.type==='DROP')return who+' dropped after two missed scans';return who+' direction changed · score '+fmt(e.score,1);}
 function watchlist(report){
 const current=new Set();
@@ -320,6 +327,7 @@ for(const tier of ['core','bench']){
     if(card.signature!==signature){
       const head=el('div','card-head');
       head.append(el('strong',null,short(row.symbol)),chip(row.direction),el('span','state-tag',status),el('span','score',fmt(row.score,1)+' / 100'));
+      if(fin(row.rank_score)){const badge=el('span','rank-chip','rank '+fmt(row.rank_score,1));badge.setAttribute('title',RANK_TITLE);head.append(badge);}
       const parts=el('div'),why=el('ul','why');
       for(const p of arr(row.score_parts)){
         const spec=PARTS[p.code];
@@ -337,6 +345,8 @@ for(const tier of ['core','bench']){
   }
 }
 for(const [key,c] of cardNodes)if(!current.has(key)){c.node.remove();cardNodes.delete(key);}
+const orderNote=id('watchlist-order-note');
+if(orderNote)orderNote.hidden=!rankOrderDiffers(arr(report.watchlist?.core));
 const feed=id('watch-events');
 const changes=arr(report.watchlist_history).slice(-24).reverse();
 feed.replaceChildren(...(changes.length?changes.map(e=>el('li','ev-'+e.type,time(e.ts_ms)+' · '+watchText(e))):[el('li','empty','No watchlist replacements recorded yet.')]));
