@@ -128,3 +128,40 @@ Audit report: https://claude.ai/code/artifact/1d4c4036-1744-49a3-b915-2b923466a8
   is still editing these worktrees.
 
 _Last verified: 2026-09-13_
+
+## Post-cutover, 2026-09-13 21:15
+
+Cutover done by Dan at 20:58; doctor and team controller installed and bootstrapped.
+Verified live end to end after it, not assumed:
+
+- Radar 21:11 scan: **356 of 356 rows annotated**, cluster stamp present, 15 rows
+  carrying a real level. The 20:11 scan had none - it predated the cutover.
+- Counterfactual recorder wrote its first file on that scan, and the replay chain
+  runs: 2 candidates, both partial (only ~20 min of candles so far), net -2.78.
+- Doctor `team` check now **ok**: controller cycled, no idle role.
+- Circle is WARN for one reason only: CoinGlass cannot serve NIULAIUSDTM, a thin new
+  listing with no aggregate history. It has been 9/9 on 18 runs and 8/9 on 8. A warn
+  never notifies - only fail and unknown do - so this stays silent.
+
+Two defects found and fixed after the cutover:
+
+1. **Attribution (`18aaa5c`).** The first real record was a second MYXUSDTM short on a
+   coin the desk already holds, refused by the slot cap AND the duplicate rule. It was
+   charged to the slot cap, which would have argued for raising a cap that still would
+   not have opened it. Advisories now read `by_sole_block`. Visible on live data:
+   the cap alone is charged -0.87, not -2.78.
+2. **The replay was never scheduled.** `daily-review-run.sh` generated no counterfactual
+   report, so `trader.review.daily` would have found nothing and the doctor would have
+   reported the replay idle forever. Added as a fail-open phase 0; backup at
+   `deploy-backups/daily-review-run.sh.before-20260913`.
+
+Checked and found already correct, so not changed: the publisher needs no `--team-snapshot`
+flag (`public_snapshot` defaults to the autopilot directory, and the live site serves a
+current `/data/team.json`), and the radar needs no cluster flag.
+
+Remaining for Dan: add the **Discovery Auditor** bot, and paste each role's linking
+paragraph - regenerated after the role-key fix, so use the current
+`docs/team-orchestration.md`.
+
+_Last verified: 2026-09-13_
+

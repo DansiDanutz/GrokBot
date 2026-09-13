@@ -147,3 +147,14 @@ A consequence worth stating: an entry refused only by `duplicate_symbol` is
 replayed and reported, but it models a book where two bots run the same coin.
 That is a real policy question, and it is not the same question as the slot cap.
 
+## When it runs
+
+The recorder runs inside the autopilot's decision pass, so it needs no schedule.
+The replay is a phase of the existing 07:00 job, `~/.openclaw/scripts/daily-review-run.sh`,
+added 2026-09-13. It writes `reports/counterfactual-<date>.json`, which
+`trader.review.daily` then discovers by default path with no flag.
+
+That phase is fail-open on purpose. The replay is research input; the review that
+follows it applies learned rules. A replay failure logs a warning and the review
+runs exactly as it did before this existed.
+
