@@ -380,7 +380,8 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
         reason = _reason(wrapper, labels, missing, now_ms,
                          rules.get('radar_flip_hysteresis_cycles'))
         if (not reason and bot['symbol'] in prices and
-                (bot['leverage'] != LEVERAGE_TREND or bot.get('accounting_version') != ACCOUNTING_VERSION)):
+                (bot['leverage'] != LEVERAGE_TREND or bot.get('accounting_version') != ACCOUNTING_VERSION
+                 or not setup_evidence.official_grid_return_valid(bot))):
             reason = 'PROFILE_UPDATE'
         reason = _hold_gate(result, wrapper, reason, rules, now_ms, events)
         if reason:

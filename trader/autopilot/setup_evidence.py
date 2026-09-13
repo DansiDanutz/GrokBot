@@ -4,7 +4,8 @@ import hashlib
 import json
 import math
 
-from trader.radar.spacing import choose_count, align_bounds
+from trader.radar.spacing import choose_count, align_bounds, MIN_GRID_PROFIT_PCT
+from trader.papergrid.engine import BOT_FEE_RATE
 
 FEE_SOURCE = 'https://www.kucoin.com/support/21960469554201'
 HOLDING_WINDOW_MS = 4 * 60 * 60 * 1000
@@ -22,6 +23,27 @@ def evidence_id(dossier):
     payload = {k: v for k, v in dossier.items() if k != 'evidence_id'}
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':'),
                                      allow_nan=False).encode()).hexdigest()
+
+
+def official_grid_return_valid(bot):
+    """Check existing actual line pairs under current bot fees; never reprice ledgers."""
+    lines, grids = bot.get('lines'), bot.get('grids')
+    leverage = _number(bot.get('leverage'), positive=True)
+    direction = bot.get('direction')
+    if (not isinstance(lines, list) or type(grids) is not int or not 1 <= grids <= 200
+            or len(lines) != grids+1 or leverage is None
+            or direction not in ('LONG', 'SHORT', 'NEUTRAL')
+            or any(_number(price, positive=True) is None for price in lines)):
+        return False
+    for buy, sell in zip(lines, lines[1:]):
+        if sell <= buy:
+            return False
+        net = sell-buy-(buy+sell)*BOT_FEE_RATE
+        # A neutral bot must satisfy both books: sell-side margin is stricter.
+        margin_price = buy if direction == 'LONG' else sell
+        if net/margin_price*leverage*100 <= MIN_GRID_PROFIT_PCT + 1e-10:
+            return False
+    return True
 
 
 def range_valid(row, spec, now_ms):

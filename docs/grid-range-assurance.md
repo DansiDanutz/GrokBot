@@ -26,6 +26,9 @@ Every complete adjacent pair must exceed 1% return on its allocated margin at
 emitted lines, including tick truncation, determine the worst pair. Existing
 saved fee rates and the old missing-field fallback retain their historical
 meaning; this change does not rewrite booked PNL or certify legacy entries.
+Existing layouts that fail the official-fee floor on their actual grid lines
+enter the existing PROFILE_UPDATE close path. Its non-risk minimum hold remains;
+boundary risk exits never wait for that hold. Compliant legacy layouts remain.
 
 Each new entry freezes original and rounded bounds, pivot times/confirmations,
 history coverage/hash, grid layout, quantities, actual fees, seeded-close costs,
