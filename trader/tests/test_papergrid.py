@@ -69,11 +69,11 @@ class PaperGridTests(unittest.TestCase):
                 finished, _ = step(bot, dict(ts_ms=1, price=bot['range_high'] if sign == 1 else bot['range_low']))
                 self.assertEqual(finished['position_contracts'], 0)
 
-    def test_grid_round_trip_pays_maker_one_third_of_taker(self):
+    def test_explicit_legacy_maker_override_pays_one_third_of_bot_fee(self):
         # Two identical LONG bots walk the same one-grid path; the control
         # bot is forced to pay the taker rate on its grid fills. Same seed
         # fee (taker) on both, so the fee delta is purely the grid fills.
-        maker_bot = open_bot(specification("LONG"), 100, 0)
+        maker_bot = open_bot(specification("LONG", fee_rate_maker=FEE_RATE_MAKER), 100, 0)
         taker_bot = open_bot(specification("LONG", fee_rate_maker=FEE_RATE_TAKER),
                              100, 0)
         seed_fees = maker_bot["fees_paid"]

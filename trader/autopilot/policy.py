@@ -18,6 +18,7 @@ from trader.radar.scoring import score_row
 from trader.radar.spacing import economics
 from trader.radar.layout import layout_valid
 from trader.autopilot import watchlist
+from trader.autopilot import setup_evidence
 from trader.autopilot.risk import sizing, ACCOUNTING_VERSION, protection_needed
 from trader.review import rules as learned_rules
 from trader.autopilot.constants import (
@@ -252,6 +253,8 @@ def _eligibility(state, row, direction, source_section, now_ms):
         blocks.append(DECISION_RULES['movers_cap'])
     try:
         spec, _ = profile(row, direction, 0)
+        if not setup_evidence.range_valid(row, spec, now_ms):
+            blocks.append(DECISION_RULES['range_not_verified'])
         rate = expected_grids_per_hour(row['atr_1h_pct'], spec['step_pct'], row['turnover_24h_usdt'])
         if rate < MIN_EXPECTED_GRIDS_PER_HOUR:
             blocks.append(DECISION_RULES['low_grid_rate'])
@@ -292,7 +295,7 @@ def _candidates(sections, direction):
             yield name, row
 
 
-def _qualified_rows(radar, rows):
+def _qualified_rows(radar, rows, now_ms):
     scored = []
     for row in rows:
         if not row.get('passes_liquidity', False):
@@ -305,7 +308,7 @@ def _qualified_rows(radar, rows):
     allowed = set()
     for direction in SLOTS:
         for section, row in _candidates(sections, direction):
-            if eligible(new_state(0), row, direction, section, 0):
+            if eligible(new_state(now_ms), row, direction, section, now_ms):
                 allowed.add(row['symbol'])
     return [r for r in scored if r['symbol'] in allowed]
 
@@ -360,7 +363,7 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
     radar = radar or {'rows': [], 'sections': {}}
     rows = radar.get('rows', [row for section in radar.get('sections', {}).values() for row in section])
     labels = {row['symbol']: row['direction'] for row in rows}
-    qualified = _qualified_rows(radar, rows) if radar_available else []
+    qualified = _qualified_rows(radar, rows, now_ms) if radar_available else []
     result.setdefault('watchlist', watchlist.initial())
     if radar_available:
         result['watchlist'], changes = watchlist.update(result['watchlist'], qualified, now_ms, scan_id)
@@ -430,6 +433,7 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
                                            source_section=section, slot_direction=slot, signals=[],
                                            open_label=labels.get(bot['symbol']),
                                            range_verified=row.get('range_verified', 0),
+                                           setup_evidence=setup_evidence.build(marked, bot),
                                            decision_context=context))
             result['next_bot_id'] += 1
             result['radar_seen'][bot['symbol']] = [dict(scan_id=scan_id, present=True)]
@@ -579,6 +583,9 @@ def snapshot(state, now_ms, health):
         duration = max(0, (bot['closed_ms'] if bot['closed_ms'] is not None else now_ms) - bot['opened_ms'])
         row['order_ladder'] = [dict(line=o['line'],price=bot['lines'][o['line']],side=1 if o['side']=='buy' else -1,book=o.get('book',0)) for o in bot['orders']]
         row.update(price=bot['last_price'], reserve_usdt=wrapper['reserve_usdt'],
+                   setup_evidence=setup_evidence.for_snapshot(wrapper),
+                   setup_evidence_id=wrapper.get('setup_evidence', {}).get('evidence_id'),
+                   setup_evidence_status=wrapper.get('setup_evidence', {}).get('status', 'MISSING'),
                    range_verified=wrapper.get('range_verified', 0),
                    source_section=wrapper['source_section'], equity=bot['equity'] + wrapper['reserve_usdt'],
                    peak_equity=wrapper.get('peak_equity', bot['peak_equity'] + wrapper['reserve_usdt']),

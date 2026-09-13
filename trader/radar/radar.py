@@ -1,6 +1,7 @@
 """Lean KuCoin perpetual radar ported from Dan's working prototype."""
 
 from collections import defaultdict
+from contextlib import closing
 from pathlib import Path
 import math
 import sqlite3
@@ -9,7 +10,7 @@ import json
 
 from trader.radar.rates import K_STANDARD, K_MAJOR, expected_grids_per_hour
 from trader.radar.scoring import score_row
-from trader.radar.support import levels, candidates
+from trader.radar.support import assess
 from trader.radar.layout import select_range, layout_valid
 from trader.radar.spacing import economics, choose_count, align_bounds
 
@@ -46,32 +47,34 @@ def _atr(rows, period=14):
     return sum(ranges[-period:]) / period if len(ranges) >= period else None
 
 
-def _aggregate(rows, duration_ms):
-    buckets = {}
-    for timestamp, opened, high, low, close, volume in rows:
-        key = timestamp // duration_ms
-        if key not in buckets:
-            buckets[key] = [opened, high, low, close, volume]
-        else:
-            item = buckets[key]
-            item[1] = max(item[1], high)
-            item[2] = min(item[2], low)
-            item[3] = close
-            item[4] += volume
-    return [tuple(buckets[key]) for key in sorted(buckets)]
+def _aggregate(rows, duration_ms, asof_ms=None):
+    """Only complete, contiguous UTC buckets contribute higher-timeframe signals."""
+    end = asof_ms if asof_ms is not None else max((r[0]+HOUR_MS for r in rows),default=0)
+    buckets = defaultdict(list)
+    for row in rows:
+        if row[0] + HOUR_MS <= end:
+            buckets[row[0] // duration_ms].append(row)
+    result = []
+    for key, group in sorted(buckets.items()):
+        start = key * duration_ms
+        if start + duration_ms > end or [r[0] for r in group] != list(range(start,start+duration_ms,HOUR_MS)):
+            continue
+        result.append((group[0][1],max(r[2] for r in group),min(r[3] for r in group),
+                       group[-1][4],sum(r[5] for r in group)))
+    return result
 
 
-def _latest(connection, table, columns):
+def _latest(connection, table, columns, asof_ms):
     names = ",".join(f"t.{name}" for name in columns)
     query = (f"SELECT t.symbol,{names} FROM {table} t JOIN "
-             f"(SELECT symbol,MAX(time_ms) AS latest FROM {table} GROUP BY symbol) x "
+             f"(SELECT symbol,MAX(time_ms) AS latest FROM {table} WHERE time_ms<=? GROUP BY symbol) x "
              "ON x.symbol=t.symbol AND x.latest=t.time_ms")
-    return {row[0]: row[1:] for row in connection.execute(query)}
+    return {row[0]: row[1:] for row in connection.execute(query,(asof_ms,))}
 
 
-def _direction(hourly, price):
-    four_hour = _aggregate(hourly, 4 * HOUR_MS)
-    daily = _aggregate(hourly, DAY_MS)
+def _direction(hourly, price, asof_ms=None):
+    four_hour = _aggregate(hourly, 4 * HOUR_MS, asof_ms)
+    daily = _aggregate(hourly, DAY_MS, asof_ms)
     if len(four_hour) < 55 or len(daily) < 12:
         return None, four_hour
     close_4h = [row[3] for row in four_hour]
@@ -129,20 +132,20 @@ def analyse(database, asof_ms=None):
     if type(now) is not int or now < 0:
         raise ValueError("asof_ms must be a nonnegative integer")
     uri = path.as_uri() + "?mode=ro"
-    with sqlite3.connect(uri, uri=True) as connection:
+    with closing(sqlite3.connect(uri, uri=True)) as connection:
         tickers = _latest(connection, "ticker_snapshots",
-                          ("time_ms", "last", "turnover_24h", "funding_rate"))
-        books = _latest(connection, "top_of_book", ("time_ms", "bid", "ask"))
+                          ("time_ms", "last", "turnover_24h", "funding_rate"),now)
+        books = _latest(connection, "top_of_book", ("time_ms", "bid", "ask"),now)
         universe = {row[0]: row[1:] for row in connection.execute(
             "SELECT symbol,first_candle_ms,listed_at_ms,active FROM universe")}
         columns = {r[1] for r in connection.execute("PRAGMA table_info(ticker_snapshots)")}
-        raw_contracts = _latest(connection, "ticker_snapshots", ("raw_json",)) if "raw_json" in columns else {}
+        raw_contracts = _latest(connection, "ticker_snapshots", ("raw_json",),now) if "raw_json" in columns else {}
         by_symbol = defaultdict(list)
         since = now - 60 * DAY_MS
         for row in connection.execute(
                 "SELECT symbol,time_ms,open,high,low,close,volume FROM klines "
                 "WHERE interval='1h' AND time_ms>=? AND time_ms<? ORDER BY symbol,time_ms",
-                (since, now)):
+                (since, now // HOUR_MS * HOUR_MS)):
             by_symbol[row[0]].append(tuple(row[1:]))
 
     rows = []
@@ -154,7 +157,7 @@ def analyse(database, asof_ms=None):
         identity = universe.get(symbol)
         if not identity or not identity[2]:
             continue
-        trend, four_hour = _direction(hourly, price)
+        trend, four_hour = _direction(hourly, price, now)
         if trend is None:
             continue
         direction, slope_4h = trend
@@ -177,9 +180,13 @@ def analyse(database, asof_ms=None):
             low, high = min(low_7d, price - 2 * atr_4h), price + 1.5 * atr_4h
         else:
             low, high = low_7d, high_7d
-        structure = levels([r for r in hourly if r[0] + HOUR_MS <= now], price, atr_1h)
-        support, resistance = structure['support'], structure['resistance']
-        verified = support is not None and resistance is not None
+        basis = assess(hourly,price,atr_1h,now)
+        supports = [(p['price'],p['touches']) for p in basis['supports']]
+        resistances = [(p['price'],p['touches']) for p in basis['resistances']]
+        support, st = max(supports,default=(None,0))
+        resistance, rt = min(resistances,default=(None,0))
+        structure = dict(support=support,support_touches=st,resistance=resistance,resistance_touches=rt)
+        verified = basis['status'] == 'VERIFIED'
         if verified:
             low, high = support, resistance
         contract = {}
@@ -207,12 +214,16 @@ def analyse(database, asof_ms=None):
             "turnover_24h_usdt": turnover, "spread_pct": spread,
             "snapshot_age_min": snapshot_age_min,
             "funding_pct": funding * 100, "listing_age_days": age_days,
+            "funding_asof_ms": ticker_time,
+            "funding_interval_ms": contract.get('fundingRateGranularity') if isinstance(contract,dict) else None,
+            "next_funding_ms": contract.get('nextFundingRateDateTime') if isinstance(contract,dict) else None,
             "atr_1h_pct": atr_1h_pct, "atr_4h_pct": atr_4h_pct,
             "slope_4h_pct": slope_4h, "position_7d": position,
             "change_24h_pct": (price / hourly[-25][4] - 1) * 100,
             "low_7d": low_7d, "high_7d": high_7d,
             "range_low": low, "range_high": high, "step_pct": step,
             "range_verified": int(verified), **structure,
+            "range_evidence": {key:value for key,value in basis.items() if key not in ('supports','resistances')},
             "grids": grids, "spacing_viable": int(viable), "tick_size": tick_size,
             "maintain_margin": contract.get('maintainMargin',0) if isinstance(contract,dict) else 0,
             "risk_limit": contract.get('minRiskLimit',0) if isinstance(contract,dict) else 0,
@@ -228,11 +239,14 @@ def analyse(database, asof_ms=None):
                                 and spread <= MAX_SPREAD_PCT and age_days >= MIN_LISTING_AGE_DAYS
                                 and snapshot_age_min <= MAX_SNAPSHOT_AGE_MIN,
         }
-        supports, resistances = candidates([r for r in hourly if r[0]+HOUR_MS <= now], price, atr_1h)
-        selected, rejection = select_range(supports,resistances,row,side)
+        selected, rejection = select_range(supports,resistances,row,side,evidence=basis)
+        if basis['status'] == 'REJECTED':
+            rejection = basis['reason']
         row['layout_viable'] = int(selected is not None)
         row['risk_verified'] = int(selected is not None)
         row['setup_rejection'] = rejection
+        if not selected:
+            row['range_evidence'].update(status='REJECTED',reason=rejection)
         if selected:
             row.update(selected)
             row['range_verified'] = row['spacing_viable'] = 1

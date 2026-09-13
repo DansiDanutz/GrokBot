@@ -29,9 +29,9 @@ from trader.autopilot.policy import DECISION_RULES
 from trader.papergrid.engine import FEE_RATE_MAKER
 from trader.review import rules as learned_rules
 
-FEE_MODEL_NOTE = ("fee_model: maker-0.02pct grid fills (since 2026-09-12, was "
-                  "taker-0.06pct; seed/close-out stay taker; liquidation fee "
-                  "unchanged 0.06pct)")
+FEE_MODEL_NOTE = ("fee_model: new KuCoin futures bots use 0.06pct on both fills; "
+                  "older bots retain their recorded fees and legacy fallback. "
+                  "Mixed fee epochs are not comparable without normalization")
 
 DAY_MS = 86_400_000
 SIX_HOURS_MS = 6 * 3_600_000
@@ -389,7 +389,10 @@ def analyze_exit(bot, conn, now_ms=None, open_price=None, donors=None):
     # Would-have-been is net of the hypothetical exit fill: one maker fill
     # (resting limit) at the best price on the held position.
     whb_gross = sign * (result["best_price"] - exit_price) * base
-    result["would_have_been_pnl"] = whb_gross - base * result["best_price"] * FEE_RATE_MAKER
+    # Preserve the evaluated bot's fee epoch rather than applying the current
+    # generic maker default to every hypothetical grid close.
+    pair_fee = bot_field(bot, "fee_rate_maker", FEE_RATE_MAKER)
+    result["would_have_been_pnl"] = whb_gross - base * result["best_price"] * pair_fee
     result["classification"] = classify_exit(
         direction, entry, exit_price, interval, net, reason,
         result["best_price"], result["worst_price"],
@@ -530,6 +533,27 @@ def entry_feature_buckets(state, events):
 # report assembly
 
 
+def accounting_quality(state):
+    """Keep provisional PNL visible, but never allow it to teach new rules."""
+    affected = []
+    for bot in all_bots(state):
+        reasons = []
+        if bot_field(bot, "accounting_status") == "PENDING_FUNDING_RECONCILIATION":
+            reasons.append("funding_reconciliation")
+        if bot_field(bot, "funding_schedule_status") == "PENDING_RECONCILIATION":
+            reasons.append("funding_reconciliation")
+        if bot_field(bot, "recovery_incomplete_at_close"):
+            reasons.append("incomplete_recovery")
+        if reasons:
+            affected.append(dict(bot_id=bot_field(bot, "bot_id"), reasons=sorted(set(reasons))))
+    runtime = state.get("runtime") or {}
+    pending_funding = len(runtime.get("pending_funding_reconciliation") or {})
+    pending_recovery = len(runtime.get("pending_recovery_reconciliation") or {})
+    return dict(status="PROVISIONAL" if affected or pending_funding or pending_recovery
+                else "NO_RECORDED_FAILURE", affected_bots=affected,
+                pending_funding=pending_funding, pending_recovery=pending_recovery)
+
+
 def build_report(date_str, state, conn, events, radar=None, vault_key=None, now_ms=None,
                  tz=None):
     start_ms, end_ms = day_window(date_str, tz=tz)
@@ -611,6 +635,7 @@ def build_report(date_str, state, conn, events, radar=None, vault_key=None, now_
         # total, as visible in the retained state (archived bots predate the
         # retention window and are not countable here).
         "totals": {"closed_total": len(state.get("closed_bots", []))},
+        "accounting_quality": accounting_quality(state),
         "data_coverage": data_coverage(
             conn,
             [bot_field(b, "symbol") for b in opened + closed],
@@ -748,6 +773,7 @@ def build_proposals(data, proposals=None):
                     "premature": len(data["premature"]),
                     "missed_usd": round(sum(data["premature_costs"]), 4)},
         "totals": {"closed_total": int(data.get("totals", {}).get("closed_total", 0)),
+                   "accounting_quality": data.get("accounting_quality"),
                    "data_coverage": data.get("data_coverage")},
         "premature_closes": premature,
         "trend_buckets": {"with_trend": bucket("WITH-TREND"),
@@ -786,6 +812,12 @@ def render_markdown(data):
     lines.append("")
     lines.append(f"- Window: `{data['start_ms']}` → `{data['end_ms']}` (local midnight→midnight)")
     lines.append(f"- Bots opened: **{len(data['opened'])}**, closed: **{len(data['closed'])}**")
+    quality = data.get("accounting_quality") or {}
+    if quality.get("status") == "PROVISIONAL":
+        lines.append("- **PROVISIONAL ACCOUNTING:** funding or recovery reconciliation is "
+                     "unresolved. Reported PNL and samples are provisional; all automatic "
+                     "rule changes are deferred, including when affected bots have aged "
+                     "out of retained history.")
     if data.get("vault_key"):
         lines.append(f"- Vault key `{data['vault_key']}` supplied — publication handled by launcher (not written here)")
     coverage = data.get("data_coverage") or {}

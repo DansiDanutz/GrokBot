@@ -174,6 +174,100 @@ def watch_event(source):
     return result
 
 
+def _boolean(value):
+    if type(value) is not bool:
+        raise ValueError('invalid public boolean')
+    return value
+
+
+def _digest(value):
+    if not isinstance(value, str) or not re.fullmatch(r'[a-f0-9]{64}', value):
+        raise ValueError('invalid evidence digest')
+    return value
+
+
+def entry_evidence(source):
+    """Publish bounded facts; full entry records remain in the local paper ledger."""
+    if source is None:
+        return dict(status='MISSING', evidence_id=None)
+    source = obj(source)
+    status = enum(source.get('status'), ('RECORDED', 'MISSING'))
+    if status == 'MISSING':
+        return dict(status=status, evidence_id=None)
+    result = dict(status=status, evidence_id=_digest(source.get('evidence_id')),
+                  opened_ms=number(source.get('opened_ms')),
+                  range_status=enum(source.get('range_status'), ('VERIFIED', 'MISSING')))
+    layout = obj(source.get('layout'))
+    result['layout'] = numbers(layout, ('range_low', 'range_high', 'grids',
+        'maximum_pair_economic_count', 'interval', 'tick_size', 'lot_size',
+        'contract_lots', 'contract_multiplier', 'quantity_per_grid', 'leverage',
+        'allocated_margin_usdt'))
+    structure = source.get('range_evidence')
+    if structure is not None and result['range_status'] == 'VERIFIED':
+        structure = obj(structure)
+        result['range_provenance'] = dict(
+            candles_sha256=_digest(structure.get('candles_sha256')),
+            **numbers(structure, ('analysis_asof_ms', 'candle_asof_ms', 'window_start_ms',
+                                  'window_end_ms', 'observed_candles', 'coverage_ratio')))
+        for name in ('selected_support', 'selected_resistance'):
+            level = obj(structure.get(name))
+            confirmations = rows(level.get('confirmed_at_ms', []))
+            if len(confirmations) > 168:
+                raise ValueError('too many pivot confirmations')
+            result['range_provenance'][name] = dict(
+                **numbers(level, ('price', 'touches')),
+                last_confirmed_at_ms=max((number(t) for t in confirmations), default=None))
+    fees = obj(source.get('fees'))
+    result['fees'] = numbers(fees, ('grid_fill_rate', 'seed_and_flatten_rate', 'reference_bot_rate'))
+    pairs = obj(source.get('grid_pairs'))
+    result['grid_pairs'] = dict(
+        pair_count=number(pairs.get('pair_count')),
+        min_long_margin_return_pct=number(obj(pairs.get('minimum_long_return_pair')).get('long_margin_return_pct')),
+        min_short_margin_return_pct=number(obj(pairs.get('minimum_short_return_pair')).get('short_margin_return_pct')))
+    seeded = rows(pairs.get('seeded_closes', []))
+    if len(seeded) > 2:
+        raise ValueError('too many seeded books')
+    result['grid_pairs']['seeded_closes'] = [dict(
+        direction=enum(obj(leg).get('direction'), ('LONG', 'SHORT')),
+        **numbers(obj(leg['minimum_return_pair']), ('entry_price', 'exit_price',
+                   'seed_and_close_fees_usdt', 'net_usdt', 'margin_return_pct'))) for leg in seeded]
+    costs = obj(source.get('costs'))
+    result['costs'] = numbers(costs, ('seed_fee_paid_usdt',
+        'flatten_seed_inventory_same_price_fee_usdt', 'seed_gross_notional_usdt',
+        'seed_signed_notional_usdt', 'observed_spread_pct',
+        'seed_and_flatten_spread_cost_usdt', 'double_spread_cost_usdt'))
+    funding = obj(costs.get('funding_4h'))
+    result['costs']['funding_4h'] = dict(
+        status=enum(funding.get('status'), ('SCENARIO_ONLY', 'UNKNOWN')),
+        **numbers(funding, ('holding_window_ms', 'interval_ms', 'next_settlement_ms',
+                           'observed_at_ms', 'observed_rate_pct', 'scheduled_settlements',
+                           'constant_rate_seed_position_cost_usdt',
+                           'adverse_absolute_rate_gross_cost_usdt')))
+    result['costs']['future_actual_cost_usdt'] = None
+    break_even = costs.get('break_even')
+    if break_even is not None:
+        break_even = obj(break_even)
+        result['costs']['break_even'] = dict(
+            status=enum(break_even.get('status'), ('CONDITIONAL', 'NONPOSITIVE_PAIR_NET')),
+            **numbers(break_even, ('minimum_adjacent_pair_net_usdt',
+                'seed_and_flatten_fee_cost_usdt', 'including_spread_cost_usdt',
+                'including_spread_adverse_funding_4h_cost_usdt', 'fee_only_completed_pairs',
+                'including_spread_completed_pairs', 'including_spread_adverse_funding_4h_completed_pairs')),
+            actual_future_break_even_status='UNKNOWN', actual_future_completed_pairs=None,
+            assumption='COMPLETE_PAIRS_NO_INVENTORY_LOSS_SAME_PRICE_FLATTEN')
+    clusters = source.get('coinglass_liquidation_clusters')
+    if clusters is not None:
+        clusters = obj(clusters)
+        result['coinglass_liquidation_clusters'] = dict(
+            status=enum(clusters.get('status'), ('UNAVAILABLE_NOT_WIRED',)),
+            heatmap_kind=enum(clusters.get('heatmap_kind'), ('MODELED_POTENTIAL_LIQUIDATION_LEVELS',)),
+            historical_kind=enum(clusters.get('historical_kind'), ('REPORTED_PAST_LIQUIDATION_TOTALS',)),
+            historical_totals_are_cluster_levels=False, cluster_levels=None, observed_at_ms=None)
+    result['future_net_pnl_usdt'] = None
+    result['interpretation'] = 'ENTRY_COST_SENSITIVITY_NOT_PROFIT_FORECAST'
+    return result
+
+
 def bot(source):
     source = obj(source)
     result = numbers(source, BOT_NUMBERS)
@@ -183,7 +277,12 @@ def bot(source):
     if 'order_ladder' in source:
         result['order_ladder'] = [numbers(obj(x), ('line','price','side','book')) for x in rows(source['order_ladder'])[:400]]
     if 'funding_schedule_status' in source:
-        result['funding_schedule_status'] = enum(source['funding_schedule_status'], ('ESTIMATED','RECORDED','UNAVAILABLE'))
+        result['funding_schedule_status'] = enum(source['funding_schedule_status'], ('ESTIMATED','RECORDED','UNAVAILABLE','PENDING_RECONCILIATION'))
+    if 'accounting_status' in source:
+        result['accounting_status'] = enum(source['accounting_status'], ('PENDING_FUNDING_RECONCILIATION',))
+    if 'recovery_incomplete_at_close' in source:
+        result['recovery_incomplete_at_close'] = _boolean(source['recovery_incomplete_at_close'])
+    result['setup_evidence'] = entry_evidence(source.get('setup_evidence'))
     if 'liquidation' in source:
         risk = obj(source['liquidation'])
         result['liquidation'] = numbers(risk, ('price', 'with_reserve_price', 'mmr', 'fee_rate', 'metadata_at_ms','lower_price','upper_price','lower_with_reserve','upper_with_reserve'))
@@ -219,6 +318,19 @@ def safe(source):
         equity_curve=curve(source.get('equity_curve', []), 2000),
         equity_hourly=hourly(source.get('equity_hourly', [])),
         totals=numbers(obj(source.get('totals', {})), TOTAL_NUMBERS), groups={}, watchlist={})
+    for kind in ('funding', 'recovery'):
+        pending_key, status_key = kind+'_reconciliation_pending', kind+'_reconciliation_status'
+        if pending_key in source or status_key in source:
+            count = source.get(pending_key)
+            if type(count) is not int or count < 0 or count > 1000000:
+                raise ValueError('invalid reconciliation count')
+            result[pending_key] = count
+            result[status_key] = enum(source.get(status_key), ('NO_RECORDED_FAILURE', 'PENDING'))
+            if (count > 0) != (result[status_key] == 'PENDING'):
+                raise ValueError('inconsistent reconciliation status')
+    if 'setup_evidence_archive_status' in source:
+        result['setup_evidence_archive_status'] = enum(source['setup_evidence_archive_status'],
+            ('PENDING', 'COMPLETE', 'BLOCKED', 'CAPACITY_BLOCKED'))
     if source.get('review_status') is not None:
         result['review_status'] = review_status(source['review_status'])
     for direction in DIRECTIONS:

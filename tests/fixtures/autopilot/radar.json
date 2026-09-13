@@ -29,7 +29,62 @@
         "maintain_margin": 0.005,
         "risk_limit": 1000000,
         "multiplier": 0.001,
-        "lot_size": 1
+        "lot_size": 1,
+        "tick_size": 0.01,
+        "range_evidence": {
+          "version": 1,
+          "method": "repeated_hourly_pivots_v1",
+          "status": "VERIFIED",
+          "venue": "KuCoin",
+          "timeframe": "1h",
+          "contiguous": true,
+          "expected_candles": 168,
+          "observed_candles": 168,
+          "coverage_ratio": 1,
+          "pivot_confirmation_candles": 2,
+          "window_start_ms": -604800000,
+          "window_end_ms": 0,
+          "analysis_asof_ms": 0,
+          "candle_asof_ms": 0,
+          "candles_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "original_bounds": [
+            75,
+            125
+          ],
+          "rounded_bounds": [
+            75,
+            125
+          ],
+          "selected_support": {
+            "price": 75,
+            "touches": 2,
+            "pivot_times_ms": [
+              -36000000,
+              -18000000
+            ],
+            "confirmed_at_ms": [
+              -25200000,
+              -7200000
+            ]
+          },
+          "selected_resistance": {
+            "price": 125,
+            "touches": 2,
+            "pivot_times_ms": [
+              -32400000,
+              -14400000
+            ],
+            "confirmed_at_ms": [
+              -21600000,
+              -3600000
+            ]
+          },
+          "grid_count": 70,
+          "grid_interval": 0.71,
+          "actual_upper_line": 124.69999999999999,
+          "fee_rate_maker": 0.0006,
+          "fee_rate_taker": 0.0006
+        }
       },
       {
         "price": 100,
@@ -59,7 +114,62 @@
         "maintain_margin": 0.005,
         "risk_limit": 1000000,
         "multiplier": 0.001,
-        "lot_size": 1
+        "lot_size": 1,
+        "tick_size": 0.01,
+        "range_evidence": {
+          "version": 1,
+          "method": "repeated_hourly_pivots_v1",
+          "status": "VERIFIED",
+          "venue": "KuCoin",
+          "timeframe": "1h",
+          "contiguous": true,
+          "expected_candles": 168,
+          "observed_candles": 168,
+          "coverage_ratio": 1,
+          "pivot_confirmation_candles": 2,
+          "window_start_ms": -604800000,
+          "window_end_ms": 0,
+          "analysis_asof_ms": 0,
+          "candle_asof_ms": 0,
+          "candles_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "original_bounds": [
+            75,
+            125
+          ],
+          "rounded_bounds": [
+            75,
+            125
+          ],
+          "selected_support": {
+            "price": 75,
+            "touches": 2,
+            "pivot_times_ms": [
+              -36000000,
+              -18000000
+            ],
+            "confirmed_at_ms": [
+              -25200000,
+              -7200000
+            ]
+          },
+          "selected_resistance": {
+            "price": 125,
+            "touches": 2,
+            "pivot_times_ms": [
+              -32400000,
+              -14400000
+            ],
+            "confirmed_at_ms": [
+              -21600000,
+              -3600000
+            ]
+          },
+          "grid_count": 70,
+          "grid_interval": 0.71,
+          "actual_upper_line": 124.69999999999999,
+          "fee_rate_maker": 0.0006,
+          "fee_rate_taker": 0.0006
+        }
       }
     ],
     "turning_up": [
@@ -91,7 +201,62 @@
         "maintain_margin": 0.005,
         "risk_limit": 1000000,
         "multiplier": 0.001,
-        "lot_size": 1
+        "lot_size": 1,
+        "tick_size": 0.01,
+        "range_evidence": {
+          "version": 1,
+          "method": "repeated_hourly_pivots_v1",
+          "status": "VERIFIED",
+          "venue": "KuCoin",
+          "timeframe": "1h",
+          "contiguous": true,
+          "expected_candles": 168,
+          "observed_candles": 168,
+          "coverage_ratio": 1,
+          "pivot_confirmation_candles": 2,
+          "window_start_ms": -604800000,
+          "window_end_ms": 0,
+          "analysis_asof_ms": 0,
+          "candle_asof_ms": 0,
+          "candles_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "original_bounds": [
+            80,
+            130
+          ],
+          "rounded_bounds": [
+            80,
+            130
+          ],
+          "selected_support": {
+            "price": 80,
+            "touches": 2,
+            "pivot_times_ms": [
+              -36000000,
+              -18000000
+            ],
+            "confirmed_at_ms": [
+              -25200000,
+              -7200000
+            ]
+          },
+          "selected_resistance": {
+            "price": 130,
+            "touches": 2,
+            "pivot_times_ms": [
+              -32400000,
+              -14400000
+            ],
+            "confirmed_at_ms": [
+              -21600000,
+              -3600000
+            ]
+          },
+          "grid_count": 70,
+          "grid_interval": 0.71,
+          "actual_upper_line": 129.7,
+          "fee_rate_maker": 0.0006,
+          "fee_rate_taker": 0.0006
+        }
       }
     ],
     "long": [
@@ -123,7 +288,62 @@
         "maintain_margin": 0.005,
         "risk_limit": 1000000,
         "multiplier": 0.001,
-        "lot_size": 1
+        "lot_size": 1,
+        "tick_size": 0.01,
+        "range_evidence": {
+          "version": 1,
+          "method": "repeated_hourly_pivots_v1",
+          "status": "VERIFIED",
+          "venue": "KuCoin",
+          "timeframe": "1h",
+          "contiguous": true,
+          "expected_candles": 168,
+          "observed_candles": 168,
+          "coverage_ratio": 1,
+          "pivot_confirmation_candles": 2,
+          "window_start_ms": -604800000,
+          "window_end_ms": 0,
+          "analysis_asof_ms": 0,
+          "candle_asof_ms": 0,
+          "candles_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "original_bounds": [
+            80,
+            130
+          ],
+          "rounded_bounds": [
+            80,
+            130
+          ],
+          "selected_support": {
+            "price": 80,
+            "touches": 2,
+            "pivot_times_ms": [
+              -36000000,
+              -18000000
+            ],
+            "confirmed_at_ms": [
+              -25200000,
+              -7200000
+            ]
+          },
+          "selected_resistance": {
+            "price": 130,
+            "touches": 2,
+            "pivot_times_ms": [
+              -32400000,
+              -14400000
+            ],
+            "confirmed_at_ms": [
+              -21600000,
+              -3600000
+            ]
+          },
+          "grid_count": 70,
+          "grid_interval": 0.71,
+          "actual_upper_line": 129.7,
+          "fee_rate_maker": 0.0006,
+          "fee_rate_taker": 0.0006
+        }
       }
     ],
     "turning_down": [
@@ -155,7 +375,62 @@
         "maintain_margin": 0.005,
         "risk_limit": 1000000,
         "multiplier": 0.001,
-        "lot_size": 1
+        "lot_size": 1,
+        "tick_size": 0.01,
+        "range_evidence": {
+          "version": 1,
+          "method": "repeated_hourly_pivots_v1",
+          "status": "VERIFIED",
+          "venue": "KuCoin",
+          "timeframe": "1h",
+          "contiguous": true,
+          "expected_candles": 168,
+          "observed_candles": 168,
+          "coverage_ratio": 1,
+          "pivot_confirmation_candles": 2,
+          "window_start_ms": -604800000,
+          "window_end_ms": 0,
+          "analysis_asof_ms": 0,
+          "candle_asof_ms": 0,
+          "candles_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "original_bounds": [
+            70,
+            120
+          ],
+          "rounded_bounds": [
+            70,
+            120
+          ],
+          "selected_support": {
+            "price": 70,
+            "touches": 2,
+            "pivot_times_ms": [
+              -36000000,
+              -18000000
+            ],
+            "confirmed_at_ms": [
+              -25200000,
+              -7200000
+            ]
+          },
+          "selected_resistance": {
+            "price": 120,
+            "touches": 2,
+            "pivot_times_ms": [
+              -32400000,
+              -14400000
+            ],
+            "confirmed_at_ms": [
+              -21600000,
+              -3600000
+            ]
+          },
+          "grid_count": 70,
+          "grid_interval": 0.71,
+          "actual_upper_line": 119.69999999999999,
+          "fee_rate_maker": 0.0006,
+          "fee_rate_taker": 0.0006
+        }
       }
     ],
     "short": [
@@ -187,7 +462,62 @@
         "maintain_margin": 0.005,
         "risk_limit": 1000000,
         "multiplier": 0.001,
-        "lot_size": 1
+        "lot_size": 1,
+        "tick_size": 0.01,
+        "range_evidence": {
+          "version": 1,
+          "method": "repeated_hourly_pivots_v1",
+          "status": "VERIFIED",
+          "venue": "KuCoin",
+          "timeframe": "1h",
+          "contiguous": true,
+          "expected_candles": 168,
+          "observed_candles": 168,
+          "coverage_ratio": 1,
+          "pivot_confirmation_candles": 2,
+          "window_start_ms": -604800000,
+          "window_end_ms": 0,
+          "analysis_asof_ms": 0,
+          "candle_asof_ms": 0,
+          "candles_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "original_bounds": [
+            70,
+            120
+          ],
+          "rounded_bounds": [
+            70,
+            120
+          ],
+          "selected_support": {
+            "price": 70,
+            "touches": 2,
+            "pivot_times_ms": [
+              -36000000,
+              -18000000
+            ],
+            "confirmed_at_ms": [
+              -25200000,
+              -7200000
+            ]
+          },
+          "selected_resistance": {
+            "price": 120,
+            "touches": 2,
+            "pivot_times_ms": [
+              -32400000,
+              -14400000
+            ],
+            "confirmed_at_ms": [
+              -21600000,
+              -3600000
+            ]
+          },
+          "grid_count": 70,
+          "grid_interval": 0.71,
+          "actual_upper_line": 119.69999999999999,
+          "fee_rate_maker": 0.0006,
+          "fee_rate_taker": 0.0006
+        }
       }
     ]
   },
@@ -220,7 +550,62 @@
       "maintain_margin": 0.005,
       "risk_limit": 1000000,
       "multiplier": 0.001,
-      "lot_size": 1
+      "lot_size": 1,
+      "tick_size": 0.01,
+      "range_evidence": {
+        "version": 1,
+        "method": "repeated_hourly_pivots_v1",
+        "status": "VERIFIED",
+        "venue": "KuCoin",
+        "timeframe": "1h",
+        "contiguous": true,
+        "expected_candles": 168,
+        "observed_candles": 168,
+        "coverage_ratio": 1,
+        "pivot_confirmation_candles": 2,
+        "window_start_ms": -604800000,
+        "window_end_ms": 0,
+        "analysis_asof_ms": 0,
+        "candle_asof_ms": 0,
+        "candles_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "original_bounds": [
+          75,
+          125
+        ],
+        "rounded_bounds": [
+          75,
+          125
+        ],
+        "selected_support": {
+          "price": 75,
+          "touches": 2,
+          "pivot_times_ms": [
+            -36000000,
+            -18000000
+          ],
+          "confirmed_at_ms": [
+            -25200000,
+            -7200000
+          ]
+        },
+        "selected_resistance": {
+          "price": 125,
+          "touches": 2,
+          "pivot_times_ms": [
+            -32400000,
+            -14400000
+          ],
+          "confirmed_at_ms": [
+            -21600000,
+            -3600000
+          ]
+        },
+        "grid_count": 70,
+        "grid_interval": 0.71,
+        "actual_upper_line": 124.69999999999999,
+        "fee_rate_maker": 0.0006,
+        "fee_rate_taker": 0.0006
+      }
     },
     {
       "price": 100,
@@ -250,7 +635,62 @@
       "maintain_margin": 0.005,
       "risk_limit": 1000000,
       "multiplier": 0.001,
-      "lot_size": 1
+      "lot_size": 1,
+      "tick_size": 0.01,
+      "range_evidence": {
+        "version": 1,
+        "method": "repeated_hourly_pivots_v1",
+        "status": "VERIFIED",
+        "venue": "KuCoin",
+        "timeframe": "1h",
+        "contiguous": true,
+        "expected_candles": 168,
+        "observed_candles": 168,
+        "coverage_ratio": 1,
+        "pivot_confirmation_candles": 2,
+        "window_start_ms": -604800000,
+        "window_end_ms": 0,
+        "analysis_asof_ms": 0,
+        "candle_asof_ms": 0,
+        "candles_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "original_bounds": [
+          75,
+          125
+        ],
+        "rounded_bounds": [
+          75,
+          125
+        ],
+        "selected_support": {
+          "price": 75,
+          "touches": 2,
+          "pivot_times_ms": [
+            -36000000,
+            -18000000
+          ],
+          "confirmed_at_ms": [
+            -25200000,
+            -7200000
+          ]
+        },
+        "selected_resistance": {
+          "price": 125,
+          "touches": 2,
+          "pivot_times_ms": [
+            -32400000,
+            -14400000
+          ],
+          "confirmed_at_ms": [
+            -21600000,
+            -3600000
+          ]
+        },
+        "grid_count": 70,
+        "grid_interval": 0.71,
+        "actual_upper_line": 124.69999999999999,
+        "fee_rate_maker": 0.0006,
+        "fee_rate_taker": 0.0006
+      }
     },
     {
       "price": 100,
@@ -280,7 +720,62 @@
       "maintain_margin": 0.005,
       "risk_limit": 1000000,
       "multiplier": 0.001,
-      "lot_size": 1
+      "lot_size": 1,
+      "tick_size": 0.01,
+      "range_evidence": {
+        "version": 1,
+        "method": "repeated_hourly_pivots_v1",
+        "status": "VERIFIED",
+        "venue": "KuCoin",
+        "timeframe": "1h",
+        "contiguous": true,
+        "expected_candles": 168,
+        "observed_candles": 168,
+        "coverage_ratio": 1,
+        "pivot_confirmation_candles": 2,
+        "window_start_ms": -604800000,
+        "window_end_ms": 0,
+        "analysis_asof_ms": 0,
+        "candle_asof_ms": 0,
+        "candles_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "original_bounds": [
+          80,
+          130
+        ],
+        "rounded_bounds": [
+          80,
+          130
+        ],
+        "selected_support": {
+          "price": 80,
+          "touches": 2,
+          "pivot_times_ms": [
+            -36000000,
+            -18000000
+          ],
+          "confirmed_at_ms": [
+            -25200000,
+            -7200000
+          ]
+        },
+        "selected_resistance": {
+          "price": 130,
+          "touches": 2,
+          "pivot_times_ms": [
+            -32400000,
+            -14400000
+          ],
+          "confirmed_at_ms": [
+            -21600000,
+            -3600000
+          ]
+        },
+        "grid_count": 70,
+        "grid_interval": 0.71,
+        "actual_upper_line": 129.7,
+        "fee_rate_maker": 0.0006,
+        "fee_rate_taker": 0.0006
+      }
     },
     {
       "price": 100,
@@ -310,7 +805,62 @@
       "maintain_margin": 0.005,
       "risk_limit": 1000000,
       "multiplier": 0.001,
-      "lot_size": 1
+      "lot_size": 1,
+      "tick_size": 0.01,
+      "range_evidence": {
+        "version": 1,
+        "method": "repeated_hourly_pivots_v1",
+        "status": "VERIFIED",
+        "venue": "KuCoin",
+        "timeframe": "1h",
+        "contiguous": true,
+        "expected_candles": 168,
+        "observed_candles": 168,
+        "coverage_ratio": 1,
+        "pivot_confirmation_candles": 2,
+        "window_start_ms": -604800000,
+        "window_end_ms": 0,
+        "analysis_asof_ms": 0,
+        "candle_asof_ms": 0,
+        "candles_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "original_bounds": [
+          80,
+          130
+        ],
+        "rounded_bounds": [
+          80,
+          130
+        ],
+        "selected_support": {
+          "price": 80,
+          "touches": 2,
+          "pivot_times_ms": [
+            -36000000,
+            -18000000
+          ],
+          "confirmed_at_ms": [
+            -25200000,
+            -7200000
+          ]
+        },
+        "selected_resistance": {
+          "price": 130,
+          "touches": 2,
+          "pivot_times_ms": [
+            -32400000,
+            -14400000
+          ],
+          "confirmed_at_ms": [
+            -21600000,
+            -3600000
+          ]
+        },
+        "grid_count": 70,
+        "grid_interval": 0.71,
+        "actual_upper_line": 129.7,
+        "fee_rate_maker": 0.0006,
+        "fee_rate_taker": 0.0006
+      }
     },
     {
       "price": 100,
@@ -340,7 +890,62 @@
       "maintain_margin": 0.005,
       "risk_limit": 1000000,
       "multiplier": 0.001,
-      "lot_size": 1
+      "lot_size": 1,
+      "tick_size": 0.01,
+      "range_evidence": {
+        "version": 1,
+        "method": "repeated_hourly_pivots_v1",
+        "status": "VERIFIED",
+        "venue": "KuCoin",
+        "timeframe": "1h",
+        "contiguous": true,
+        "expected_candles": 168,
+        "observed_candles": 168,
+        "coverage_ratio": 1,
+        "pivot_confirmation_candles": 2,
+        "window_start_ms": -604800000,
+        "window_end_ms": 0,
+        "analysis_asof_ms": 0,
+        "candle_asof_ms": 0,
+        "candles_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "original_bounds": [
+          70,
+          120
+        ],
+        "rounded_bounds": [
+          70,
+          120
+        ],
+        "selected_support": {
+          "price": 70,
+          "touches": 2,
+          "pivot_times_ms": [
+            -36000000,
+            -18000000
+          ],
+          "confirmed_at_ms": [
+            -25200000,
+            -7200000
+          ]
+        },
+        "selected_resistance": {
+          "price": 120,
+          "touches": 2,
+          "pivot_times_ms": [
+            -32400000,
+            -14400000
+          ],
+          "confirmed_at_ms": [
+            -21600000,
+            -3600000
+          ]
+        },
+        "grid_count": 70,
+        "grid_interval": 0.71,
+        "actual_upper_line": 119.69999999999999,
+        "fee_rate_maker": 0.0006,
+        "fee_rate_taker": 0.0006
+      }
     },
     {
       "price": 100,
@@ -370,7 +975,62 @@
       "maintain_margin": 0.005,
       "risk_limit": 1000000,
       "multiplier": 0.001,
-      "lot_size": 1
+      "lot_size": 1,
+      "tick_size": 0.01,
+      "range_evidence": {
+        "version": 1,
+        "method": "repeated_hourly_pivots_v1",
+        "status": "VERIFIED",
+        "venue": "KuCoin",
+        "timeframe": "1h",
+        "contiguous": true,
+        "expected_candles": 168,
+        "observed_candles": 168,
+        "coverage_ratio": 1,
+        "pivot_confirmation_candles": 2,
+        "window_start_ms": -604800000,
+        "window_end_ms": 0,
+        "analysis_asof_ms": 0,
+        "candle_asof_ms": 0,
+        "candles_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "original_bounds": [
+          70,
+          120
+        ],
+        "rounded_bounds": [
+          70,
+          120
+        ],
+        "selected_support": {
+          "price": 70,
+          "touches": 2,
+          "pivot_times_ms": [
+            -36000000,
+            -18000000
+          ],
+          "confirmed_at_ms": [
+            -25200000,
+            -7200000
+          ]
+        },
+        "selected_resistance": {
+          "price": 120,
+          "touches": 2,
+          "pivot_times_ms": [
+            -32400000,
+            -14400000
+          ],
+          "confirmed_at_ms": [
+            -21600000,
+            -3600000
+          ]
+        },
+        "grid_count": 70,
+        "grid_interval": 0.71,
+        "actual_upper_line": 119.69999999999999,
+        "fee_rate_maker": 0.0006,
+        "fee_rate_taker": 0.0006
+      }
     }
   ]
 }
