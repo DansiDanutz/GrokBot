@@ -78,7 +78,9 @@ def _record(row, event, spec, scan_id, now_ms):
         score=_number(row.get('score'), _number(row.get('rank_score'))),
         spec=deepcopy(spec),
     )
-    # Arithmetic layouts carry the interval; anything else carries the percentage.
+    # Whichever spacing the spec carries. policy.profile always emits an
+    # arithmetic grid_interval today; the percentage is the fallback for any
+    # future spec producer, and both survive in full under 'spec' regardless.
     if 'grid_interval' in spec:
         record['grid_interval'] = _number(spec['grid_interval'])
     else:
@@ -100,10 +102,11 @@ def candidates(rows, events, scan_id, now_ms):
             continue
         try:
             spec, _ = policy.profile(row, event.get('direction'), 0)
+            entry = _record(row, event, spec, scan_id, now_ms)
         except (KeyError, TypeError, ValueError, ZeroDivisionError):
             continue
         seen.add(key)
-        built.append(_record(row, event, spec, scan_id, now_ms))
+        built.append(entry)
     return built
 
 
