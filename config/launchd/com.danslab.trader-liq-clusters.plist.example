@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template only. Review absolute paths and create log directories before use.
+     Derives implied liquidation clusters from our own open-interest history at
+     minute 3 of every hour, two minutes before the :05 radar so the radar can
+     read a fresh file. Read-only against the Phase-2 market database; no
+     provider requests, no credentials, no exchange orders. The symbol list is
+     whatever the current radar report already ranked. -->
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.danslab.trader-liq-clusters</string>
+  <key>ProgramArguments</key><array>
+    <string>/opt/homebrew/bin/python3</string><string>-m</string>
+    <string>trader.data.liquidation_clusters</string>
+    <string>--database</string>
+    <string>/Users/davidai/Sandbox/grokbot/market-data/phase-2-20260911/market.sqlite3</string>
+    <string>--from-radar</string>
+    <string>/Users/davidai/Sandbox/grokbot/radar/radar.json</string>
+    <string>--out</string>
+    <string>/Users/davidai/Sandbox/grokbot/market-data/liquidation-clusters.json</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/davidai/ZCodeProject/GrokBot-prod</string>
+  <key>StartCalendarInterval</key><dict><key>Minute</key><integer>3</integer></dict>
+  <key>RunAtLoad</key><false/>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>/Users/davidai/Sandbox/grokbot/market-data/logs/liq-clusters.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/davidai/Sandbox/grokbot/market-data/logs/liq-clusters.err.log</string>
+</dict></plist>
