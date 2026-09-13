@@ -28,9 +28,9 @@ That is what the installed services run. Build each item in a worktree under
       with policy/capacity blocks only, replay what that bot would have done over 24h.
       Turns ~430 skips/day into measurable outcomes. Feeds the starved learner (Q7) and
       is the evidence base any agent influence (T8) must earn its say against.
-- [ ] **T4 Liquidation-cluster derivation** — `oi_delta_implied_v1` from `open_interest`
-      + `ticker_snapshots` (394k rows each) + `maintain_margin`/`max_leverage`. Radar rows
-      gain `liq_below_pct`/`liq_above_pct`. Feeds T5 and range construction (Q4/Q9).
+- [x] **T4 Liquidation-cluster derivation** — merged `1e754e6`, gate green (473 trader).
+      First live file: 60 symbols, e.g. 4USDTM carries $14,394 of implied short
+      liquidations 1.25% above spot. Producer plist shipped as an example, not installed.
 - [ ] **T5 Hedge trigger** — when inventory loss outruns grid profit and price approaches a
       cluster, open an offsetting leg instead of closing. Backtest against the closed bots
       FIRST. Evidence today: closed bots = grid +593.13 / directional −760.62.
@@ -65,3 +65,9 @@ That is what the installed services run. Build each item in a worktree under
 - 2026-09-13 — Plan re-audited against the ten questions. T3/T4/T6+T7/T10 started in parallel
   worktrees `wt-cf`, `wt-liq`, `wt-oc`, `wt-team`. Baseline gate re-verified green on
   `design/polish`: 342 paper + 451 trader + 9 node.
+- 2026-09-13 — T4 merged `1e754e6`; gate re-run on the merged result: 342 paper + 473 trader + 38 node, green.
+- 2026-09-13 — Stale `~/ZCodeProject/GrokBot` checkout marked with its own CLAUDE.md pointer; its
+  superseded uncommitted policy rewrite lifted to `deploy-backups/policy-decision-blocks-wip-20260913.patch`.
+- 2026-09-13 — Doctor LaunchAgent install **blocked by the session sandbox**, not by choice. Verified the
+  alert is silent on the current circle (`failing: []`). Install command is in the handover.
+
