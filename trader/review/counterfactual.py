@@ -5,7 +5,7 @@ the desk would have opened for every structurally valid candidate it skipped
 because it had no room (bot/direction/major/movers caps, duplicate symbol,
 cooldown) or because a learned rule said no. This module opens each of those
 specs on the real paper engine, walks it over the stored 1m candles for a fixed
-horizon and closes it on the live rules — first RANGE_BREAK or STOP_LOSS, else
+horizon and closes it on the live rules — the first RANGE_BREAK, else
 the horizon — so the day's report can price what those refusals cost or saved.
 
 This is measurement, not a claim of edge: fills come from 1m snapshots, the
@@ -47,7 +47,13 @@ HORIZON_EXIT = 'HORIZON'
 HORIZON_CLOSE_REASON = 'MANUAL'
 # Live close rules that a replayed bot can hit on its own; every other live
 # close needs radar labels or portfolio context this replay does not model.
-SIGNAL_EXITS = ('RANGE_BREAK', 'STOP_LOSS')
+# The live desk exits on the structural range boundary only. Commit 5693251
+# made that deliberate: "the paper autopilot ignores the separate cash-loss
+# trigger and displays the boundary stop", and policy.advance drops every
+# STOP_LOSS the engine emits. Honouring it here would exit a replayed loser
+# near -12% while the real bot rides to the boundary, so every replayed loss
+# would be flattered and the cost of a refused entry understated.
+SIGNAL_EXITS = ('RANGE_BREAK',)
 RULE_NAMES = {code: name for name, code in DECISION_RULES.items()}
 REQUIRED_FIELDS = ('ts_ms', 'symbol', 'direction', 'rule_blocks', 'price', 'spec')
 

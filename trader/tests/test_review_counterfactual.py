@@ -78,11 +78,18 @@ class ReplayTests(unittest.TestCase):
         self.assertGreater(outcome['hold_h'], 0.0)
         self.assertFalse(outcome['partial'])
 
-    def test_a_collapse_inside_the_range_exits_on_the_stop(self):
+    def test_a_collapse_inside_the_range_rides_on_like_the_live_desk(self):
+        """Corrected 2026-09-14: this used to assert a STOP_LOSS exit.
+
+        The live desk discards every STOP_LOSS the engine emits and exits on the
+        structural boundary instead. A replay that cut the loser here would cap
+        its loss near -12% while the real bot kept going, flattering every
+        replayed loss and understating what refusing the entry cost.
+        """
         outcome = replay_module.replay(candidate(), candles(NOW, [95.0, 85.0, 79.6, 79.6]),
                                        horizon_h=2)
 
-        self.assertEqual(outcome['exit_reason'], 'STOP_LOSS')
+        self.assertEqual(outcome['exit_reason'], 'HORIZON')
         self.assertLess(outcome['net'], 0.0)
 
     def test_short_candle_coverage_is_replayed_and_flagged_partial(self):
@@ -373,3 +380,23 @@ class SoleBlockAdvisoryTests(unittest.TestCase):
 
     def test_capacity_cost_stays_quiet_on_money_two_rules_refused(self):
         self.assertNotIn('capacity_cost', self.note_names([self.outcome([3, 5], 90.0)]))
+
+
+class ReplayMatchesTheLiveExitRules(unittest.TestCase):
+    """The replay must not apply a stop the desk deliberately ignores.
+
+    policy.advance drops every STOP_LOSS the engine emits (commit 5693251: the
+    boundary stop replaced the cash-loss trigger). A replay that honoured it
+    would cut losers near -12% while the real bot rides to the range boundary,
+    understating what refusing an entry actually cost.
+    """
+
+    def test_stop_loss_is_not_an_exit_signal(self):
+        self.assertEqual(replay_module.SIGNAL_EXITS, ('RANGE_BREAK',))
+
+    def test_the_replay_agrees_with_what_policy_acts_on(self):
+        from trader.autopilot import policy
+        import inspect
+        source = inspect.getsource(policy.advance)
+        self.assertIn("e['type'] != 'STOP_LOSS'", source,
+                      'policy stopped discarding STOP_LOSS; revisit SIGNAL_EXITS')
