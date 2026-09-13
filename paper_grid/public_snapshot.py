@@ -18,6 +18,7 @@ import time
 
 from paper_grid import audits, engine, experiment, analytics, public_trade_metrics
 from paper_grid.public_autopilot import safe as _autopilot, events as _public_events
+from trader.team import public as public_team
 from trader.autopilot.storage import read_events
 from paper_grid.telemetry_constants import READABLE_BUY_REJECTION_REASONS
 
@@ -338,8 +339,24 @@ def _write(path, payload):
             os.unlink(temporary)
 
 
+def _team_payload(runtime, explicit, published_at):
+    """The controller's public dispatch board, or an explicit unavailable."""
+    path = (Path(explicit).absolute() if explicit is not None
+            else runtime.parent / 'autopilot' / 'team.json')
+    _no_symlinks(path)
+    if explicit is None and not path.exists():
+        snapshot = public_team.unavailable()
+    else:
+        source = _read_json(path, max_bytes=2 * 1024 * 1024)
+        if not isinstance(source, dict):
+            raise ValueError('invalid publication snapshot')
+        snapshot = public_team.safe(source)
+    snapshot['published_at_ms'] = int(published_at * 1000)
+    return _encoded(snapshot)
+
+
 def export_snapshot(runtime, output_dir, now=None, *, health=None,
-                    radar_path=None, autopilot_path=None):
+                    radar_path=None, autopilot_path=None, team_path=None):
     """Write public data and sanitized archives into a caller-owned staging tree.
 
     ``health`` is an optional local-server response supplied by the publisher;
@@ -412,6 +429,7 @@ def export_snapshot(runtime, output_dir, now=None, *, health=None,
                 snapshot['recent_events_available'] = False
         snapshot['published_at_ms'] = int(published_at * 1000)
         payloads['data/' + name + '.json'] = _encoded(snapshot)
+    payloads['data/team.json'] = _team_payload(runtime, team_path, published_at)
     rows = []
     for row in audits.list_reports(runtime)[:MAX_REPORTS]:
         identifier = _identifier(row.get('id'))
