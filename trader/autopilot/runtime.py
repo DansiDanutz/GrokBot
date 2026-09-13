@@ -5,7 +5,7 @@ from sqlite3 import Error as DatabaseError
 import sys
 import time
 
-from trader.autopilot import policy, evidence_archive
+from trader.autopilot import policy, evidence_archive, counterfactual
 from trader.autopilot.liquidation import enrich
 from trader.autopilot.constants import (MAJORS, DECISION_INTERVAL_S, SNAPSHOT_MAX_INTERVAL_S,
                                         TICK_STALE_ALERT_S, KUCOIN_DOWN_ALERT_S, LOCAL_ERROR,
@@ -233,6 +233,17 @@ class Runner:
             self.state['runtime']['setup_evidence_archive_status'] = 'BLOCKED'
             return dict(status='BLOCKED', pending=1, failed=1)
 
+    def _record_counterfactual(self, radar, prices, emitted, scan_id, now):
+        """Research-only recorder: it must never affect trading, state or the pass."""
+        try:
+            rows = [dict(row, price=prices.get(row.get('symbol'), row.get('price')))
+                    for row in (radar or {}).get('rows') or []]
+            counterfactual.record(self.log.directory / 'counterfactual', rows, emitted,
+                                  scan_id, now)
+        except Exception as error:  # noqa: BLE001 - fail-safe by contract
+            print('autopilot counterfactual error: ' + type(error).__name__,
+                  file=sys.stderr, flush=True)
+
     def _sample(self, now):
         self._archive_evidence()
         pending = self.state['runtime'].get('pending_setup_evidence', {})
@@ -394,6 +405,7 @@ class Runner:
                 self.state['pending_watchlists'] = [entry for entry in self.state['pending_watchlists']
                     if entry['watchlist_asof_ms'] >= now - 30 * 86400000][-720:]
             events.extend(emitted)
+            self._record_counterfactual(radar, prices, emitted, scan_id, now)
             self.state['runtime'].update(last_decision_ms=now, radar_scan_id=scan_id)
         self._sample(now)
         health = self._health(now)

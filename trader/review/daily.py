@@ -555,7 +555,7 @@ def accounting_quality(state):
 
 
 def build_report(date_str, state, conn, events, radar=None, vault_key=None, now_ms=None,
-                 tz=None):
+                 tz=None, counterfactual=None):
     start_ms, end_ms = day_window(date_str, tz=tz)
     opened = [b for b in all_bots(state)
               if bot_field(b, "opened_ms") and start_ms <= bot_field(b, "opened_ms") < end_ms]
@@ -642,6 +642,9 @@ def build_report(date_str, state, conn, events, radar=None, vault_key=None, now_
             start_ms, end_ms),
         "vault_key": vault_key,
         "radar": radar,
+        # Optional trader.review.counterfactual report for this day: the entries
+        # the desk skipped for capacity/policy reasons, replayed.
+        "counterfactual": counterfactual,
     }
     proposals = derive_proposals(data)
     data["learnings"] = [p["evidence"] for p in proposals]
@@ -658,7 +661,9 @@ def derive_proposals(data):
     """
     planned = learned_rules.plan_changes(build_proposals(data, []), {}, data["date"])
     proposals = [dict(p, tier=1, text=p["evidence"]) for p in planned]
-    tier2 = []
+    # Replayed skips lead the advisories: they price a refusal the desk makes
+    # hundreds of times a day, against outcomes rather than against opinion.
+    tier2 = list(learned_rules.counterfactual_proposals(data.get("counterfactual")))
     impatience = data["impatience"]
     if impatience:
         total = sum(e["net"] for e in impatience)
@@ -806,6 +811,41 @@ def _hours(ms):
     return None if ms is None else ms / 3_600_000.0
 
 
+def _counterfactual_lines(data):
+    """Short 'what the skips would have done' block; empty without a replay report."""
+    report = data.get("counterfactual") or {}
+    summary = report.get("summary") or {}
+    total = summary.get("total") or {}
+    if not report.get("replayed"):
+        return []
+    lines = ["", "### Skipped decisions, replayed", ""]
+    lines.append("Structurally valid candidates the desk declined for capacity/policy reasons, "
+                 "reopened on the paper engine over a {}h horizon and closed on the live rules "
+                 "(range break, stop, else horizon). Fills come from 1m snapshots — this "
+                 "measures the cost of a refusal, it is not a claim of edge.".format(
+                     _fmt(report.get("horizon_hours"), 0)))
+    lines.append("")
+    lines.append("- Candidates: **{}**, replayed: **{}** ({} partial-coverage)".format(
+        report.get("candidates", 0), report.get("replayed", 0), summary.get("partial", 0)))
+    lines.append("- Headline net if every skip had been taken: **${}** over {} replay(s), "
+                 "median **{}** grids/h, **{:.0f}%** finished positive".format(
+                     _fmt(total.get("sum_net")), total.get("count", 0),
+                     _fmt(total.get("median_grids_per_hour"), 2),
+                     float(total.get("share_with_positive_net", 0.0) or 0.0) * 100))
+    lines.append("")
+    lines.append("| block / direction | candidates | net | median grids/h | positive |")
+    lines.append("|---|---|---|---|---|")
+    groups = [(name, row) for name, row in sorted((summary.get("by_rule_block") or {}).items())]
+    groups += [("direction " + name, row)
+               for name, row in sorted((summary.get("by_direction") or {}).items())]
+    for name, row in groups:
+        lines.append("| {} | {} | {} | {} | {:.0f}% |".format(
+            name, row.get("count", 0), _fmt(row.get("sum_net")),
+            _fmt(row.get("median_grids_per_hour"), 2),
+            float(row.get("share_with_positive_net", 0.0) or 0.0) * 100))
+    return lines
+
+
 def render_markdown(data):
     lines = []
     lines.append(f"# Daily trade review — {data['date']}")
@@ -915,6 +955,7 @@ def render_markdown(data):
         lines.append(f"- Skip rule frequency: {blocked}")
     else:
         lines.append("- Skip rule frequency: none recorded")
+    lines.extend(_counterfactual_lines(data))
 
     lines.append("")
     lines.append("## 4. Close-reason breakdown")
@@ -971,6 +1012,26 @@ def default_path(*parts):
     return str(Path.home().joinpath(*parts))
 
 
+def load_counterfactual(path, args):
+    """Read the day's skipped-decision replay; absent or invalid means no section.
+
+    The report is research input, never a gate: a missing, unreadable or
+    wrong-day file leaves the review exactly as it was before this existed.
+    """
+    target = Path(path) if path else Path(args.out).parent / f"counterfactual-{args.date}.json"
+    try:
+        report = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        if path:
+            print(f"[daily-review] counterfactual report unreadable: {target}", file=sys.stderr)
+        return None
+    if not isinstance(report, dict) or report.get("date") != args.date:
+        print(f"[daily-review] counterfactual report ignored (not {args.date}): {target}",
+              file=sys.stderr)
+        return None
+    return report
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="trader.review.daily",
                                      description="Daily self-learning trade review")
@@ -987,6 +1048,9 @@ def main(argv=None):
     parser.add_argument("--ledger", default=None,
                         help="proposals ledger JSONL for the history section "
                              "(default: ~/Sandbox/grokbot/reports/proposals-ledger.jsonl)")
+    parser.add_argument("--counterfactual", default=None,
+                        help="skipped-decision replay JSON (default: "
+                             "counterfactual-<date>.json next to --out; ignored when absent)")
     parser.add_argument("--vault-key", default=None,
                         help="recorded in the report; the launcher owns vault publication")
     args = parser.parse_args(argv)
@@ -1007,7 +1071,8 @@ def main(argv=None):
     conn = open_market_db(args.db)
     try:
         data = build_report(args.date, state, conn, events, radar=radar,
-                            vault_key=args.vault_key)
+                            vault_key=args.vault_key,
+                            counterfactual=load_counterfactual(args.counterfactual, args))
     finally:
         conn.close()
     data["proposal_history"] = learned_rules.ledger_window(
