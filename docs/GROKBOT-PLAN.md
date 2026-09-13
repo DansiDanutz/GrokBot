@@ -1,7 +1,8 @@
 # GrokBot — goal and working plan
 
-**Goal:** close every gap found in the 2026-09-13 ten-question audit, then audit the
-whole system end to end including every GrokBot checkout and how the team connects.
+**Goal:** close every gap found in the 2026-09-13 ten-question audit, link and
+orchestrate every bot in the team, and audit the whole system end to end
+including every GrokBot checkout and how the team connects.
 
 Working tree for all of this: `~/ZCodeProject/GrokBot-prod` (branch `design/polish`).
 That is what the installed services run. Build each item in a worktree under
@@ -20,26 +21,32 @@ That is what the installed services run. Build each item in a worktree under
 
 - [x] **T1 System doctor** — `python -m trader.doctor`, six outcome checks, one verdict.
       Merged `b8fc7dc`. Replays FAIL on both real 2026-09-13 causes.
-- [ ] **T2 Schedule the doctor** — every 5 min, Telegram on FAIL only. LaunchAgent example
-      in `config/launchd/`, installed copy is Dan's call.
-- [ ] **T3 Counterfactual replay of skipped decisions** — for every `DECISION action=skip`,
-      replay what that bot would have done. Turns ~211 skips/day into measurable outcomes.
-      Unblocks the learner's sample starvation (Q7) and is the evidence base any agent
-      influence must earn its say against.
-- [ ] **T4 Liquidation-cluster derivation** — from `open_interest` + `ticker_snapshots`
-      (394k rows each) + `maintain_margin`/`risk_limit`. ΔOI near a known price implies
-      liquidation levels at standard leverage tiers. Feeds T5 and range construction.
-- [ ] **T5 Hedge trigger** — when inventory loss outruns grid profit by a threshold, open an
-      offsetting position instead of closing. Backtest against the 23 closed bots FIRST.
-      Evidence: closed bots = grid +593.13 / directional −612.38.
-- [ ] **T6 Opportunity-cost close** — non-risk closes (LABEL_FLIP, MAX_AGE, DROPPED) only fire
-      when an eligible better candidate exists. Risk closes stay unconditional.
-- [ ] **T7 Surface rank_score in the UI** — paper desk shows the number that decides order.
+- [x] **T2 Edge-triggered alerting** — merged `9aceed0`. Notifies only when the set of
+      failing checks changes. LaunchAgent example shipped; **not installed** — that is
+      Dan's deliberate act because it enables an unattended job that sends Telegram.
+- [ ] **T3 Counterfactual replay of skipped decisions** — for every `DECISION action=skip`
+      with policy/capacity blocks only, replay what that bot would have done over 24h.
+      Turns ~430 skips/day into measurable outcomes. Feeds the starved learner (Q7) and
+      is the evidence base any agent influence (T8) must earn its say against.
+- [ ] **T4 Liquidation-cluster derivation** — `oi_delta_implied_v1` from `open_interest`
+      + `ticker_snapshots` (394k rows each) + `maintain_margin`/`max_leverage`. Radar rows
+      gain `liq_below_pct`/`liq_above_pct`. Feeds T5 and range construction (Q4/Q9).
+- [ ] **T5 Hedge trigger** — when inventory loss outruns grid profit and price approaches a
+      cluster, open an offsetting leg instead of closing. Backtest against the closed bots
+      FIRST. Evidence today: closed bots = grid +593.13 / directional −760.62.
+- [ ] **T6 Opportunity-cost close** — non-risk closes (LABEL_FLIP, MAX_AGE, DROPPED) only
+      fire when an eligible better candidate exists. Risk closes stay unconditional.
+- [ ] **T7 Surface rank_score in the UI** — the desk shows the number that decides order.
 - [ ] **T8 Agent-influence interface** — agents may adjust entry decisions, every influence
       logged as a DECISION event with agent identity + delta, single flag reverts to
       deterministic-only. Build AFTER T3 so influence can be scored.
 - [ ] **T9 Full system audit** — every GrokBot checkout, every service, every link and the
       team connections. Publish as an artifact, update the fleet dashboard.
+- [ ] **T10 Team orchestration controller** — `python -m trader.team`, hourly :15, replaces
+      the dead Codex heartbeat. Derives events from the live circle, dispatches each to the
+      role that owns it, reconciles receipts, escalates idle and blocked roles, publishes
+      `/data/team.json` so every native bot can read its own work. Adds a seventh doctor
+      check so a stalled team is visible. Adds the Discovery Auditor role (Q5).
 
 ## Hard constraints
 
@@ -48,8 +55,13 @@ That is what the installed services run. Build each item in a worktree under
 - Paper only. No exchange order, ever.
 - Doctor and audit tooling stay **read-only**. No auto-restart of the autopilot.
 - Every trading-logic change is backtested against the existing closed bots before merge.
+- Enabling a new unattended job (launchd) or sending Telegram is Dan's authorization, not ours.
 
 ## Progress log
 
 - 2026-09-13 — T1 built, gated (342 paper + 445 trader), merged `b8fc7dc`, live: `circle: WARN`
   (CoinGlass 8/9, LONGXIA unservable — correct).
+- 2026-09-13 — T2 merged `9aceed0`; plan committed `d0f4dfb`.
+- 2026-09-13 — Plan re-audited against the ten questions. T3/T4/T6+T7/T10 started in parallel
+  worktrees `wt-cf`, `wt-liq`, `wt-oc`, `wt-team`. Baseline gate re-verified green on
+  `design/polish`: 342 paper + 451 trader + 9 node.
