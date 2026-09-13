@@ -8,7 +8,8 @@ import time
 from trader.autopilot import policy, evidence_archive
 from trader.autopilot.liquidation import enrich
 from trader.autopilot.constants import (MAJORS, DECISION_INTERVAL_S, SNAPSHOT_MAX_INTERVAL_S,
-                                        TICK_STALE_ALERT_S, KUCOIN_DOWN_ALERT_S, LOCAL_ERROR)
+                                        TICK_STALE_ALERT_S, KUCOIN_DOWN_ALERT_S, LOCAL_ERROR,
+                                        BLACKOUT_MIN_ROWS, ENTRY_STALL_ALERT_H, MAX_BOTS)
 from trader.autopilot.market import ingest_open_minutes, candles_after
 from trader.autopilot.storage import atomic_json, read_json, EventLog, _safe
 from trader.data.kucoin_public import PublicClient
@@ -187,6 +188,25 @@ class Runner:
         self.recovered = True
         return []  # Committed recovery events are already in the pending journal.
 
+    def _productivity(self, now):
+        """Is the daemon still doing its job, not merely still running?"""
+        radar = self.radar or {}
+        rows = radar.get('rows') or []
+        verified = sum(1 for entry in rows if entry.get('range_verified'))
+        sections = radar.get('sections') or {}
+        candidates = sum(len(value) for key, value in sections.items()
+                         if key != 'majors' and isinstance(value, list))
+        opened = [wrapper['engine']['opened_ms'] for key in ('open_bots', 'closed_bots')
+                  for wrapper in self.state[key]]
+        since_open = (now - max(opened)) / 3_600_000 if opened else None
+        free = max(0, MAX_BOTS - len(self.state['open_bots']))
+        return dict(radar_rows=len(rows), radar_verified=verified,
+                    core_candidates=candidates, free_slots=free,
+                    hours_since_open=since_open,
+                    structure_blackout=len(rows) >= BLACKOUT_MIN_ROWS and verified == 0,
+                    entries_stalled=bool(free and candidates and since_open is not None
+                                         and since_open >= ENTRY_STALL_ALERT_H))
+
     def _health(self, now):
         meta = self.state['runtime']
         # Tick age measures the last successful allTickers pass, not the last trade
@@ -201,7 +221,8 @@ class Runner:
                     recovery_reconciliation_pending=len(meta['pending_recovery_reconciliation']),
                     recovery_reconciliation_status=('PENDING' if meta['pending_recovery_reconciliation']
                                                     else 'NO_RECORDED_FAILURE'),
-                    setup_evidence_archive_status=meta.get('setup_evidence_archive_status', 'PENDING'))
+                    setup_evidence_archive_status=meta.get('setup_evidence_archive_status', 'PENDING'),
+                    **self._productivity(now))
 
     def _archive_evidence(self, *, flush=False):
         try:
@@ -377,6 +398,7 @@ class Runner:
         self._sample(now)
         health = self._health(now)
         unhealthy = (health['tick_age_s'] >= TICK_STALE_ALERT_S or
+                     health['structure_blackout'] or health['entries_stalled'] or
                      (not health['kucoin_ok'] and now - self.state['runtime']['kucoin_down_since_ms'] >= KUCOIN_DOWN_ALERT_S * 1000))
         active = self.state['runtime']['alert_active']
         if unhealthy and not active:
