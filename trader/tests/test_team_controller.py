@@ -308,3 +308,43 @@ class MigrationTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class NotInstalledClosesOnReceipt(unittest.TestCase):
+    """A role that did not exist, then did, and answered.
+
+    On 2026-09-13 the Discovery Auditor's dispatch was recorded NOT_INSTALLED
+    before Dan created the bot. It was created, joined the room, answered, and
+    the steward wrote a receipt - and the board still said the role did not
+    exist. A receipt is proof the answer exists.
+    """
+
+    def rows(self, status, with_receipt):
+        row = dict(dispatch_id='D-1-discovery_auditor-DISCOVERY-1',
+                   role='discovery_auditor', role_name='Discovery Auditor',
+                   event='DISCOVERY', status=status, room='Paper Desk Office',
+                   due_at_ms=NOW - HOUR_MS, created_at_ms=NOW - 3 * HOUR_MS)
+        state = dict(quiet_state(), dispatches=[row])
+        given = facts()
+        if with_receipt:
+            given = dict(given, receipts={row['dispatch_id']: dict(
+                dispatch_id=row['dispatch_id'], role='Discovery Auditor',
+                answered_at='2026-09-13T20:25:00Z', room='Paper Desk Office',
+                summary='five needs')})
+        return controller.reconcile(state, given, NOW)
+
+    def test_a_receipt_closes_a_not_installed_dispatch(self):
+        rows, done, _ = self.rows('NOT_INSTALLED', True)
+        self.assertEqual(rows[0]['status'], 'DONE')
+        self.assertEqual(rows[0]['answered_at'], '2026-09-13T20:25:00Z')
+        self.assertEqual([d['dispatch_id'] for d in done], [rows[0]['dispatch_id']])
+
+    def test_without_a_receipt_it_stays_not_installed(self):
+        rows, done, _ = self.rows('NOT_INSTALLED', False)
+        self.assertEqual(rows[0]['status'], 'NOT_INSTALLED')
+        self.assertEqual(done, [])
+
+    def test_a_late_receipt_does_not_erase_that_a_dispatch_blocked(self):
+        rows, done, _ = self.rows('BLOCKED', True)
+        self.assertEqual(rows[0]['status'], 'BLOCKED')
+        self.assertEqual(done, [])

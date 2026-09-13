@@ -110,8 +110,19 @@ def _resolve(row, facts, now_ms):
 def reconcile(state, facts, now_ms):
     """Return (dispatches, done, blocked) after checking receipts and due times."""
     rows, done, blocked = [], [], []
+    receipts = facts.get('receipts') or {}
     for row in state.get('dispatches') or []:
         if row.get('status') != OPEN:
+            # A dispatch recorded NOT_INSTALLED before Dan added the bot must
+            # still close once that role answers: the receipt is proof the answer
+            # exists, and leaving it would have the board deny work that was done.
+            # BLOCKED stays terminal on purpose - a missed deadline is a fact,
+            # and a late answer should not quietly erase that it was late.
+            if row.get('status') == 'NOT_INSTALLED' and row['dispatch_id'] in receipts:
+                after = _resolve(dict(row, status=OPEN), facts, now_ms)
+                rows.append(after)
+                done.append(after)
+                continue
             rows.append(dict(row))
             continue
         after = _resolve(row, facts, now_ms)
