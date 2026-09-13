@@ -26,6 +26,15 @@ in its original checkout; importing source here does not restart or relocate it.
 Only source, tests and documentation are included. Private ledgers, credentials,
 chat history and generated snapshots remain local.
 
+## Native paper review team
+
+The [five-bot review team](docs/paper-team.md) collaborates in the native Grok Bot
+**Paper Grid Trading Team** group, with one hourly Lead-owned routine.
+[Reproducible instructions](config/paper-team/contract.md) preserve the deployed
+grid strategy and keep the existing deterministic paper engine as sole executor.
+The [research and source limits](docs/paper-team-research.md) cover primary code,
+exchange documentation, X and YouTube.
+
 ## Run the OpenMausBot foundation locally
 
 Requires macOS ARM64, Node 24+, Git, npm, and a Codex ChatGPT sign-in. This repository installs its own Codex and pnpm versions; it does not upgrade global tools.
