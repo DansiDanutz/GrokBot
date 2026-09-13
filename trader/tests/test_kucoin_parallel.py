@@ -4,12 +4,15 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from trader.data.kucoin_backfill import run, _arguments
 from trader.data.kucoin_public import MAX_CANDLES
 from trader.data.store import Store
 from trader.tests.test_kucoin_backfill import Client
+
+AMPLE_FREE_BYTES = SimpleNamespace(free=10 * 1024 ** 3)
 
 
 class ParallelClient(Client):
@@ -46,6 +49,13 @@ class ParallelBackfillTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name).resolve() / 'market.sqlite'
         self.addCleanup(self.temp.cleanup)
+        # These cases exercise scheduling, not the free-space reserve. Stub the
+        # machine reading so the offline suite stays deterministic on a host
+        # whose real free space is below MIN_FREE_BYTES; StorageReserveTests
+        # below owns the guard's behaviour.
+        reserve = patch('shutil.disk_usage', return_value=AMPLE_FREE_BYTES)
+        reserve.start()
+        self.addCleanup(reserve.stop)
 
     def test_workers_share_client_but_own_connections_and_order_is_stable(self):
         client = ParallelClient(overlap=True)

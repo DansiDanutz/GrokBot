@@ -126,6 +126,17 @@ class BackfillTests(unittest.TestCase):
         self.assertEqual(store.tables['checkpoints'], [])
 
 class SQLiteIntegrationTests(unittest.TestCase):
+    def setUp(self):
+        # This case exercises resume and rollback, not the free-space reserve.
+        # Stub the machine reading so the offline suite stays deterministic on a
+        # host whose real free space is below MIN_FREE_BYTES.
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        reserve = patch('shutil.disk_usage',
+                        return_value=SimpleNamespace(free=10 * 1024 ** 3))
+        reserve.start()
+        self.addCleanup(reserve.stop)
+
     def test_real_sqlite_resume_and_nested_rollback(self):
         import tempfile
         from trader.data.store import Store
