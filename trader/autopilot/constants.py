@@ -43,3 +43,11 @@ ENTRY_STALL_ALERT_H = 3
 # System ERROR event codes (type ERROR, bot_id 0, symbol SYSTEM) in events.jsonl.
 LOCAL_ERROR = 5  # policy/engine failure after a successful transport pass;
                  # kucoin_ok stays unchanged and the tick continues.
+
+# T5 hedge trigger. Ships dark: HEDGE_ENABLED stays False until the owner has
+# read docs/hedge-trigger.md and turns it on (or sets the learned-rule override
+# `hedge_enabled`). Thresholds are the rule family the backtest selected.
+HEDGE_ENABLED = False
+HEDGE_INVENTORY_RATIO = 2.0        # inventory loss must exceed K x grid profit
+HEDGE_POSITION_FRACTION = 0.5      # |position| must reach F x full-range position
+HEDGE_CLUSTER_DISTANCE_PCT = None  # D: cluster proximity gate; None disables it

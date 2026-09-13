@@ -19,6 +19,7 @@ from trader.radar.spacing import economics
 from trader.radar.layout import layout_valid
 from trader.autopilot import watchlist
 from trader.autopilot import setup_evidence
+from trader.autopilot import hedge
 from trader.autopilot.risk import sizing, ACCOUNTING_VERSION, protection_needed
 from trader.review import rules as learned_rules
 from trader.autopilot.constants import (
@@ -56,6 +57,7 @@ DECISION_RULES = {
     'learned_symbol_cooldown': 17,
     'learned_min_hold': 18,
     'opportunity_hold': 19,
+    'hedge_trigger': 20,
 }
 # Non-risk closes the opportunity-cost gate may defer. PROFILE_UPDATE rebuilds a
 # stale specification rather than abandoning a coin, so it stays unconditional.
@@ -194,6 +196,29 @@ def _opportunity_gate(state, sections, wrapper, reason, labels, rules, now_ms, s
     events.append(_wrapper_decision(state, wrapper, now_ms, 'skip',
                                     [DECISION_RULES['opportunity_hold']]))
     return None
+
+
+def _hedge_gate(state, wrapper, row, generated_ms, prices, rules, now_ms, events):
+    """Offset adverse inventory instead of riding it (trader.autopilot.hedge).
+
+    Default OFF: constants.HEDGE_ENABLED is False and the learned override
+    `hedge_enabled` is absent from EMPTY_RULES, so with no store this returns
+    before touching anything and decide() stays byte-identical.
+    """
+    if not hedge.enabled(rules):
+        return
+    bot = wrapper['engine']
+    clusters = None if row is None else dict(
+        row, liq_clusters_generated_at_ms=generated_ms)
+    fired, _ = hedge.should_hedge(bot, clusters, rules, now_ms)
+    if not fired:
+        return
+    wrapper['engine'], emitted = hedge.hedge_leg(
+        bot, prices.get(bot['symbol'], bot['last_price']), now_ms)
+    _mark_wrapper(wrapper)
+    events.extend(emitted)
+    events.append(_wrapper_decision(state, wrapper, now_ms, 'hedge',
+                                    [DECISION_RULES['hedge_trigger']]))
 
 
 def _trend_gate_blocks(direction, row, labels, rules):
@@ -414,6 +439,8 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
     if radar_available:
         result['watchlist'], changes = watchlist.update(result['watchlist'], qualified, now_ms, scan_id)
         events.extend(dict(event, bot_id=0) for event in changes)
+    annotated = {row['symbol']: row for row in rows}
+    generated_ms = radar.get('liq_clusters_generated_at_ms')
     core = {entry['symbol'] for entry in result['watchlist']['core']}
     sections = _candidate_sections(radar, [r for r in qualified if r['symbol'] in core])
     for wrapper in list(result['open_bots']):
@@ -423,6 +450,9 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
             seen.append(dict(scan_id=scan_id, present=bot['symbol'] in labels))
             del seen[:-2]
         missing = sum(not entry['present'] for entry in seen) if radar_available else 0
+        _hedge_gate(result, wrapper, annotated.get(bot['symbol']), generated_ms,
+                    prices, rules, now_ms, events)
+        bot = wrapper['engine']
         reason = _reason(wrapper, labels, missing, now_ms,
                          rules.get('radar_flip_hysteresis_cycles'))
         if (not reason and bot['symbol'] in prices and
