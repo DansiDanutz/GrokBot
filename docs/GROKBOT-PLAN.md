@@ -127,6 +127,24 @@ Audit report: https://claude.ai/code/artifact/1d4c4036-1744-49a3-b915-2b923466a8
   its competing hedge draft is preserved in the session scratchpad. Check no second session
   is still editing these worktrees.
 
+### Interpreter drift, found and closed
+
+`daily-review-run.sh` ran every phase under `/usr/bin/python3` (3.9.6). The test gate
+and all seven installed trader services run Homebrew 3.14. The gate was therefore not
+testing the interpreter that actually executed the review, and phase 0 is fail-open, so
+an incompatibility would have become a log line nobody reads.
+
+Verified on the real candidate file under **both** interpreters: the replay runs clean on
+3.9.6 and 3.14.7, and `daily`, `apply`, `rules`, `policy`, `counterfactual` and `team` all
+import on 3.9.6. The script now uses Homebrew anyway, so what is gated is what runs.
+Backups: `deploy-backups/daily-review-run.sh.before-20260913` and
+`.before-interpreter-20260913`.
+
+All three phases were then exercised on the new interpreter, with `apply` pointed at a
+copy of the rules store; the live store is byte-identical (`e9d0a406...`, rules unchanged).
+The review renders the replay section on real data: 2 candidates, net -2.78, no advisory
+(correctly, the sum is negative).
+
 _Last verified: 2026-09-13_
 
 ## Post-cutover, 2026-09-13 21:15
@@ -162,6 +180,24 @@ current `/data/team.json`), and the radar needs no cluster flag.
 Remaining for Dan: add the **Discovery Auditor** bot, and paste each role's linking
 paragraph - regenerated after the role-key fix, so use the current
 `docs/team-orchestration.md`.
+
+### Interpreter drift, found and closed
+
+`daily-review-run.sh` ran every phase under `/usr/bin/python3` (3.9.6). The test gate
+and all seven installed trader services run Homebrew 3.14. The gate was therefore not
+testing the interpreter that actually executed the review, and phase 0 is fail-open, so
+an incompatibility would have become a log line nobody reads.
+
+Verified on the real candidate file under **both** interpreters: the replay runs clean on
+3.9.6 and 3.14.7, and `daily`, `apply`, `rules`, `policy`, `counterfactual` and `team` all
+import on 3.9.6. The script now uses Homebrew anyway, so what is gated is what runs.
+Backups: `deploy-backups/daily-review-run.sh.before-20260913` and
+`.before-interpreter-20260913`.
+
+All three phases were then exercised on the new interpreter, with `apply` pointed at a
+copy of the rules store; the live store is byte-identical (`e9d0a406...`, rules unchanged).
+The review renders the replay section on real data: 2 candidates, net -2.78, no advisory
+(correctly, the sum is negative).
 
 _Last verified: 2026-09-13_
 

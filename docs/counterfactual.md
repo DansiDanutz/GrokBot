@@ -158,3 +158,10 @@ That phase is fail-open on purpose. The replay is research input; the review tha
 follows it applies learned rules. A replay failure logs a warning and the review
 runs exactly as it did before this existed.
 
+Fail-open has a cost worth naming: a failure there is a log line nobody reads,
+which is the same silence the doctor exists to break. So the interpreter matters.
+The script ran every phase under `/usr/bin/python3` (3.9.6) while `npm run verify`
+and every installed trader service run Homebrew 3.14 - the gate was not testing
+what actually ran. Both interpreters were checked against the real candidate file
+and both pass, and the script now uses Homebrew so the gated path is the live one.
+
