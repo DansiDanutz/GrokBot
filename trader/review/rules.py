@@ -409,8 +409,12 @@ def counterfactual_proposals(counterfactual):
     hard caps (bot_capacity/direction_cap) blocked more than
     COUNTERFACTUAL_COST_USD of replayed net, learned_rule_cost when the learned
     gates did. A negative sum means the block saved money and says nothing.
+
+    Reads `by_sole_block`, not `by_rule_block`: an entry refused for two
+    reasons would still have been refused if only one of them were lifted, so
+    counting it here would propose a change that cannot collect the money.
     """
-    blocks = (((counterfactual or {}).get("summary") or {}).get("by_rule_block")) or {}
+    blocks = (((counterfactual or {}).get("summary") or {}).get("by_sole_block")) or {}
     if not isinstance(blocks, dict):
         return []
     notes = []

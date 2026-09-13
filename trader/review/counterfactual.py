@@ -140,18 +140,37 @@ def _group(outcomes, key):
     return {name: _aggregate(rows) for name, rows in sorted(grouped.items())}
 
 
-def summarize(outcomes):
-    """Aggregate replayed outcomes per rule-block name, per direction, and overall.
+def _names(outcome):
+    return [RULE_NAMES.get(int(code), 'rule_%d' % int(code))
+            for code in dict.fromkeys(outcome.get('rule_blocks', ()))]
 
-    A candidate blocked by two rules counts once under each name, so the
-    per-block sums overlap by design — the headline total does not.
+
+def _sole_name(outcome):
+    """The one rule that refused this entry, or nothing when several did.
+
+    Attribution matters because an advisory answers "what would lifting THIS
+    rule have earned". An entry the desk turned away for two reasons earns
+    nothing when only one of them is lifted, so it belongs to neither bucket:
+    a second bot on a coin we already hold is not money the slot cap cost us.
+    """
+    names = _names(outcome)
+    return names if len(names) == 1 else []
+
+
+def summarize(outcomes):
+    """Aggregate replayed outcomes per rule block, per direction, and overall.
+
+    `by_rule_block` is the descriptive view: an entry blocked by two rules
+    counts under each name, so those sums overlap by design. `by_sole_block`
+    is the causal view and is what the advisories read - only entries a single
+    rule change would actually have admitted. The headline total counts every
+    replayed entry exactly once.
     """
     outcomes = list(outcomes or ())
     return {
         'total': _aggregate(outcomes),
-        'by_rule_block': _group(outcomes, lambda outcome: [
-            RULE_NAMES.get(int(code), 'rule_%d' % int(code))
-            for code in outcome.get('rule_blocks', ())]),
+        'by_rule_block': _group(outcomes, _names),
+        'by_sole_block': _group(outcomes, _sole_name),
         'by_direction': _group(outcomes, lambda outcome: [outcome.get('direction', 'NEUTRAL')]),
         'partial': sum(1 for outcome in outcomes if outcome.get('partial')),
     }

@@ -125,3 +125,25 @@ A negative sum says the block *saved* money and raises nothing.
   to justify raising a cap without a separate forward test.
 
 _Last verified: 2026-09-13_
+
+## Which rule gets charged for a refused entry
+
+An entry the desk turned away for two reasons is not money any one of those
+rules cost us: lift only one and it is still refused. So the summary carries
+two views, and they answer different questions.
+
+| View | Question it answers |
+|---|---|
+| `by_rule_block` | Which rules were involved at all? An entry counts under each of its blocks, so these sums overlap. Descriptive only. |
+| `by_sole_block` | What would lifting exactly this rule have earned? Only entries refused for that one reason. This is what the advisories read. |
+| `total` | Every replayed entry, counted once. |
+
+The first real record, on 2026-09-13, is why this distinction exists. It was a
+second MYXUSDTM short on a coin the desk already held, refused by both the slot
+cap and the duplicate-symbol rule. Charged to the slot cap it would have argued
+for raising a cap that still would not have opened it.
+
+A consequence worth stating: an entry refused only by `duplicate_symbol` is
+replayed and reported, but it models a book where two bots run the same coin.
+That is a real policy question, and it is not the same question as the slot cap.
+

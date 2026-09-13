@@ -319,3 +319,57 @@ class LoadCounterfactualTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class SoleBlockAttributionTests(unittest.TestCase):
+    """An advisory may only claim money a single rule change could collect.
+
+    The first real record on 2026-09-13 was a second MYXUSDTM short on a coin
+    the desk already held, refused by the slot cap AND the duplicate rule.
+    Counted under the slot cap it proposes raising a cap that would still not
+    have opened it.
+    """
+
+    def outcome(self, blocks, net):
+        return dict(symbol='MYXUSDTM', direction='SHORT', rule_blocks=blocks,
+                    net=net, grids=10, grids_per_hour=1.0, hold_h=24.0,
+                    grid_profit=net, fees=0.0, funding=0.0, exit_reason='HORIZON')
+
+    def test_a_single_reason_is_attributed_to_that_rule(self):
+        summary = replay_module.summarize([self.outcome([3], 40.0)])
+        self.assertIn('bot_capacity', summary['by_sole_block'])
+        self.assertEqual(summary['by_sole_block']['bot_capacity']['sum_net'], 40.0)
+
+    def test_two_reasons_are_attributed_to_neither(self):
+        summary = replay_module.summarize([self.outcome([3, 5], 40.0)])
+        self.assertEqual(summary['by_sole_block'], {})
+        self.assertIn('bot_capacity', summary['by_rule_block'])
+        self.assertIn('duplicate_symbol', summary['by_rule_block'])
+
+    def test_the_headline_total_still_counts_every_entry_once(self):
+        summary = replay_module.summarize(
+            [self.outcome([3], 10.0), self.outcome([3, 5], 40.0)])
+        self.assertEqual(summary['total']['count'], 2)
+        self.assertEqual(summary['total']['sum_net'], 50.0)
+
+    def test_a_repeated_code_is_still_a_single_reason(self):
+        summary = replay_module.summarize([self.outcome([3, 3], 40.0)])
+        self.assertIn('bot_capacity', summary['by_sole_block'])
+
+
+class SoleBlockAdvisoryTests(unittest.TestCase):
+    def note_names(self, outcomes):
+        summary = replay_module.summarize(outcomes)
+        return [note['rule'] for note in
+                learned_rules.counterfactual_proposals({'summary': summary})]
+
+    def outcome(self, blocks, net):
+        return dict(symbol='X', direction='LONG', rule_blocks=blocks, net=net,
+                    grids=10, grids_per_hour=1.0, hold_h=24.0, grid_profit=net,
+                    fees=0.0, funding=0.0, exit_reason='HORIZON')
+
+    def test_capacity_cost_fires_on_money_the_cap_alone_refused(self):
+        self.assertIn('capacity_cost', self.note_names([self.outcome([3], 90.0)]))
+
+    def test_capacity_cost_stays_quiet_on_money_two_rules_refused(self):
+        self.assertNotIn('capacity_cost', self.note_names([self.outcome([3, 5], 90.0)]))
