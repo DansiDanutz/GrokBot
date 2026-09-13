@@ -21,7 +21,7 @@ _Last verified: 2026-09-11_
 
 - `paper_grid/` is independent of the OpenMausBot runtime and installed native Grok Bot.
 - Keep private ledgers, provider keys, Vercel authentication and generated snapshots out of Git.
-- Live services still use the original ZmartyChat-paper-grid checkout; see docs/paper-operations.md.
+- Live zmarty services still use the original ZmartyChat-paper-grid checkout; see docs/paper-operations.md. The trader desk (autopilot, dashboard, publisher, radar, market-data) runs from `/Users/davidai/ZCodeProject/GrokBot-prod` (branch `design/polish`).
 - Do not edit sealed source files in the active checkout or reset a running experiment during repository work.
 - Keep paper-only execution, deterministic controls and separate publication. No live exchange orders.
 - `npm run verify` includes the offline Python test suite; no provider requests or live credentials are needed.
@@ -31,4 +31,6 @@ _Last verified: 2026-09-11_
 - `trader/data/` is a separate public-only SQLite data layer. All CLI database paths are explicit.
 - Keep data, process manifests and public acceptance logs outside Git in the new Phase 2 workspace.
 - `npm run verify` includes `test:trader`; all automated tests are offline.
-- The market-data LaunchAgent remains an `.example` file until a separate reviewed deployment.
+- The market-data LaunchAgent is installed and running as
+  `com.danslab.trader-market-data` (KeepAlive, since 2026-09-11); the
+  `config/launchd/` template remains an example, not the live job.

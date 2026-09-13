@@ -32,11 +32,12 @@ The active LaunchAgent `com.danslab.zmarty-paper48` runs:
 ```
 
 Its historical label does not imply a 48-hour stop. The separate
-`com.danslab.trader-publisher` LaunchAgent invokes the publisher from the same
-active checkout every 1,800 seconds. It exports allowlisted snapshots and deploys
+`com.danslab.trader-publisher` LaunchAgent invokes the publisher from the
+trader-desk checkout (`/Users/davidai/ZCodeProject/GrokBot-prod/paper_grid/publish_vercel.py`)
+every 300 seconds. It exports allowlisted snapshots and deploys
 them to Vercel. Publication failure leaves the local paper engine running and the
 last successful public snapshot available. The webpage polls every minute, but
-new public data still depends on successful half-hour publication from the Mac.
+new public data still depends on successful publication from the Mac.
 
 ## Schedule and reporting
 
