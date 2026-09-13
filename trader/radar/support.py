@@ -6,6 +6,11 @@ from statistics import median
 HOUR_MS = 3600000
 WINDOW_HOURS = 168
 METHOD = 'repeated_hourly_pivots_v1'
+# The collector commits each closed hour a few minutes after it closes, so the
+# newest stored hour normally trails the wall clock by one. Anchor the window to
+# the data and bound how far it may trail, rather than demanding an hour the
+# collector has not written yet.
+MAX_COLLECTION_LAG_HOURS = 2
 
 
 def _candidates(hourly, price, atr):
@@ -51,8 +56,15 @@ def candidates(hourly, price, atr):
 
 
 def assess(hourly, price, atr, asof_ms):
-    """Require the complete latest 168-hour window before confirming structure."""
-    end = asof_ms // HOUR_MS * HOUR_MS
+    """Require the complete latest 168-hour window before confirming structure.
+
+    "Latest" means the newest completed hour actually stored, not the newest the
+    clock implies; `MAX_COLLECTION_LAG_HOURS` bounds how far behind that may fall.
+    """
+    clock_end = asof_ms // HOUR_MS * HOUR_MS
+    stored = [row[0] for row in hourly if row[0] < clock_end]
+    end = min(clock_end, max(stored) + HOUR_MS) if stored else clock_end
+    lag_hours = (clock_end - end) // HOUR_MS
     start = end - WINDOW_HOURS*HOUR_MS
     rows = [row for row in hourly if start <= row[0] < end]
     expected = list(range(start, end, HOUR_MS))
@@ -63,10 +75,14 @@ def assess(hourly, price, atr, asof_ms):
                     analysis_asof_ms=asof_ms, candle_asof_ms=max(observed)+HOUR_MS if observed else None,
                     window_start_ms=start, window_end_ms=end, expected_candles=WINDOW_HOURS,
                     observed_candles=len(rows), coverage_ratio=coverage, contiguous=contiguous,
+                    collection_lag_hours=lag_hours,
                     status='REJECTED', reason='INCOMPLETE_RECENT_HOURLY_HISTORY',
                     candles_sha256=hashlib.sha256(json.dumps(rows,separators=(',',':'),allow_nan=False).encode()).hexdigest(),
                     tolerance_price=min(atr*.25,price*.005), pivot_confirmation_candles=2,
                     supports=[], resistances=[])
+    if lag_hours > MAX_COLLECTION_LAG_HOURS:
+        evidence.update(reason='STALE_HOURLY_HISTORY')
+        return evidence
     if not contiguous:
         return evidence
     supports, resistances = _candidates(rows,price,atr)

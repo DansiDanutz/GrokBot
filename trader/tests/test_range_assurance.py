@@ -38,6 +38,33 @@ class RangeAssuranceTests(unittest.TestCase):
             self.assertEqual(result['supports'], [])
             self.assertEqual(result['resistances'], [])
 
+    def test_window_ends_at_the_newest_stored_hour_not_the_wall_clock(self):
+        """The collector commits a closed hour minutes after it closes.
+
+        Anchoring the window to the wall clock makes every symbol fail for the
+        few minutes between the hour closing and the collector writing it, which
+        is how the radar returned zero candidates for seven hours on 2026-09-13.
+        """
+        rows = [(NOW - (169 - i) * HOUR, 100, 110 if i % 8 == 5 else 104,
+                 90 if i % 8 == 2 else 96, 100, 1) for i in range(168)]
+        evidence = support.assess(rows, 100, 2, NOW)
+        self.assertEqual(evidence['status'], 'VERIFIED')
+        self.assertEqual(evidence['candle_asof_ms'], NOW - HOUR)
+        self.assertEqual(evidence['window_end_ms'], NOW - HOUR)
+        self.assertEqual(evidence['observed_candles'], 168)
+        self.assertEqual(evidence['collection_lag_hours'], 1)
+
+    def test_genuinely_stale_history_is_still_rejected(self):
+        """Tolerating the collector's lag must not tolerate a dead feed."""
+        stale = support.MAX_COLLECTION_LAG_HOURS + 1
+        rows = [(NOW - (168 + stale - i) * HOUR, 100, 110 if i % 8 == 5 else 104,
+                 90 if i % 8 == 2 else 96, 100, 1) for i in range(168)]
+        evidence = support.assess(rows, 100, 2, NOW)
+        self.assertEqual(evidence['status'], 'REJECTED')
+        self.assertEqual(evidence['reason'], 'STALE_HOURLY_HISTORY')
+        self.assertEqual(evidence['supports'], [])
+        self.assertEqual(evidence['resistances'], [])
+
     def test_partial_and_gappy_higher_timeframes_are_excluded(self):
         rows = [(i*HOUR,100,101,99,100,1) for i in range(7)]
         self.assertEqual(len(_aggregate(rows, 4*HOUR, 7*HOUR)), 1)
