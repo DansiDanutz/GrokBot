@@ -24,7 +24,7 @@ That is what the installed services run. Build each item in a worktree under
 - [x] **T2 Edge-triggered alerting** — merged `9aceed0`. Notifies only when the set of
       failing checks changes. LaunchAgent example shipped; **not installed** — that is
       Dan's deliberate act because it enables an unattended job that sends Telegram.
-- [ ] **T3 Counterfactual replay of skipped decisions** — for every `DECISION action=skip`
+- [x] **T3 Counterfactual replay of skipped decisions** — for every `DECISION action=skip`
       with policy/capacity blocks only, replay what that bot would have done over 24h.
       Turns ~430 skips/day into measurable outcomes. Feeds the starved learner (Q7) and
       is the evidence base any agent influence (T8) must earn its say against.
@@ -34,9 +34,9 @@ That is what the installed services run. Build each item in a worktree under
 - [ ] **T5 Hedge trigger** — when inventory loss outruns grid profit and price approaches a
       cluster, open an offsetting leg instead of closing. Backtest against the closed bots
       FIRST. Evidence today: closed bots = grid +593.13 / directional −760.62.
-- [ ] **T6 Opportunity-cost close** — non-risk closes (LABEL_FLIP, MAX_AGE, DROPPED) only
+- [x] **T6 Opportunity-cost close** — non-risk closes (LABEL_FLIP, MAX_AGE, DROPPED) only
       fire when an eligible better candidate exists. Risk closes stay unconditional.
-- [ ] **T7 Surface rank_score in the UI** — the desk shows the number that decides order.
+- [x] **T7 Surface rank_score in the UI** — the desk shows the number that decides order.
 - [ ] **T8 Agent-influence interface** — agents may adjust entry decisions, every influence
       logged as a DECISION event with agent identity + delta, single flag reverts to
       deterministic-only. Build AFTER T3 so influence can be scored.
@@ -70,4 +70,14 @@ That is what the installed services run. Build each item in a worktree under
   superseded uncommitted policy rewrite lifted to `deploy-backups/policy-decision-blocks-wip-20260913.patch`.
 - 2026-09-13 — Doctor LaunchAgent install **blocked by the session sandbox**, not by choice. Verified the
   alert is silent on the current circle (`failing: []`). Install command is in the handover.
+- 2026-09-13 — T3 merged (509 trader green), T6+T7 merged (344 paper + 545 trader green).
+  T6 ships ON with a 144h ceiling on deferred MAX_AGE closes; its backtest is honest and weak
+  (1 of 3 label-flip closes would have been held, at a cost of 0.47 USDT) — the case is
+  structural and Dan's decision, not the table. Kill switch: `opportunity_cost_close`.
+- 2026-09-13 — Pre-cutover dry run of the merged policy against the live radar and state:
+  no unexpected closes, gate held nothing, input not mutated, recorder produced one real
+  candidate (PUMPUSDTM SHORT, blocked by bot_capacity alone, 20 grids).
+- 2026-09-13 — **Not yet deployed.** The autopilot process still runs the pre-merge code;
+  a restart is the cutover. Radar also needs `--liquidation-clusters` added to its installed
+  plist before the annotation reaches a scan.
 
