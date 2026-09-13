@@ -109,12 +109,28 @@ def notifications(snapshot, events, now_ms, delivery_state):
     unhealthy = (snapshot.get('tick_age_s', float('inf')) >= TICK_STALE_ALERT_S or
                  (not snapshot.get('kucoin_ok', False) and down_since is not None
                   and now_ms - down_since >= KUCOIN_DOWN_ALERT_S * 1000))
+    blackout = bool(snapshot.get('structure_blackout'))
+    stalled = bool(snapshot.get('entries_stalled'))
+    unhealthy = unhealthy or blackout or stalled
     active = state.get('health_active', False)
     if unhealthy and not active:
-        queue(f'ALERT:{now_ms}', 'Paper health alert: public market ticks unavailable.',
-              remember=False, health_active=True)
+        # Name which kind of silence this is: a dead feed, a gate admitting
+        # nothing, and idle slots need different first moves.
+        if blackout:
+            text = ('Paper health alert: radar verified structure for 0 of '
+                    f'{snapshot.get("radar_rows", 0)} symbols — no bot can open.')
+        elif stalled:
+            hours = snapshot.get('hours_since_open')
+            text = (f'Paper health alert: {snapshot.get("free_slots", 0)} free slot(s) and '
+                    f'{snapshot.get("core_candidates", 0)} candidate(s), but no bot opened in '
+                    f'{hours:.1f}h.' if hours is not None else
+                    f'Paper health alert: {snapshot.get("free_slots", 0)} free slot(s) and '
+                    f'{snapshot.get("core_candidates", 0)} candidate(s), but no bot has opened.')
+        else:
+            text = 'Paper health alert: public market ticks unavailable.'
+        queue(f'ALERT:{now_ms}', text, remember=False, health_active=True)
     elif active and not unhealthy and snapshot.get('kucoin_ok', False):
-        queue(f'RECOVER:{now_ms}', 'Paper health recovered: public market ticks available.',
+        queue(f'RECOVER:{now_ms}', 'Paper health recovered: the desk is opening bots again.',
               remember=False, health_active=False)
 
     pending = snapshot.get('pending_watchlists', [snapshot])
