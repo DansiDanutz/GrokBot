@@ -24,6 +24,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from trader.autopilot.influence_audit import summarize as summarize_influence
 from trader.autopilot.liquidation import estimate as _liquidation_estimate
 from trader.autopilot.policy import DECISION_RULES
 from trader.papergrid.engine import FEE_RATE_MAKER
@@ -645,6 +646,10 @@ def build_report(date_str, state, conn, events, radar=None, vault_key=None, now_
         # Optional trader.review.counterfactual report for this day: the entries
         # the desk skipped for capacity/policy reasons, replayed.
         "counterfactual": counterfactual,
+        # Agent influence (T8) joined to that replay: what each agent's say
+        # cost or saved. Empty whenever the channel was off or silent.
+        "influence": summarize_influence(
+            events, (counterfactual or {}).get("outcomes")),
     }
     proposals = derive_proposals(data)
     data["learnings"] = [p["evidence"] for p in proposals]
@@ -664,6 +669,7 @@ def derive_proposals(data):
     # Replayed skips lead the advisories: they price a refusal the desk makes
     # hundreds of times a day, against outcomes rather than against opinion.
     tier2 = list(learned_rules.counterfactual_proposals(data.get("counterfactual")))
+    tier2.extend(learned_rules.influence_proposals(data.get("influence")))
     impatience = data["impatience"]
     if impatience:
         total = sum(e["net"] for e in impatience)
@@ -846,6 +852,33 @@ def _counterfactual_lines(data):
     return lines
 
 
+def _influence_lines(data):
+    """Short 'what the agents' say cost' block; empty when nothing was applied."""
+    report = data.get("influence") or {}
+    total = report.get("total") or {}
+    if not total.get("influences"):
+        return []
+    lines = ["", "### Agent influence, priced", ""]
+    lines.append("Review agents may reorder (BOOST) or remove (VETO) candidates the "
+                 "deterministic policy already admitted; structural and risk gates are "
+                 "not negotiable. A veto is a skip, so the replay above prices it. Boosts "
+                 "are counted, not priced — a boost that worked opened a real bot.")
+    lines.append("")
+    lines.append("- Applied: **{}** ({} boost(s), {} veto(es), {} clamped to the cap)".format(
+        total.get("influences", 0), total.get("boosts", 0), total.get("vetoes", 0),
+        total.get("clamped", 0)))
+    lines.append("- Net effect of every priced veto: **${}** over {} replayed veto(es)".format(
+        _fmt(total.get("net_usdt")), total.get("matched_vetoes", 0)))
+    lines.append("")
+    lines.append("| agent | influences | boosts | vetoes | priced | net |")
+    lines.append("|---|---|---|---|---|---|")
+    for agent, row in sorted((report.get("agents") or {}).items()):
+        lines.append("| {} | {} | {} | {} | {} | {} |".format(
+            agent, row.get("influences", 0), row.get("boosts", 0), row.get("vetoes", 0),
+            row.get("matched_vetoes", 0), _fmt(row.get("net_usdt"))))
+    return lines
+
+
 def render_markdown(data):
     lines = []
     lines.append(f"# Daily trade review — {data['date']}")
@@ -956,6 +989,7 @@ def render_markdown(data):
     else:
         lines.append("- Skip rule frequency: none recorded")
     lines.extend(_counterfactual_lines(data))
+    lines.extend(_influence_lines(data))
 
     lines.append("")
     lines.append("## 4. Close-reason breakdown")

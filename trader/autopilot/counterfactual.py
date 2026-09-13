@@ -29,15 +29,16 @@ FILE_SUFFIX = '.jsonl'
 FILE_GLOB = FILE_PREFIX + '????-??-??' + FILE_SUFFIX
 _DATE_RE = re.compile(r'\d{4}-\d{2}-\d{2}')
 
-# The desk's own capacity and policy choices. A skip carrying only these codes
-# describes a bot that could have been opened; anything else (range not verified,
-# invalid profile/layout, missing liquidity or price) describes a setup that
-# could not, so replaying it would invent a trade the desk never had.
+# The desk's own capacity and policy choices, plus an agent veto (T8). A skip
+# carrying only these codes describes a bot that could have been opened;
+# anything else (range not verified, invalid profile/layout, missing liquidity
+# or price) describes a setup that could not, so replaying it would invent a
+# trade the desk never had.
 POLICY_BLOCK_CODES = frozenset(
     policy.DECISION_RULES[name] for name in (
         'bot_capacity', 'duplicate_symbol', 'cooldown', 'direction_cap', 'major_cap',
         'movers_cap', 'learned_trend_alignment', 'learned_symbol_cooldown',
-        'learned_min_hold'))
+        'learned_min_hold', 'influence_veto'))
 
 
 def _is_policy_skip(event):

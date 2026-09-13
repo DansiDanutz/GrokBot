@@ -108,3 +108,14 @@ numeric payload across restart and newer scans (up to 720 entries / 30 days), wi
 oldest-first delivery after health alerts. Daily summaries include local-day swaps.
 Phase C renders the score reason templates and watchlist event feed; this phase
 changes no public page, installed agent or publisher.
+
+Agent influence (T8) is off by default (`constants.AGENT_INFLUENCE_ENABLED`, or the
+learned rule `agent_influence_enabled`). Switched on, the desk reads ONE sanitized
+file written by the team's operations steward and lets the eight review roles
+reorder (BOOST, bounded delta inside a radar section) or remove (VETO, one scan)
+candidates the deterministic policy already admitted. It cannot admit a coin, and
+every structural and risk gate still runs afterwards. Any schema, roster, expiry
+or duplicate problem ignores the whole file and logs one ERROR event. Applied
+influences are DECISION events with `action='influence'`; a veto that turned away
+a fillable entry also emits a skip, so the counterfactual replay prices it. See
+[docs/agent-influence.md](../../docs/agent-influence.md).

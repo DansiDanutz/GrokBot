@@ -19,7 +19,7 @@ from trader.radar.spacing import economics
 from trader.radar.layout import layout_valid
 from trader.autopilot import watchlist
 from trader.autopilot import setup_evidence
-from trader.autopilot import hedge
+from trader.autopilot import hedge, influence
 from trader.autopilot.risk import sizing, ACCOUNTING_VERSION, protection_needed
 from trader.review import rules as learned_rules
 from trader.autopilot.constants import (
@@ -27,7 +27,7 @@ from trader.autopilot.constants import (
     LEVERAGE_TREND, LEVERAGE_NEUTRAL, STEP_NEUTRAL_PCT, NEUTRAL_RESERVE_USDT,
     MAJORS, MAJORS_MAX, MOVERS_MAX, MIN_EXPECTED_GRIDS_PER_HOUR,
     COOLDOWN_HOURS, MAX_AGE_HOURS, OPPORTUNITY_COST_CLOSE,
-    OPPORTUNITY_HOLD_MAX_AGE_HOURS,
+    OPPORTUNITY_HOLD_MAX_AGE_HOURS, AGENT_INFLUENCE_ENABLED, INFLUENCE_ERROR,
 )
 
 HOUR_MS = 3_600_000
@@ -58,6 +58,8 @@ DECISION_RULES = {
     'learned_min_hold': 18,
     'opportunity_hold': 19,
     'hedge_trigger': 20,
+    'influence_boost': 21,
+    'influence_veto': 22,
 }
 # Non-risk closes the opportunity-cost gate may defer. PROFILE_UPDATE rebuilds a
 # stale specification rather than abandoning a coin, so it stays unconditional.
@@ -221,6 +223,49 @@ def _hedge_gate(state, wrapper, row, generated_ms, prices, rules, now_ms, events
                                     [DECISION_RULES['hedge_trigger']]))
 
 
+def _influence_enabled(rules):
+    """Learned override wins when present; the constant decides otherwise."""
+    override = rules.get('agent_influence_enabled')
+    return AGENT_INFLUENCE_ENABLED if override is None else bool(override)
+
+
+def _influence_records(now_ms, known_symbols):
+    """Read the steward's sanitized file once per scan. Tests patch this."""
+    return influence.load(influence.DEFAULT_PATH, now_ms, known_symbols)
+
+
+def _apply_influence(state, sections, labels, rules, now_ms, events):
+    """Let the review agents reorder or veto ALREADY ADMITTED candidates.
+
+    Returns (sections, applied). Off by default: with the switch off no file is
+    read at all and the sections are returned unchanged, and a scan that admitted
+    nothing (a missing radar, say) has nothing to influence and reads no file
+    either. Fail-closed: a rejected file leaves the sections unchanged after one
+    ERROR event. Every applied influence emits a DECISION action='influence'
+    carrying numeric fields plus the agent id. Structural and risk gates are
+    untouched -- fill() still runs _eligibility over whatever survives.
+    """
+    if not _influence_enabled(rules) or not any(sections.values()):
+        return sections, []
+    records, problems = _influence_records(now_ms, set(labels))
+    if problems:
+        events.append(dict(ts_ms=now_ms, bot_id=0, symbol='SYSTEM', type='ERROR',
+                           code=INFLUENCE_ERROR, problems=len(problems)))
+        return sections, []
+    adjusted, applied = influence.apply(sections, records, now_ms)
+    rows = {row['symbol']: row for name in sections for row in sections[name]}
+    for entry in applied:
+        code = DECISION_RULES['influence_veto' if entry['verb'] == 'VETO'
+                              else 'influence_boost']
+        event = _decision_event(
+            now_ms, 0, entry['symbol'], 'influence',
+            _decision_context(rows[entry['symbol']], entry['direction'], state), [code])
+        event.update(agent_id=entry['agent_id'], reason_code=entry['reason_code'],
+                     influence_delta=entry['delta'], influence_clamped=entry['clamped'])
+        events.append(event)
+    return adjusted, applied
+
+
 def _trend_gate_blocks(direction, row, labels, rules):
     """True when a NEW open disagrees with the radar direction label.
 
@@ -362,7 +407,12 @@ def _candidates(sections, direction):
              'NEUTRAL': ('neutral', 'movers')}[direction]
     for name in names:
         key = 'atr_1h_pct' if name == 'movers' else 'rank_score'
-        for row in sorted(sections.get(name, []), key=lambda r: (-r[key], r['symbol'])):
+        # influence_delta (T8) only ever reorders rows INSIDE this section; the
+        # underlying measurement is never rewritten, so every gate still sees
+        # the radar's own numbers. Absent delta == the pre-T8 ordering exactly.
+        for row in sorted(sections.get(name, []),
+                          key=lambda r: (-(r[key] + r.get('influence_delta', 0.0)),
+                                         r['symbol'])):
             yield name, row
 
 
@@ -442,7 +492,8 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
     annotated = {row['symbol']: row for row in rows}
     generated_ms = radar.get('liq_clusters_generated_at_ms')
     core = {entry['symbol'] for entry in result['watchlist']['core']}
-    sections = _candidate_sections(radar, [r for r in qualified if r['symbol'] in core])
+    admitted = _candidate_sections(radar, [r for r in qualified if r['symbol'] in core])
+    sections, influenced = _apply_influence(result, admitted, labels, rules, now_ms, events)
     for wrapper in list(result['open_bots']):
         bot = wrapper['engine']
         seen = result['radar_seen'].setdefault(bot['symbol'], [])
@@ -522,6 +573,15 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
                                           'open', context))
             return True
         return False
+    # A veto that turned away an entry the desk could have filled is reported as
+    # a skip, so the counterfactual replay prices what the agent's refusal cost.
+    for section, row, direction in (influence.vetoed_rows(admitted, influenced)
+                                    if vacancies else ()):
+        if require_live_prices and row['symbol'] not in prices:
+            continue
+        marked = dict(row, price=prices.get(row['symbol'], row['price']))
+        if _eligibility(result, marked, direction, section, now_ms)[0]:
+            skip(marked, direction, [DECISION_RULES['influence_veto']])
     for slot in vacancies:
         if not fill(slot, slot):
             deferred.append(slot)

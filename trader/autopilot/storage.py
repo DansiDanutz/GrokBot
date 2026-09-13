@@ -149,8 +149,13 @@ def validate_event(event):
         if not 0 <= event['score'] <= 100 or not 0 <= event['replaced_score'] <= 100:
             raise ValueError('invalid watchlist score bounds')
     if decision_event:
-        if event.get('action') not in ('open', 'close', 'skip'):
+        if event.get('action') not in ('open', 'close', 'skip', 'influence'):
             raise ValueError('invalid decision action')
+        # action='influence' is the agent-influence audit trail (T8): numeric
+        # fields only, plus the closed-roster agent id.
+        if event['action'] == 'influence' and not re.fullmatch(
+                r'[a-z][a-z0-9_]{0,39}', str(event.get('agent_id'))):
+            raise ValueError('invalid decision agent')
         if event.get('direction') not in ('LONG', 'SHORT', 'NEUTRAL'):
             raise ValueError('invalid decision direction')
         if event.get('radar_direction') not in (
@@ -172,6 +177,8 @@ def validate_event(event):
         if key == 'replaced_symbol' and watchlist_event:
             continue
         if decision_event and key in ('action', 'direction', 'radar_direction', 'rule_blocks'):
+            continue
+        if decision_event and key == 'agent_id' and event['action'] == 'influence':
             continue
         if key in ("type", "symbol"):
             continue
