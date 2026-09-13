@@ -282,9 +282,17 @@ def _radar(source):
     numeric = ('price turnover_24h_usdt spread_pct snapshot_age_min funding_pct listing_age_days atr_1h_pct '
                'atr_4h_pct slope_4h_pct position_7d change_24h_pct low_7d high_7d range_low '
                'range_high step_pct grids expected_grids_per_hour rank_score grid_interval '
-               'profit_pct_min profit_pct_max tick_size').split()
+               'profit_pct_min profit_pct_max tick_size '
+               # Derived liquidation levels. Published because the review team
+               # reads only this file: on 2026-09-13 the Technical Interpreter
+               # correctly reported clusters UNAVAILABLE_NOT_WIRED while every
+               # local row carried them. A signal the advisors cannot see is a
+               # signal they cannot reason about.
+               'liq_below_pct liq_below_usd liq_above_pct liq_above_usd').split()
     result = dict(schema_version=1, generated_at_ms=_number(source.get('generated_at_ms')),
-                  asof_ms=_number(source.get('asof_ms')), sections={})
+                  asof_ms=_number(source.get('asof_ms')),
+                  liq_clusters_generated_at_ms=_number(source.get('liq_clusters_generated_at_ms')),
+                  sections={})
     for section, rows in _object(source.get('sections')).items():
         if section not in ('majors', 'turning_up', 'turning_down', 'long', 'short', 'neutral', 'movers'):
             continue
