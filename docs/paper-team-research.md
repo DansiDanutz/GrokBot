@@ -59,3 +59,24 @@ These are recommendations for evaluation, not claims of improved profitability:
 3. Include opening/closing trading fees, funding where modeled, conservative spread/slippage and unfilled/partial orders; clearly list simulator gaps instead of inventing precision.
 4. Judge net PNL and drawdown, not only win rate or grid profit. Also compare exposure, turnover, rejected-candidate reasons, cost per review and latency.
 5. Use shadow recommendations first. More debate or more bots is beneficial only if measured error detection or net paper results improve under the same strategy constraints. Small paper samples do not establish a durable edge or future profits.
+
+
+## Funding interpretation calibration (September 13)
+
+The official [KuCoin public funding history](https://www.kucoin.com/docs-new/rest/futures-trading/funding-fees/get-public-funding-history)
+returns settlement-time rates. The deployed collector maps fundingRate/timepoint
+into funding.rate/time_ms. Its ticker funding_rate instead maps the
+[active-contract endpoint](https://www.kucoin.com/docs-new/rest/futures-trading/market-data/get-all-symbols)
+fundingFeeRate at collector observation time; source_time_ms is absent. The raw
+predictedFundingFeeRate is a separate field. Unequal historical00:00 and observed
+00:47 values alone are not a contradiction, and the observed field must not be
+renamed predicted. Actual JUP/MYX numeric reconciliation still needs matched
+reference intervals; this research establishes semantics, not that reconciliation.
+Native Manager, Technical Interpreter and Lead accepted this correction at
+01:00:16,01:00:24 and01:00:50UTC respectively.
+
+A further bounded X search did not return a verifiable original grid setup. The
+[official KuCoin futures-grid video](https://www.youtube.com/watch?v=kyz8vZNkE-4)
+remains a primary educational source; its general mechanics do not validate our
+specific leveraged strategy's returns. No new copied entry or profit claim was
+adopted.

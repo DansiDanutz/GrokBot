@@ -28,7 +28,7 @@ chat history and generated snapshots remain local.
 
 ## Native paper review team
 
-The [five-bot review team](docs/paper-team.md) collaborates in the native Grok Bot
+The [expanded review team](docs/paper-team-v2.md) collaborates in the native Grok Bot
 **Paper Grid Trading Team** group, with one hourly Lead-owned routine.
 [Reproducible instructions](config/paper-team/contract.md) preserve the deployed
 grid strategy and keep the existing deterministic paper engine as sole executor.
@@ -81,3 +81,5 @@ npm run verify
 ```
 
 For upstream behavior, follow the pinned runtime's `docs/verification/README.md`. Use its isolated fake-engine fixture, never a model turn against the user's active account. Upstream desktop packaging, paid providers, cloud VMs and fleet task dispatch are separate acceptance work.
+
+Autonomous coordination and bounded evaluation: [cycle and acceptance](docs/paper-team-autonomy.md), [research request bridge](docs/paper-team-bridge.md), and [Supabase evidence feed](config/paper-team/supabase-data-bridge.md).

@@ -1,5 +1,8 @@
 # Native paper trading review team
 
+This is the original five-role acceptance record. See [version2](paper-team-v2.md)
+for the expanded roster, two-room orchestration and data-source limitations.
+
 This configuration defines five native Grok Bot assistants that review the
 existing deterministic paper trader in the shared **Paper Grid Trading Team**
 group. Five assistants do not add five execution slots. The core portfolio stays
