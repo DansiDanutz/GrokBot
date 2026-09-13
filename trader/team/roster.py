@@ -25,7 +25,7 @@ REVIEW_READS = (TEAM_URL, AUTOPILOT_URL, RADAR_URL)
 def linking(name, room):
     """The exact paragraph Dan pastes into that bot's native instructions."""
     return ('Team link. Every cycle, read %s and take only the dispatches whose '
-            'role is "%s". Answer each one in %s with its dispatch_id alone on '
+            '"role_name" is "%s". Answer each one in %s with its dispatch_id alone on '
             'the first line, then at most five bullets. Do not answer another '
             "role's dispatch and do not start a new round; Dan's Senior "
             'Developer records the receipt for each answer you post.'

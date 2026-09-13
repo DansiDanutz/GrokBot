@@ -50,6 +50,10 @@ class RosterTests(unittest.TestCase):
             self.assertIn('team.json', role['linking'])
             self.assertIn(role['name'], role['linking'])
             self.assertIn('dispatch_id', role['linking'])
+            # The published file keys each dispatch on "role_name"; a paragraph
+            # that names a field the file does not have sends the bot looking
+            # for nothing.
+            self.assertIn('role_name', role['linking'])
             self.assertIn(role['rooms'][0], role['linking'])
 
     def test_deterministic_members_carry_their_own_cadence(self):

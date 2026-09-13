@@ -185,47 +185,47 @@ and the standing contract.
 
 **Grid Desk Lead** — paste into its native instructions:
 
-> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose role is "Grid Desk Lead". Answer each one in Paper Grid Trading Team with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
+> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose "role_name" is "Grid Desk Lead". Answer each one in Paper Grid Trading Team with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
 
 **Data & Structure** — paste into its native instructions:
 
-> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose role is "Data & Structure". Answer each one in Paper Grid Trading Team with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
+> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose "role_name" is "Data & Structure". Answer each one in Paper Grid Trading Team with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
 
 **Risk Sentinel** — paste into its native instructions:
 
-> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose role is "Risk Sentinel". Answer each one in Paper Grid Trading Team with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
+> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose "role_name" is "Risk Sentinel". Answer each one in Paper Grid Trading Team with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
 
 **Performance Analyst** — paste into its native instructions:
 
-> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose role is "Performance Analyst". Answer each one in Paper Grid Trading Team with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
+> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose "role_name" is "Performance Analyst". Answer each one in Paper Grid Trading Team with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
 
 **Research Scout** — paste into its native instructions:
 
-> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose role is "Research Scout". Answer each one in Paper Grid Research & Data with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
+> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose "role_name" is "Research Scout". Answer each one in Paper Grid Research & Data with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
 
 **X Setup Researcher** — paste into its native instructions:
 
-> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose role is "X Setup Researcher". Answer each one in Paper Grid Research & Data with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
+> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose "role_name" is "X Setup Researcher". Answer each one in Paper Grid Research & Data with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
 
 **Strategy Manager** — paste into its native instructions:
 
-> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose role is "Strategy Manager". Answer each one in Paper Grid Trading Team with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
+> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose "role_name" is "Strategy Manager". Answer each one in Paper Grid Trading Team with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
 
 **Technical Interpreter** — paste into its native instructions:
 
-> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose role is "Technical Interpreter". Answer each one in Paper Grid Trading Team with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
+> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose "role_name" is "Technical Interpreter". Answer each one in Paper Grid Trading Team with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
 
 **Discovery Auditor** — paste into its native instructions:
 
-> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose role is "Discovery Auditor". Answer each one in Paper Desk Office with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
+> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose "role_name" is "Discovery Auditor". Answer each one in Paper Desk Office with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
 
 **Dan's Senior Developer** — paste into its native instructions:
 
-> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose role is "Dan's Senior Developer". Answer each one in Paper Grid Research & Data with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
+> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose "role_name" is "Dan's Senior Developer". Answer each one in Paper Grid Research & Data with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
 
 **Paper Desk Secretary** — paste into its native instructions:
 
-> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose role is "Paper Desk Secretary". Answer each one in Paper Desk Office with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
+> Team link. Every cycle, read https://danslabtrader.vercel.app/data/team.json and take only the dispatches whose "role_name" is "Paper Desk Secretary". Answer each one in Paper Desk Office with its dispatch_id alone on the first line, then at most five bullets. Do not answer another role's dispatch and do not start a new round; Dan's Senior Developer records the receipt for each answer you post.
 
 ## What Dan does in the app
 
