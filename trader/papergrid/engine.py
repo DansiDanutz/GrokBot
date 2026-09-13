@@ -227,6 +227,11 @@ def step(bot, tick_or_candle, *, funding_pct=None):
         events.append(_event(result, at, 'RANGE_BREAK', price=price))
     net = result['realized_pnl'] + result['unrealized_pnl'] - result['fees_paid'] - result['funding_paid']
     if net < -0.12 * result['notional_usdt'] and not result['stop_loss_emitted']:
+        # −12% of notional: journaled once as a review marker. Live policy
+        # deliberately never closes on it (since 5693251 the only in-range
+        # exit is the structural boundary) and the counterfactual replay no
+        # longer exits on it either (81cff5b), so replayed losses price like
+        # the live desk. Only daily-review stats consume the marker.
         events.append(_event(result, at, 'STOP_LOSS', net=net))
         result['stop_loss_emitted'] = True
     result['last_ts_ms'] = at
