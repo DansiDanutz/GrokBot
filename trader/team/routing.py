@@ -77,8 +77,8 @@ TEMPLATES = {
                     'Bring at most one falsifiable finding with source, date and its limitation.',
     'DATA_PHASE_DUE': 'Daily data phase, due {due_local} and {overdue_h}h late. '
                       'Publish one sanitized market packet with source times, coverage and gaps.',
-    'ENGINEERING_DUE': 'Engineering phase, due {due_local}. Read the bridge '
-                       'receipt for {request_id}, record the stage, and keep applied false.',
+    'ENGINEERING_DUE': 'Engineering phase, due {due_local}. Bridge request: '
+                       '{request_id}. Record the stage from its receipt; applied stays false.',
     'ROLE_IDLE': '{role} has not answered for {idle_h} hours. Reassign its work '
                  'or record the blocker on the board.',
     'CONTROLLER_RESUMED': 'The controller resumed after {gap_h}h without a cycle. '
