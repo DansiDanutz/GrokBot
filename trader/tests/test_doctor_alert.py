@@ -1,5 +1,8 @@
 """An alarm only speaks on edges; a chatty alarm is an ignored alarm."""
 import unittest
+import contextlib, io, json, tempfile
+from pathlib import Path
+from unittest import mock
 from trader.doctor import alert
 
 
@@ -47,3 +50,61 @@ class AlertTests(unittest.TestCase):
                                                      name='publisher', status='unknown',
                                                      detail='no reading', where='check it')]))
         self.assertTrue(notify)
+
+
+class DeliveryTests(unittest.TestCase):
+    """The shell around transition(), which no test reached until 2026-09-13.
+
+    Every test above exercises the pure edge logic, so `alert.py` could call a
+    telegram function that has never existed and still pass the whole gate. It
+    did: the first time the circle actually failed, the doctor raised
+    AttributeError and Dan was never told.
+    """
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.state = Path(self.directory.name) / 'doctor-state.json'
+        self.report = dict(
+            status='fail', failing=['autopilot'], exit_code=1,
+            checks=[dict(name='autopilot', status='fail', detail='no entry',
+                         where='read the DECISION rule_blocks')])
+
+    def _run(self, sender):
+        with mock.patch.object(alert.checks, 'assess', return_value=self.report), \
+             mock.patch.object(alert.live, 'gather', return_value={}), \
+             mock.patch.object(alert, 'send', sender), \
+             contextlib.redirect_stdout(io.StringIO()) as out:
+            code = alert.main(['--state', str(self.state), '--chat-id', '424184493'])
+        return code, json.loads(out.getvalue().strip().splitlines()[-1])
+
+    def test_a_real_fault_is_actually_sent(self):
+        sent = []
+        _, line = self._run(lambda chat_id, text: sent.append((chat_id, text)))
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(sent[0][0], '424184493')
+        self.assertIn('autopilot', sent[0][1])
+        self.assertTrue(line['notified'])
+
+    def test_a_failed_send_does_not_consume_the_edge(self):
+        """A swallowed alert must be retried, not recorded as delivered.
+
+        State was written before the send, so one network blip marked the fault
+        announced and the doctor never mentioned it again.
+        """
+        def broken(chat_id, text):
+            raise RuntimeError('Telegram delivery failed')
+        _, line = self._run(broken)
+        self.assertFalse(line['notified'])
+        self.assertEqual(line.get('delivery'), 'failed')
+        self.assertEqual(_load_state(self.state).get('failing') or [], [])
+
+        sent = []
+        _, line = self._run(lambda chat_id, text: sent.append(text))
+        self.assertEqual(len(sent), 1, 'the retry must still speak')
+        self.assertTrue(line['notified'])
+        self.assertEqual(_load_state(self.state)['failing'], ['autopilot'])
+
+
+def _load_state(path):
+    return json.loads(Path(path).read_text()) if Path(path).exists() else {}
