@@ -61,3 +61,29 @@ becomes a bounded need, not an unapproved broad dump. Historical liquidation
 aggregates cannot supply nonexistent price clusters. Do not modify production
 or reinterpret an unverified change as deployed. The f02703 assurance release
 is DEPLOYED_VERIFIED; native source-packet acknowledgment was verified at02:24:22UTC. No new access or timer is granted.
+
+## Dispatch receipts (added 2026-09-13 with the in-repo controller)
+
+The hourly controller is `com.danslab.trader-team-controller`, not a Codex
+heartbeat. It publishes each cycle's work to `/data/team.json` and reconciles it
+from receipts you write. A dispatch with no receipt becomes BLOCKED at its
+`due_at`, two hours after it was created, and raises ROLE_IDLE for that role on
+the next cycle. So a team that answered but left no receipt is indistinguishable
+from a team that ignored the question, and the doctor will report it as idle.
+
+After a role answers in its room, write one receipt per dispatch to
+`~/Sandbox/grokbot/team-evidence/receipts/<dispatch_id>.json`, atomically, 0600:
+
+```json
+{"dispatch_id": "D-20260913-21-risk_sentinel-DOCTOR_FAIL-1",
+ "role": "Risk Sentinel",
+ "answered_at": "2026-09-13T18:41:07Z",
+ "room": "Paper Grid Trading Team",
+ "summary": "at most 600 characters of what was actually said"}
+```
+
+Write a receipt only for an answer you actually observed. A receipt is evidence
+that the answer exists, never a prediction that it will. An unanswered dispatch
+is meant to block: that is the signal working. You do not write `dispatch.json`
+or `controller-state.json`; those belong to the controller, exactly as
+`board.json` belongs to you.
