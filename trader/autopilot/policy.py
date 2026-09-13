@@ -635,6 +635,11 @@ def advance(state, updates):
                                symbol=bot['symbol'], type=reason, price=price))
         else:
             wrapper['engine'], emitted = step(bot, update, funding_pct=update.get('funding_pct'))
+            # STOP_LOSS is a journal marker, not a live exit: an in-range grid
+            # holds through drawdown (deliberate since 5693251; locked by
+            # test_loss_amount_does_not_override_the_configured_price_boundary).
+            # Daily-review stats read the marker; the counterfactual replay
+            # ignores it too since 81cff5b. Keep it out of the live stream.
             events.extend(e for e in emitted if e['type'] != 'STOP_LOSS')
             reason = None
             price = wrapper['engine']['last_price']
