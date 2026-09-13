@@ -41,11 +41,25 @@ date/hour cycle ID with separate UTC observation time. First reconcile any
 previously dispatched cycle. Do not resend a completed or still-running cycle.
 Control state is separate from the steward-owned native board.
 
-At08:15 run the bounded [Supabase phase](supabase-data-bridge.md) once per date.
-At10:15 process one supported engineering need with resolved dependencies in an
+At or after08:15 run the bounded [Supabase phase](supabase-data-bridge.md) once per date.
+At or after10:15 process one supported engineering need with resolved dependencies in an
 isolated Codex checkout; run required tests, prepare the relevant PR and publish
 engineering-status.json. Preserve previous results. New access, paid plans,
 production strategy/data edits and auto-merge/deploy are outside that phase.
+
+On every wake, derive each phase's due time in Europe/Bucharest and persist a
+record under `daily_phase_outcomes[local_date][phase]`: `due_at`, `status`,
+`request_id`, `started_at`, `updated_at`, `completed_at`, `receipt`, and `blocker`.
+Use PENDING, RUNNING, BLOCKED, COMPLETED, or NO_ELIGIBLE_NEED. At the first later
+wake after a missed due time, run each unfinished due phase once in data →
+research → engineering order. Reconcile RUNNING work before any retry and reuse
+its request ID; a BLOCKED phase retries only when its dependency changes. A phase
+is COMPLETED only with its actual artifact/result receipt (and steward readback
+for native work). NO_ELIGIBLE_NEED requires a recorded eligibility check. Do not
+mark a missed phase complete or repeat a completed phase. Mark prior-date missed
+phases MISSED with a reason; refresh the current date instead of replaying stale
+research or engineering backlogs. These records are controller-owned, not board
+writes. Configuration or this acceptance check is not an unattended run.
 
 Use supported computer-use tools to open the existing Grid Desk Lead chat and
 send one concise cue, for example:
@@ -156,7 +170,7 @@ historical fee epochs and distinguish these two exit reasons.
 The bridge was explicitly repinned to f02703 and context verified at 02:18:06 UTC;
 its installed worker was unchanged. Old 724-source evaluation receipts remain
 historical. Sanitized deployment-range-assurance.json and engineering-status.json
-were prepared under team-evidence and the heartbeat knows this release. Native
+were prepared under team-evidence and the heartbeat knows this release.
 The steward read the new release artifacts and persisted the implementation
 closures at 02:24:22 UTC. Secretary returned the corrected direct-chat answer at
 02:24:42 UTC. Native release handoff is verified; this is not a learned-rule win.
