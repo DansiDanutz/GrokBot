@@ -179,6 +179,48 @@ A second stale 2.2 GB database copy from a dead 2026-09-11 session remains at
 `/private/tmp/claude-501/-Users-davidai-Library-.../gate23/rt/market.sqlite3`.
 Left in place deliberately: it belongs to another session.
 
+### Disk cleanup, 2026-09-13 23:00
+
+Storage was the standing threat: 98% full, and a full disk is what broke this desk
+on the morning of 2026-09-13. **12 GB -> 27.7 GB free.** The doctor's own warning
+line moved from Fri 18 Sep to **Sat 26 Sep**, and the collector's write floor from
+Mon 21 Sep to **Wed 30 Sep**.
+
+| Action | Reclaimed |
+|---|---|
+| Abandoned 3.8 GB market-db probe copy in session temp, written once at 20:39 and never reopened | 3.8 GB |
+| 17 Paperclip SQL dumps older than the newest seven, every one already mirrored to the Mac mini | ~12 GB |
+| Stale app-updater download from 9 Sep | 0.4 GB |
+
+**Cause fixed, not just the symptom.** Nothing had ever pruned the Paperclip dumps:
+the retention job only prunes database tables, so 24 dumps had reached 20 GB. The
+nightly mirror script now prunes to the newest seven, but only after *this run*
+mirrored them, tracked by a variable rather than by grepping its own log. The mini
+never deletes, so history stays long there while the Studio keeps a working set.
+Backup: `deploy-backups/fleet-backup-mirror.sh.before-20260913`.
+
+**Deliberately not touched.**
+
+- **The 34 GB of Paperclip worktrees.** Checked all 458 against the issue tracker:
+  exactly **one** belongs to a finished issue. 385 back issues still open and 72
+  could not be resolved to an issue. Deleting them would have destroyed queued
+  agent state to reclaim space we do not need.
+- **Cloud storage for the market database.** SQLite needs POSIX locking that Drive
+  and iCloud do not provide, and they sync the write-ahead log separately from the
+  database, which corrupts it. Supabase would work but means rewriting the most
+  safety-critical read path, ~42 GB/month of paid growth, and network round-trips
+  on every radar scan. If the database must leave the internal disk, an external
+  SSD is the only correct answer.
+- **A 2.2 GB stale database copy** from a dead 2026-09-11 session under
+  `/private/tmp/claude-501/...gate23/rt/market.sqlite3`. Another session's file.
+- **pnpm store (6.7 GB).** `pnpm store prune` found nothing unreferenced.
+
+Still open: one-minute klines older than 14 days are 18.8M of 23.9M rows and are
+disposable (the radar reads 168h of structure, the replay 24h). Reclaiming them
+needs a VACUUM, which takes an exclusive lock the live collector and radar would
+hit. That is a scheduled-window job, not a 23:00 job, and the runway no longer
+demands it.
+
 _Last verified: 2026-09-13_
 
 ## Post-cutover, 2026-09-13 21:15
@@ -266,6 +308,48 @@ data deletion and is Dan's call, not a change to make unattended.
 A second stale 2.2 GB database copy from a dead 2026-09-11 session remains at
 `/private/tmp/claude-501/-Users-davidai-Library-.../gate23/rt/market.sqlite3`.
 Left in place deliberately: it belongs to another session.
+
+### Disk cleanup, 2026-09-13 23:00
+
+Storage was the standing threat: 98% full, and a full disk is what broke this desk
+on the morning of 2026-09-13. **12 GB -> 27.7 GB free.** The doctor's own warning
+line moved from Fri 18 Sep to **Sat 26 Sep**, and the collector's write floor from
+Mon 21 Sep to **Wed 30 Sep**.
+
+| Action | Reclaimed |
+|---|---|
+| Abandoned 3.8 GB market-db probe copy in session temp, written once at 20:39 and never reopened | 3.8 GB |
+| 17 Paperclip SQL dumps older than the newest seven, every one already mirrored to the Mac mini | ~12 GB |
+| Stale app-updater download from 9 Sep | 0.4 GB |
+
+**Cause fixed, not just the symptom.** Nothing had ever pruned the Paperclip dumps:
+the retention job only prunes database tables, so 24 dumps had reached 20 GB. The
+nightly mirror script now prunes to the newest seven, but only after *this run*
+mirrored them, tracked by a variable rather than by grepping its own log. The mini
+never deletes, so history stays long there while the Studio keeps a working set.
+Backup: `deploy-backups/fleet-backup-mirror.sh.before-20260913`.
+
+**Deliberately not touched.**
+
+- **The 34 GB of Paperclip worktrees.** Checked all 458 against the issue tracker:
+  exactly **one** belongs to a finished issue. 385 back issues still open and 72
+  could not be resolved to an issue. Deleting them would have destroyed queued
+  agent state to reclaim space we do not need.
+- **Cloud storage for the market database.** SQLite needs POSIX locking that Drive
+  and iCloud do not provide, and they sync the write-ahead log separately from the
+  database, which corrupts it. Supabase would work but means rewriting the most
+  safety-critical read path, ~42 GB/month of paid growth, and network round-trips
+  on every radar scan. If the database must leave the internal disk, an external
+  SSD is the only correct answer.
+- **A 2.2 GB stale database copy** from a dead 2026-09-11 session under
+  `/private/tmp/claude-501/...gate23/rt/market.sqlite3`. Another session's file.
+- **pnpm store (6.7 GB).** `pnpm store prune` found nothing unreferenced.
+
+Still open: one-minute klines older than 14 days are 18.8M of 23.9M rows and are
+disposable (the radar reads 168h of structure, the replay 24h). Reclaiming them
+needs a VACUUM, which takes an exclusive lock the live collector and radar would
+hit. That is a scheduled-window job, not a 23:00 job, and the runway no longer
+demands it.
 
 _Last verified: 2026-09-13_
 
