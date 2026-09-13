@@ -13,10 +13,11 @@
     "fleet": "node scripts/fleet-status.mjs",
     "test": "node --test tests/*.test.mjs",
     "verify:upstream": "node scripts/verify-upstream.mjs",
-    "verify": "node scripts/check.mjs && npm test && npm run test:paper && npm run test:trader",
+    "verify": "node scripts/check.mjs && npm test && npm run test:paper && npm run test:trader && npm run test:team",
     "test:paper": "python3 -m unittest discover -s paper_grid -p \"test_*.py\" -q",
     "verify:secrets": "node scripts/check-committed-secrets.mjs",
-    "test:trader": "python3 -m unittest discover -s trader/tests -p \"test_*.py\" -q"
+    "test:trader": "python3 -m unittest discover -s trader/tests -p \"test_*.py\" -q",
+    "test:team": "python3 -m unittest discover -s tests -p 'test_paper_team_bridge.py' -q"
   },
   "devDependencies": {
     "@openai/codex": "0.154.0",

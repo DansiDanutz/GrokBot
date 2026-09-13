@@ -181,7 +181,7 @@ class PublicSnapshotTests(unittest.TestCase):
         self.assertEqual(report['accounts']['baseline']['equity'], 1000)
         self.assertEqual(report['coinglass']['symbols']['BTCUSDTM'],
                          dict(eligible=True, reason='liquidation_filter_pass'))
-        self.assertEqual(metadata['file_count'], 11)
+        self.assertEqual(metadata['file_count'], 12)
         self.assertIsNone(report['health']['worker_alive'])
 
     def test_health_is_allowlisted_not_exception_text(self):

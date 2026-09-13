@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Team controller. Hourly at minute 15, the cadence the Codex heartbeat owned
+  before it lost its tokens and left the circle stuck at CTRL-20260913-05.
+  It reads the live circle, dispatches work to each role and publishes
+  team.json for the native bots; it never writes board.json, which belongs to
+  the steward, and it never restarts anything. No credentials are needed:
+  install is a deliberate copy to ~/Library/LaunchAgents plus a bootstrap.
+-->
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.danslab.trader-team-controller</string>
+  <key>ProcessType</key><string>Background</string>
+  <key>WorkingDirectory</key><string>/Users/davidai/ZCodeProject/GrokBot-prod</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>-m</string>
+    <string>trader.team</string>
+    <string>--evidence-dir</string>
+    <string>/Users/davidai/Sandbox/grokbot/team-evidence</string>
+    <string>--experiments-dir</string>
+    <string>/Users/davidai/Sandbox/grokbot/team-experiments</string>
+    <string>--runtime-dir</string>
+    <string>/Users/davidai/Sandbox/grokbot/autopilot</string>
+    <string>--radar</string>
+    <string>/Users/davidai/Sandbox/grokbot/radar/radar.json</string>
+    <string>--database</string>
+    <string>/Users/davidai/Sandbox/grokbot/market-data/phase-2-20260911/market.sqlite3</string>
+  </array>
+  <key>StartCalendarInterval</key><dict><key>Minute</key><integer>15</integer></dict>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>/Users/davidai/Sandbox/grokbot/team-evidence/controller.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/davidai/Sandbox/grokbot/team-evidence/controller.err.log</string>
+</dict></plist>

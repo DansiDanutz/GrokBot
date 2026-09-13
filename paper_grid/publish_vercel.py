@@ -195,7 +195,7 @@ def _deploy(stage, state, config):
 
 
 def publish(runtime=DEFAULT_RUNTIME, state=DEFAULT_STATE, *, now=None,
-            radar_path=None, autopilot_path=None):
+            radar_path=None, autopilot_path=None, team_path=None):
     """Return sanitized status; a failed deployment never deletes the prior site."""
     runtime, state = _safe_path(runtime), _safe_path(state)
     _separate(runtime, state)
@@ -227,7 +227,8 @@ def publish(runtime=DEFAULT_RUNTIME, state=DEFAULT_STATE, *, now=None,
                 _separate(stage, runtime)
                 _separate(stage, state)
                 paths = {key: value for key, value in
-                         (('radar_path', radar_path), ('autopilot_path', autopilot_path))
+                         (('radar_path', radar_path), ('autopilot_path', autopilot_path),
+                          ('team_path', team_path))
                          if value is not None}
                 metadata = public_snapshot.export_snapshot(runtime, stage, now=at, health=_health(), **paths)
                 _site_config(stage, config)
@@ -251,10 +252,11 @@ def main():
     parser.add_argument('--state', type=Path, default=DEFAULT_STATE)
     parser.add_argument('--radar-snapshot', type=Path)
     parser.add_argument('--autopilot-snapshot', type=Path)
+    parser.add_argument('--team-snapshot', type=Path)
     args = parser.parse_args()
     try:
         result = publish(args.runtime, args.state, radar_path=args.radar_snapshot,
-                         autopilot_path=args.autopilot_snapshot)
+                         autopilot_path=args.autopilot_snapshot, team_path=args.team_snapshot)
     except (OSError, ValueError):
         result = {'status': 'failed', 'error': 'publisher_paths_or_state_invalid'}
     print(json.dumps(result, allow_nan=False))

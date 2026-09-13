@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from paper_grid import cli, experiment, analytics, csp, public_autopilot
+from trader.team import public as public_team
 from trader.autopilot.storage import read_json, read_events
 
 
@@ -77,8 +78,8 @@ def _tailnet_host(value):
 
 
 def make_handler(monitor, port, *, autopilot_snapshot=None, events_dir=None,
-                 radar_snapshot=None, tailnet_host=None, tailnet_port=443,
-                 read_only=False):
+                 radar_snapshot=None, team_snapshot=None, tailnet_host=None,
+                 tailnet_port=443, read_only=False):
     allowed_hosts = {f'127.0.0.1:{port}', f'localhost:{port}'}
     if tailnet_host is not None:
         host = _tailnet_host(tailnet_host)
@@ -88,6 +89,7 @@ def make_handler(monitor, port, *, autopilot_snapshot=None, events_dir=None,
     autopilot_snapshot = Path(autopilot_snapshot or monitor.runtime.parent / "autopilot" / "autopilot.json")
     events_dir = Path(events_dir or autopilot_snapshot.parent)
     radar_snapshot = Path(radar_snapshot or monitor.runtime.parent / "radar" / "radar.json")
+    team_snapshot = Path(team_snapshot or autopilot_snapshot.parent / "team.json")
     analytics_lock = threading.Lock()
     analytics_cache = {'at': 0, 'payload': None}
 
@@ -109,6 +111,14 @@ def make_handler(monitor, port, *, autopilot_snapshot=None, events_dir=None,
         except (OSError, ValueError):
             payload['decisions_24h'] = []
         return payload
+
+    def read_team():
+        # Same shape the publisher serves at /data/team.json, so a native bot
+        # reads one contract whether it polls Vercel or this local desk.
+        try:
+            return public_team.safe(read_json(team_snapshot))
+        except (OSError, ValueError):
+            return public_team.unavailable()
 
     def read_only_health():
         # No monitor thread in read-only mode: derive liveness from the autopilot
@@ -160,6 +170,9 @@ def make_handler(monitor, port, *, autopilot_snapshot=None, events_dir=None,
             if path in ('/radar', '/radar/'):
                 return self.send(200, Path(__file__).with_name('radar.html').read_bytes(),
                                  'text/html; charset=utf-8', dashboard=True)
+            if path == '/data/team.json':
+                return self.send(200, json.dumps(read_team(), allow_nan=False).encode(),
+                                 'application/json')
             if path.startswith('/audits/'):
                 name = path[len('/audits/'):]
                 if not re.fullmatch(r'[a-zA-Z0-9_-]+\.(html|json|md)', name):
@@ -229,6 +242,7 @@ def main(argv=None):
     root = Path.home() / 'Sandbox' / 'grokbot'
     parser.add_argument('--autopilot-snapshot', type=Path, default=root / 'autopilot' / 'autopilot.json')
     parser.add_argument('--radar-snapshot', type=Path, default=root / 'radar' / 'radar.json')
+    parser.add_argument('--team-snapshot', type=Path, default=root / 'autopilot' / 'team.json')
     parser.add_argument('--events-dir', type=Path, default=root / 'autopilot')
     args = parser.parse_args(argv)
     if args.tailnet_host and not args.read_only:
@@ -236,7 +250,7 @@ def main(argv=None):
     monitor = Monitor(args.runtime)
     server = ThreadingHTTPServer(('127.0.0.1', args.port), make_handler(monitor, args.port,
         autopilot_snapshot=args.autopilot_snapshot, radar_snapshot=args.radar_snapshot,
-        events_dir=args.events_dir, tailnet_host=args.tailnet_host, tailnet_port=args.tailnet_port,
+        team_snapshot=args.team_snapshot, events_dir=args.events_dir, tailnet_host=args.tailnet_host, tailnet_port=args.tailnet_port,
         read_only=args.read_only))
     awake = None
     if not args.read_only and sys.platform == 'darwin':
