@@ -145,6 +145,40 @@ copy of the rules store; the live store is byte-identical (`e9d0a406...`, rules 
 The review renders the replay section on real data: 2 candidates, net -2.78, no advisory
 (correctly, the sum is negative).
 
+### Operational state at handover, 2026-09-13 22:25
+
+Installed and running: `trader-autopilot` (pid 24172), `trader-doctor` (5 min),
+`trader-team-controller` (hourly :15), `trader-radar` (:10), `trader-publisher`
+(5 min), `trader-market-data`, `trader-coinglass-history`, `trader-daily-review`
+(07:00, now with the replay as phase 0).
+
+Verified tonight, each by observation rather than assumption:
+
+| Claim | Evidence |
+|---|---|
+| Cluster annotation reaches a real scan | 21:11 radar, 356/356 rows, 15 with a live level |
+| The recorder collects | first file at 21:11, 13 candidates by 21:48 |
+| The replay chain runs | 2 candidates replayed, net -2.78, section renders in the review |
+| The team check is green | controller cycled, no idle role |
+| The alarm could actually reach Dan | `DLS_TELEGRAM_BOT_TOKEN` injected under the name the sender reads; a synthetic fault composes `GrokBot circle: FAIL` and decides to notify. No real message sent. |
+| Discovery Auditor is real | created, in the Paper Desk Office room, roster flag flipped, gate green |
+
+**Disk, dated.** The market database is 3.81 GB growing **1.39 GB/day**. After
+reclaiming a 3.8 GB abandoned probe copy from session temp, 15.9 GB is free.
+
+- Doctor turns WARN around **Fri 18 Sep**.
+- The collector refuses to write around **Mon 21 Sep**.
+
+This is the failure that broke the desk on the morning of 2026-09-13, so it has a
+date rather than a shrug. The fix is a retention policy on 1m klines: the radar
+reads 60 days of hourly and 168 hours of structure, and the replay needs 24h of
+1m, so 1m candles older than ~14 days are almost certainly disposable. That is
+data deletion and is Dan's call, not a change to make unattended.
+
+A second stale 2.2 GB database copy from a dead 2026-09-11 session remains at
+`/private/tmp/claude-501/-Users-davidai-Library-.../gate23/rt/market.sqlite3`.
+Left in place deliberately: it belongs to another session.
+
 _Last verified: 2026-09-13_
 
 ## Post-cutover, 2026-09-13 21:15
@@ -198,6 +232,40 @@ All three phases were then exercised on the new interpreter, with `apply` pointe
 copy of the rules store; the live store is byte-identical (`e9d0a406...`, rules unchanged).
 The review renders the replay section on real data: 2 candidates, net -2.78, no advisory
 (correctly, the sum is negative).
+
+### Operational state at handover, 2026-09-13 22:25
+
+Installed and running: `trader-autopilot` (pid 24172), `trader-doctor` (5 min),
+`trader-team-controller` (hourly :15), `trader-radar` (:10), `trader-publisher`
+(5 min), `trader-market-data`, `trader-coinglass-history`, `trader-daily-review`
+(07:00, now with the replay as phase 0).
+
+Verified tonight, each by observation rather than assumption:
+
+| Claim | Evidence |
+|---|---|
+| Cluster annotation reaches a real scan | 21:11 radar, 356/356 rows, 15 with a live level |
+| The recorder collects | first file at 21:11, 13 candidates by 21:48 |
+| The replay chain runs | 2 candidates replayed, net -2.78, section renders in the review |
+| The team check is green | controller cycled, no idle role |
+| The alarm could actually reach Dan | `DLS_TELEGRAM_BOT_TOKEN` injected under the name the sender reads; a synthetic fault composes `GrokBot circle: FAIL` and decides to notify. No real message sent. |
+| Discovery Auditor is real | created, in the Paper Desk Office room, roster flag flipped, gate green |
+
+**Disk, dated.** The market database is 3.81 GB growing **1.39 GB/day**. After
+reclaiming a 3.8 GB abandoned probe copy from session temp, 15.9 GB is free.
+
+- Doctor turns WARN around **Fri 18 Sep**.
+- The collector refuses to write around **Mon 21 Sep**.
+
+This is the failure that broke the desk on the morning of 2026-09-13, so it has a
+date rather than a shrug. The fix is a retention policy on 1m klines: the radar
+reads 60 days of hourly and 168 hours of structure, and the replay needs 24h of
+1m, so 1m candles older than ~14 days are almost certainly disposable. That is
+data deletion and is Dan's call, not a change to make unattended.
+
+A second stale 2.2 GB database copy from a dead 2026-09-11 session remains at
+`/private/tmp/claude-501/-Users-davidai-Library-.../gate23/rt/market.sqlite3`.
+Left in place deliberately: it belongs to another session.
 
 _Last verified: 2026-09-13_
 
