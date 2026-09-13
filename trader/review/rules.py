@@ -41,6 +41,8 @@ EMPTY_RULES = {
     # opportunity_cost_close: absent by default; the constant
     # trader.autopilot.constants.OPPORTUNITY_COST_CLOSE decides until a store
     # overrides it. Absent keeps every existing store valid.
+    # hedge_enabled: absent by default (staged, OFF). Existing stores written
+    # before the T5 hedge trigger stay valid precisely because it is absent.
 }
 
 DEFAULT_STORE_PATH = str(Path.home() / "Sandbox" / "grokbot" / "autopilot" / "learned-rules.json")
@@ -94,6 +96,9 @@ def validate_store(data):
         opportunity = rules.get("opportunity_cost_close")
         if opportunity is not None and not isinstance(opportunity, bool):
             errors.append("opportunity_cost_close must be a boolean or absent")
+        hedge_flag = rules.get("hedge_enabled")
+        if hedge_flag is not None and not isinstance(hedge_flag, bool):
+            errors.append("hedge_enabled must be a boolean or absent")
         cooldowns = rules.get("symbol_cooldowns")
         if not isinstance(cooldowns, dict):
             errors.append("symbol_cooldowns must be an object")
