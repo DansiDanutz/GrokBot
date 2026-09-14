@@ -173,12 +173,20 @@ def summarize(outcomes):
     replayed entry exactly once.
     """
     outcomes = list(outcomes or ())
+    complete = [o for o in outcomes if not o.get('partial')]
     return {
         'total': _aggregate(outcomes),
         'by_rule_block': _group(outcomes, _names),
         'by_sole_block': _group(outcomes, _sole_name),
+        # What the advisories read: one rule, and a horizon that actually
+        # elapsed. On 2026-09-14 the first capacity advisory ever raised fired
+        # on 116 replays of which 116 were partial - not one had run its full
+        # 24h - and it recommended attention on a number nothing had finished
+        # measuring. A refusal is only priced once its horizon is over.
+        'by_sole_block_complete': _group(complete, _sole_name),
         'by_direction': _group(outcomes, lambda outcome: [outcome.get('direction', 'NEUTRAL')]),
         'partial': sum(1 for outcome in outcomes if outcome.get('partial')),
+        'complete': len(complete),
     }
 
 

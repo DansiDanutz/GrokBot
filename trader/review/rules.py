@@ -410,11 +410,12 @@ def counterfactual_proposals(counterfactual):
     COUNTERFACTUAL_COST_USD of replayed net, learned_rule_cost when the learned
     gates did. A negative sum means the block saved money and says nothing.
 
-    Reads `by_sole_block`, not `by_rule_block`: an entry refused for two
-    reasons would still have been refused if only one of them were lifted, so
-    counting it here would propose a change that cannot collect the money.
+    Reads `by_sole_block_complete`: one rule, and a horizon that elapsed. An
+    entry refused for two reasons would still have been refused if only one were
+    lifted, and an entry whose 24h replay has not finished has not been measured
+    at all. Either would propose a change on money nobody has counted.
     """
-    blocks = (((counterfactual or {}).get("summary") or {}).get("by_sole_block")) or {}
+    blocks = (((counterfactual or {}).get("summary") or {}).get("by_sole_block_complete")) or {}
     if not isinstance(blocks, dict):
         return []
     notes = []

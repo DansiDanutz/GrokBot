@@ -400,3 +400,36 @@ class ReplayMatchesTheLiveExitRules(unittest.TestCase):
         source = inspect.getsource(policy.advance)
         self.assertIn("e['type'] != 'STOP_LOSS'", source,
                       'policy stopped discarding STOP_LOSS; revisit SIGNAL_EXITS')
+
+
+class AdvisoriesNeedAnElapsedHorizon(unittest.TestCase):
+    """A refusal is only priced once its replay horizon is over.
+
+    The first capacity advisory the system ever raised, on 2026-09-14, rested on
+    116 replays of which 116 were partial. Nothing had finished measuring.
+    """
+
+    def outcome(self, net, partial):
+        return dict(symbol='X', direction='LONG', rule_blocks=[3], net=net,
+                    grids=10, grids_per_hour=1.0, hold_h=24.0, grid_profit=net,
+                    fees=0.0, funding=0.0, exit_reason='HORIZON', partial=partial)
+
+    def names(self, outcomes):
+        summary = replay_module.summarize(outcomes)
+        return [n['rule'] for n in learned_rules.counterfactual_proposals({'summary': summary})]
+
+    def test_partial_replays_never_raise_an_advisory(self):
+        self.assertEqual(self.names([self.outcome(90.0, True)]), [])
+
+    def test_a_completed_replay_can_raise_one(self):
+        self.assertIn('capacity_cost', self.names([self.outcome(90.0, False)]))
+
+    def test_partial_money_does_not_top_up_a_completed_total(self):
+        """90 complete + 900 partial must still be judged on the 90."""
+        summary = replay_module.summarize(
+            [self.outcome(20.0, False), self.outcome(900.0, True)])
+        self.assertEqual(summary['by_sole_block_complete']['bot_capacity']['sum_net'], 20.0)
+        self.assertEqual(summary['by_sole_block']['bot_capacity']['sum_net'], 920.0)
+        self.assertEqual(summary['complete'], 1)
+        self.assertEqual(
+            [n['rule'] for n in learned_rules.counterfactual_proposals({'summary': summary})], [])
