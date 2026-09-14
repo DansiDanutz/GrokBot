@@ -8,6 +8,9 @@ import stat
 import sys
 
 
+ALLOWED_KEYS = frozenset({'DLS_TELEGRAM_BOT_TOKEN', 'SEMECLAW_BOT_TOKEN'})
+
+
 def credentials(path):
     path = Path(path)
     if any(p.is_symlink() for p in (path, *path.parents)):
@@ -23,7 +26,14 @@ def credentials(path):
     finally:
         if fd is not None:
             os.close(fd)
-    if set(result) != {'DLS_TELEGRAM_BOT_TOKEN'} or not isinstance(result['DLS_TELEGRAM_BOT_TOKEN'], str) or not result['DLS_TELEGRAM_BOT_TOKEN']:
+    # A fixed allow-list, not arbitrary keys: the file decides which variables
+    # reach the child process, so an attacker who can write it must not be able
+    # to inject PATH or DYLD_*. Widened 2026-09-14 for the SemeClaw bridge,
+    # which reads a differently-named token; one credential mechanism on this
+    # machine beats a second bespoke loader.
+    if not result or set(result) - ALLOWED_KEYS:
+        raise ValueError('invalid credential configuration')
+    if any(not isinstance(v, str) or not v for v in result.values()):
         raise ValueError('invalid credential configuration')
     return result
 
