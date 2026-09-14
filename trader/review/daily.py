@@ -827,8 +827,9 @@ def _counterfactual_lines(data):
     lines = ["", "### Skipped decisions, replayed", ""]
     lines.append("Structurally valid candidates the desk declined for capacity/policy reasons, "
                  "reopened on the paper engine over a {}h horizon and closed on the live rules "
-                 "(range break, stop, else horizon). Fills come from 1m snapshots — this "
-                 "measures the cost of a refusal, it is not a claim of edge.".format(
+                 "(range break, else horizon; the −12% stop marker is journaled but never "
+                 "actioned — see counterfactual.SIGNAL_EXITS). Fills come from 1m snapshots — "
+                 "this measures the cost of a refusal, it is not a claim of edge.".format(
                      _fmt(report.get("horizon_hours"), 0)))
     lines.append("")
     lines.append("- Candidates: **{}**, replayed: **{}** ({} partial-coverage)".format(
