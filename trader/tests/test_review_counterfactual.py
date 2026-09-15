@@ -461,3 +461,23 @@ class CompletenessIsWallClockNotCandleCount(unittest.TestCase):
         outcome = replay_module.replay(candidate(), candles(NOW, trending(120)), horizon_h=2)
         self.assertEqual(outcome['exit_reason'], 'RANGE_BREAK')
         self.assertFalse(outcome['partial'])
+
+
+class CompletenessMustNotSelectForLosers(unittest.TestCase):
+    """A regression guard for the bias that took two attempts to kill.
+
+    Range breaks end early and are always complete. If the completeness test is
+    even slightly too strict on horizon exits, every survivor falls into the
+    partial bucket and "complete" quietly becomes "the losers". On 2026-09-14
+    that showed as 332 complete replays, all range breaks, 6% positive, with
+    every neutral entry excluded. Correcting it moved 220 horizon exits into the
+    complete set and the neutral cohort with them.
+    """
+
+    def test_a_finished_horizon_is_complete_when_end_is_not_minute_aligned(self):
+        window = candles(NOW + 17_000, oscillating(120))   # deliberately off-grid
+        outcome = replay_module.replay(
+            dict(candidate(), ts_ms=NOW + 17_000), window, horizon_h=2)
+        self.assertEqual(outcome['exit_reason'], 'HORIZON')
+        self.assertFalse(outcome['partial'],
+                         'a millisecond-precision horizon end must not exclude a finished replay')

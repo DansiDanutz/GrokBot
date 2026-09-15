@@ -126,7 +126,11 @@ def replay(candidate, candles, horizon_h=DEFAULT_HORIZON_H):
         # replays at 7% positive against 309 partial at 59%, and every neutral
         # entry landed in the partial bucket. An advisory reading only the
         # complete set was reading only the failures.
-        partial=reason == HORIZON_EXIT and (not window or window[-1]['ts_ms'] < end),
+        # One minute of tolerance: `end` is start+24h at millisecond precision
+        # and candles land on minute boundaries, so an exact comparison marks
+        # every finished horizon partial - which is what the first attempt at
+        # this fix did.
+        partial=reason == HORIZON_EXIT and (not window or window[-1]['ts_ms'] < end - MINUTE_MS),
     )
 
 
