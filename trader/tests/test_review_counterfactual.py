@@ -433,3 +433,31 @@ class AdvisoriesNeedAnElapsedHorizon(unittest.TestCase):
         self.assertEqual(summary['complete'], 1)
         self.assertEqual(
             [n['rule'] for n in learned_rules.counterfactual_proposals({'summary': summary})], [])
+
+
+class CompletenessIsWallClockNotCandleCount(unittest.TestCase):
+    """"Complete" must not become a synonym for "broke its range".
+
+    The first version marked a horizon exit partial unless the window held one
+    candle per minute. Real data has gaps, and a range break always exits early
+    and so always counted as complete. On 2026-09-14 that made the complete set
+    270 range breaks at 7% positive and the partial set 309 survivors at 59%,
+    so an advisory reading only complete replays read only the failures.
+    """
+
+    def test_a_horizon_exit_reaching_the_end_is_complete_despite_gaps(self):
+        window = candles(NOW, oscillating(120))          # 2h of candles
+        sparse = window[::3] + [window[-1]]              # two thirds missing, end intact
+        outcome = replay_module.replay(candidate(), sparse, horizon_h=2)
+        self.assertEqual(outcome['exit_reason'], 'HORIZON')
+        self.assertFalse(outcome['partial'], 'gaps must not mark a finished horizon partial')
+
+    def test_a_horizon_exit_stopping_early_is_partial(self):
+        outcome = replay_module.replay(candidate(), candles(NOW, oscillating(30)), horizon_h=2)
+        self.assertEqual(outcome['exit_reason'], 'HORIZON')
+        self.assertTrue(outcome['partial'])
+
+    def test_a_range_break_is_never_partial(self):
+        outcome = replay_module.replay(candidate(), candles(NOW, trending(120)), horizon_h=2)
+        self.assertEqual(outcome['exit_reason'], 'RANGE_BREAK')
+        self.assertFalse(outcome['partial'])

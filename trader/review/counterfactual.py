@@ -117,8 +117,16 @@ def replay(candidate, candles, horizon_h=DEFAULT_HORIZON_H):
         net=round(bot_net(closed), 4),
         grids_per_hour=round(grids / hold_h, 4) if hold_h > 0 else 0.0,
         exit_reason=reason,
-        # A horizon exit that ran out of candles priced less than a full day.
-        partial=reason == HORIZON_EXIT and len(window) < int(horizon_h * 60),
+        # Did the horizon actually pass? Judge it in wall-clock time, not by
+        # counting candles. Corrected 2026-09-15: the old test marked any
+        # horizon exit partial unless the window held a candle per minute, and
+        # real market data has gaps. Worse, a range break always ended early and
+        # so always counted as complete, which made "complete" a synonym for
+        # "broke its range" - the losers. On 2026-09-14 that split 270 complete
+        # replays at 7% positive against 309 partial at 59%, and every neutral
+        # entry landed in the partial bucket. An advisory reading only the
+        # complete set was reading only the failures.
+        partial=reason == HORIZON_EXIT and (not window or window[-1]['ts_ms'] < end),
     )
 
 
