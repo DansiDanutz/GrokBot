@@ -27,6 +27,13 @@ class CycleDeadline(TimeoutError):
     """The configured cycle or run deadline has been reached."""
 
 
+# A candle interval is "complete enough" at or above this share of its expected
+# slots. KuCoin omits candles for untraded minutes, so thin listings always have
+# some gaps; the floor mirrors the daily review's >=95% kline gate. Without it
+# every cycle of hundreds of symbols warns and 'pass' is unreachable.
+COVERAGE_FLOOR = 0.95
+
+
 def _require_time(clock, deadline):
     if clock.monotonic() >= deadline:
         raise CycleDeadline('collection deadline reached')
@@ -59,6 +66,7 @@ def _history(client, plan, symbol, now, clock, deadline):
     store_interval = '1m' if is_funding else interval
     batch = empty_batch()
     rows, gaps, errors, frontier = [], 0, [], start
+    expected = 0
     if start > target:
         errors.append('checkpoint_ahead_of_cutoff')
     for _ in range(MAX_PAGES):
@@ -78,7 +86,9 @@ def _history(client, plan, symbol, now, clock, deadline):
         else:
             completed = [r for r in fetched if r['time_ms'] + step <= now]
             rows.extend(completed)
-            gaps += (end - frontier) // step - len(completed)
+            slots = (end - frontier) // step
+            expected += slots
+            gaps += slots - len(completed)
         frontier = end
     batch['funding' if is_funding else 'klines'] = rows
     batch['checkpoints'] = [checkpoint(source, symbol, store_interval,
@@ -86,6 +96,8 @@ def _history(client, plan, symbol, now, clock, deadline):
     behind = frontier < target
     details = dict(rows=len(rows), gaps=gaps, errors=errors, behind=behind,
                    queried_through_ms=frontier, requested_through_ms=target)
+    if not is_funding:
+        details['expected'] = expected
     if is_funding:
         details.update(schedule_verified=False,
                        completeness='queried_window_only')
@@ -103,6 +115,7 @@ def _merge(target, source):
 
 def _symbol_job(client, contract, plans, now, clock, deadline):
     symbol, batch, failures, gaps = contract['symbol'], empty_batch(), [], 0
+    expected = rows_seen = 0
     for plan in plans:
         history, details = _history(client, plan, symbol, now, clock, deadline)
         _merge(batch, history)
@@ -110,6 +123,9 @@ def _symbol_job(client, contract, plans, now, clock, deadline):
         if details['behind']:
             failures.append('catchup_incomplete')
         gaps += details['gaps']
+        if 'expected' in details:  # candle intervals only; funding has no slots
+            expected += details['expected']
+            rows_seen += details['rows']
     try:
         _require_time(clock, deadline)
         raw = client.book(symbol)
@@ -117,6 +133,7 @@ def _symbol_job(client, contract, plans, now, clock, deadline):
     except Exception as error:
         failures.append(type(error).__name__)
     return batch, dict(symbol=symbol, errors=failures, gaps=gaps,
+                       expected=expected, rows=rows_seen,
                        deadline_reached=clock.monotonic() >= deadline)
 
 
@@ -186,14 +203,23 @@ class Updater:
         deferred = [r for r in failed if r['deadline_reached']]
         gaps = sum(result['gaps'] for result in results)
         elapsed = self.clock.monotonic() - started
-        status = 'fail' if errors or failed else 'warn' if gaps else 'pass'
+        # KuCoin omits candles for untraded minutes, so across the full symbol
+        # set some gaps are guaranteed every cycle. Judge by coverage against
+        # COVERAGE_FLOOR, not by any-gap-exists.
+        low_coverage = sorted(
+            result['symbol'] for result in results
+            if result.get('expected')
+            and result.get('rows', 0) / result['expected'] < COVERAGE_FLOOR
+        )
+        status = ('fail' if errors or failed
+                  else 'warn' if low_coverage else 'pass')
         incomplete = {r['symbol'] for r in failed + errors if 'symbol' in r}
-        incomplete.update(r['symbol'] for r in results if r['gaps'])
+        incomplete.update(low_coverage)
         missed = max(0, math.ceil(elapsed / CADENCE_SECONDS) - 1)
         resume = deferred[0]['symbol'] if deferred else None
         details = dict(status=status, contracts=len(results),
                        complete_symbols=max(0, len(results) - len(incomplete)),
-                       gaps=gaps,
+                       gaps=gaps, low_coverage_symbols=low_coverage,
                        failures=failed + errors, elapsed_seconds=elapsed,
                        deadline_reached=self.clock.monotonic() >= deadline,
                        missed_schedule_slots=missed, resume_symbol=resume,
