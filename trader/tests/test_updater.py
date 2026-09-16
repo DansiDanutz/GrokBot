@@ -34,6 +34,7 @@ class SyntheticClient:
         self.fail = None
         self.calls = []
         self.gap = False
+        self.gap_intervals = None  # None = gap every interval; else gap only these
         self.deadline = None
 
     def contracts(self):
@@ -55,7 +56,9 @@ class SyntheticClient:
                      open=100, high=102, low=99, close=101,
                      volume=10, turnover=1000)
                 for t in range(start, end, step)]
-        return rows[1:] if self.gap else rows
+        gapped = self.gap and (self.gap_intervals is None
+                               or interval in self.gap_intervals)
+        return rows[1:] if gapped else rows
 
     def funding(self, symbol, start, end):
         self.calls.append(('funding', start, end))
@@ -133,6 +136,19 @@ class UpdaterTests(unittest.TestCase):
         self.assertEqual(status['status'], 'warn')
         self.assertEqual(len(self.rows('klines')), 4)
         self.assertGreater(status['gaps'], 0)
+
+    def test_small_gap_within_coverage_floor_passes(self):
+        # One missing 1m candle in a ~30-minute catch-up (≈97%) is inside the
+        # COVERAGE_FLOOR — thin listings legitimately have untraded minutes.
+        self.updater.cycle(300)
+        self.clock.elapsed += 1800
+        restarted = Updater(self.store, self.client, self.clock)
+        self.client.gap = True
+        self.client.gap_intervals = {'1m'}
+        status = restarted.cycle(2400)
+        self.assertEqual(status['status'], 'pass')
+        self.assertGreater(status['gaps'], 0)
+        self.assertEqual(status['low_coverage_symbols'], [])
 
     def test_288_updates_with_real_store_and_synthetic_clock(self):
         count = scheduled_run(self.updater.cycle, 24, self.clock)
