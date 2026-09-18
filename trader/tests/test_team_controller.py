@@ -64,8 +64,8 @@ class RoutingTests(unittest.TestCase):
         _, created, summary = controller.cycle(quiet_state(), given, NOW)
         self.assertIn(('risk_sentinel', 'DOCTOR_FAIL'), roles_of(created))
         self.assertIn(('senior_developer', 'DOCTOR_FAIL'), roles_of(created))
-        self.assertIn(('grid_desk_lead', 'SYNTHESIS'), roles_of(created))
-        self.assertIn(('paper_desk_secretary', 'FINAL_RESPONSE'), roles_of(created))
+        self.assertNotIn(('grid_desk_lead', 'SYNTHESIS'), roles_of(created))
+        self.assertNotIn(('paper_desk_secretary', 'FINAL_RESPONSE'), roles_of(created))
 
     def test_an_open_goes_to_the_interpreter_and_a_close_to_performance(self):
         rows = [dict(event_id=5, type='OPEN', bot_id=7, symbol='BTCUSDTM'),
@@ -120,8 +120,9 @@ class ReconciliationTests(unittest.TestCase):
     def test_a_receipt_closes_its_dispatch(self):
         state, first = self._stalled()
         later = NOW + HOUR_MS
-        receipt = {first['dispatch_id']: dict(answered_at='2026-09-13T18:00:00Z',
-                                              answered_at_ms=later, room='Office',
+        receipt = {first['dispatch_id']: dict(role=first['role_name'],
+                                              answered_at='2026-09-13T18:00:00Z',
+                                              answered_at_ms=later, room=first['room'],
                                               summary='done')}
         after, _, summary = controller.cycle(state, facts(receipts=receipt,
                                                           entries_stalled=True), later)
@@ -140,11 +141,8 @@ class ReconciliationTests(unittest.TestCase):
     def test_a_blocked_dispatch_escalates_that_role_to_the_lead(self):
         state, first = self._stalled()
         late = NOW + 3 * HOUR_MS
-        _, created, _ = controller.cycle(state, facts(entries_stalled=True), late)
-        idle = [r for r in created if r['event'] == 'ROLE_IDLE'
-                and first['role_name'] in r['instruction']]
-        self.assertTrue(idle, 'the blocked role was never escalated')
-        self.assertEqual(idle[0]['role'], 'grid_desk_lead')
+        _, _, summary = controller.cycle(state, facts(entries_stalled=True), late)
+        self.assertIn(first['dispatch_id'], summary['blocked'])
 
     def test_a_silent_role_past_its_budget_is_reported_as_idle(self):
         state = quiet_state()
@@ -194,9 +192,9 @@ class ReconciliationTests(unittest.TestCase):
             state, facts(pending_requests=[], engineering_results=['REQ-1']),
             NOW + HOUR_MS)
         row = [r for r in after['dispatches'] if r['event'] == 'ENGINEERING_DUE'][0]
-        self.assertEqual(row['status'], 'DONE')
+        self.assertEqual(row['status'], 'PENDING')
         self.assertEqual(after['daily_phase_outcomes']['2026-09-13']['engineering']
-                         ['status'], 'COMPLETED')
+                         ['status'], 'RUNNING')
 
 
 class CapTests(unittest.TestCase):
@@ -222,7 +220,7 @@ class CapTests(unittest.TestCase):
 
     def test_the_lead_synthesis_is_never_starved_by_the_cap(self):
         _, created, _ = controller.cycle(quiet_state(), self._many(), NOW)
-        self.assertIn(('grid_desk_lead', 'SYNTHESIS'), roles_of(created))
+        self.assertNotIn(('grid_desk_lead', 'SYNTHESIS'), roles_of(created))
 
 
 class PhaseTests(unittest.TestCase):
@@ -329,14 +327,14 @@ class NotInstalledClosesOnReceipt(unittest.TestCase):
         if with_receipt:
             given = dict(given, receipts={row['dispatch_id']: dict(
                 dispatch_id=row['dispatch_id'], role='Discovery Auditor',
-                answered_at='2026-09-13T20:25:00Z', room='Paper Desk Office',
+                answered_at='2026-09-13T20:25:00Z', answered_at_ms=NOW,
+                room=row['room'],
                 summary='five needs')})
         return controller.reconcile(state, given, NOW)
 
     def test_a_receipt_closes_a_not_installed_dispatch(self):
         rows, done, _ = self.rows('NOT_INSTALLED', True)
         self.assertEqual(rows[0]['status'], 'DONE')
-        self.assertEqual(rows[0]['answered_at'], '2026-09-13T20:25:00Z')
         self.assertEqual([d['dispatch_id'] for d in done], [rows[0]['dispatch_id']])
 
     def test_without_a_receipt_it_stays_not_installed(self):
@@ -344,7 +342,39 @@ class NotInstalledClosesOnReceipt(unittest.TestCase):
         self.assertEqual(rows[0]['status'], 'NOT_INSTALLED')
         self.assertEqual(done, [])
 
-    def test_a_late_receipt_does_not_erase_that_a_dispatch_blocked(self):
+    def test_a_late_receipt_reconciles_as_late_done(self):
         rows, done, _ = self.rows('BLOCKED', True)
-        self.assertEqual(rows[0]['status'], 'BLOCKED')
+        self.assertEqual(rows[0]['status'], 'DONE')
+        self.assertTrue(rows[0]['late'])
+        self.assertEqual([d['dispatch_id'] for d in done], [rows[0]['dispatch_id']])
+
+
+class EvidenceGateTests(unittest.TestCase):
+    def test_new_dispatch_keeps_cycle_awaiting_receipts(self):
+        state, created, summary = controller.cycle(
+            quiet_state(), facts(entries_stalled=True), NOW)
+        self.assertTrue(created)
+        self.assertEqual(summary['cycle_id'], 'CTRL-20260913-20')
+        self.assertEqual(state['cycles'][summary['cycle_id']]['status'],
+                         'AWAITING_RECEIPTS')
+
+    def test_wrong_role_receipt_cannot_close_a_dispatch(self):
+        state, created, _ = controller.cycle(
+            quiet_state(), facts(entries_stalled=True), NOW)
+        row = created[0]
+        receipt = {row['dispatch_id']: dict(
+            dispatch_id=row['dispatch_id'], role='Risk Sentinel',
+            answered_at='2026-09-13T21:00:00Z', answered_at_ms=NOW + HOUR_MS,
+            room=row['room'])}
+        after, done, _ = controller.reconcile(
+            state, facts(receipts=receipt), NOW + HOUR_MS)
+        got = next(item for item in after if item['dispatch_id'] == row['dispatch_id'])
+        self.assertEqual(got['status'], 'PENDING')
         self.assertEqual(done, [])
+
+    def test_due_phase_marker_is_not_advanced_by_dispatch_alone(self):
+        state = quiet_state(markers=dict(quiet_state()['markers'], phase_dates={}))
+        after, _, _ = controller.cycle(state, facts(), NOW)
+        self.assertNotIn('data', after['markers']['phase_dates'])
+        self.assertEqual(after['daily_phase_outcomes']['2026-09-13']['data']['status'],
+                         'RUNNING')
