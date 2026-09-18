@@ -6,7 +6,10 @@ import os
 from pathlib import Path
 import re
 import tempfile
+import time
 from urllib.request import Request, urlopen
+
+RETRY_DELAY_S = 2
 
 
 TOKEN_ENV = 'DLS_TELEGRAM_BOT_TOKEN'
@@ -61,11 +64,18 @@ def deliver(report, chat_id, state_path, *, opener=urlopen, environ=os.environ):
     payload = json.dumps({'chat_id': str(chat_id), 'text': _message(leaders)}).encode()
     request = Request(f'https://api.telegram.org/bot{token}/sendMessage', data=payload,
                       headers={'Content-Type': 'application/json'}, method='POST')
-    try:
-        with opener(request, timeout=15) as response:
-            accepted = json.loads(response.read(65536)).get('ok') is True
-    except Exception:
-        raise RuntimeError('Telegram delivery failed') from None
+    accepted = False
+    for attempt in (1, 2):
+        try:
+            with opener(request, timeout=15) as response:
+                accepted = json.loads(response.read(65536)).get('ok') is True
+            break
+        except Exception:
+            # One transient network fault per hourly run is routine; only a
+            # repeated failure is a delivery outage worth an error exit.
+            if attempt == 2:
+                raise RuntimeError('Telegram delivery failed') from None
+            time.sleep(RETRY_DELAY_S)
     if not accepted:
         raise RuntimeError('Telegram delivery rejected')
     state.parent.mkdir(parents=True, exist_ok=True, mode=0o700)

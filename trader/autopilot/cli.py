@@ -53,8 +53,9 @@ def main(argv=None):
                 run_loop(runner, stop)
             runner._persist(runner.now_ms())
         return 0
-    except (OSError, ValueError, RuntimeError, KeyError, TypeError, DatabaseError):
-        print('Autopilot stopped: unsafe/unavailable input or failed operation; details omitted.', file=sys.stderr)
+    except (OSError, ValueError, RuntimeError, KeyError, TypeError, DatabaseError) as error:
+        print('Autopilot stopped: unsafe/unavailable input or failed operation; '
+              'details omitted (%s).' % type(error).__name__, file=sys.stderr)
         return 1
     finally:
         for sig, handler in previous.items():

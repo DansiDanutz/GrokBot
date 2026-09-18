@@ -44,6 +44,20 @@ class AlertTests(unittest.TestCase):
         again, _, _ = alert.transition(state, report())
         self.assertFalse(again)
 
+    def test_a_sustained_fault_reminds_after_a_day(self):
+        stale = dict(failing=['radar'], announced_at=0)
+        notify, text, state = alert.transition(stale, report('fail', ['radar']))
+        self.assertTrue(notify)
+        self.assertIn('still', text)
+        again, _, _ = alert.transition(state, report('fail', ['radar']))
+        self.assertFalse(again)
+
+    def test_a_fresh_fault_does_not_remind_early(self):
+        import time as _time
+        recent = dict(failing=['radar'], announced_at=int(_time.time()))
+        notify, _, _ = alert.transition(recent, report('fail', ['radar']))
+        self.assertFalse(notify)
+
     def test_unknown_readings_are_treated_as_faults_not_silence(self):
         notify, _, _ = alert.transition({}, dict(status='unknown', failing=['publisher'],
                                                  exit_code=0, checks=[dict(

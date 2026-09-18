@@ -35,11 +35,20 @@ def ingest_open_minutes(database, symbols, client, now_ms, *, stop=None):
 def candles_after(database, symbol, last_ms, now_ms):
     """Use only complete, wholly unseen candles; timestamps denote their closes."""
     path = _safe_path(database)
-    with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)) as connection:
+    with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=5)) as connection:
         rows = connection.execute(
             "SELECT time_ms,open,high,low,close FROM klines WHERE symbol=? AND interval='1m' "
             "AND time_ms>=? AND time_ms+60000<=? ORDER BY time_ms", (symbol, last_ms, now_ms))
         return [dict(ts_ms=at + MINUTE_MS, open=o, high=h, low=l, close=c) for at, o, h, l, c in rows]
+
+
+def minute_times(database, symbol, start_ms, end_ms):
+    """Committed 1m candle start times in [start_ms, end_ms), read-only."""
+    path = _safe_path(database)
+    with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=5)) as connection:
+        return {row[0] for row in connection.execute(
+            "SELECT time_ms FROM klines WHERE symbol=? AND interval='1m' "
+            "AND time_ms>=? AND time_ms<?", (symbol, start_ms, end_ms))}
 
 
 def rates_at(database, symbol, boundaries):
@@ -47,7 +56,7 @@ def rates_at(database, symbol, boundaries):
     if not boundaries:
         return {}
     path = _safe_path(database)
-    with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)) as connection:
+    with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=5)) as connection:
         result = {}
         for at in boundaries:
             row = connection.execute('SELECT rate FROM funding WHERE symbol=? AND time_ms<=? '

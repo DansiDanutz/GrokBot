@@ -26,20 +26,44 @@ def _load(path):
         return {}
 
 
+REMIND_S = 24 * 3600
+
+
+def _details(report):
+    lines = []
+    for check in report['checks']:
+        if check['status'] in ('fail', 'unknown'):
+            lines.append('· %s — %s' % (check['name'], check['detail']))
+            if check['where']:
+                lines.append('  %s' % check['where'])
+    return lines
+
+
 def transition(previous, report):
-    """Return (should_notify, text, next_state). Only edges speak."""
+    """Return (should_notify, text, next_state). Edges speak; a sustained
+    fault is re-announced once a day, because a single message five days ago
+    is its own kind of silence (seen 2026-09-17: autopilot failing for days
+    after one alert)."""
     was = previous.get('failing') or []
     now = report['failing']
-    state = dict(failing=now, status=report['status'], at=int(time.time()))
+    at = int(time.time())
+    state = dict(failing=now, status=report['status'], at=at,
+                 announced_at=previous.get('announced_at'))
     if now and sorted(now) != sorted(was):
-        lines = ['GrokBot circle: %s' % report['status'].upper()]
-        for check in report['checks']:
-            if check['status'] in ('fail', 'unknown'):
-                lines.append('· %s — %s' % (check['name'], check['detail']))
-                if check['where']:
-                    lines.append('  %s' % check['where'])
+        state['announced_at'] = at
+        lines = ['GrokBot circle: %s' % report['status'].upper()] + _details(report)
         return True, '\n'.join(lines), state
+    if now and was and sorted(now) == sorted(was):
+        announced = previous.get('announced_at')
+        if announced is None:
+            announced = previous.get('at')
+        if announced is not None and at - announced >= REMIND_S:
+            state['announced_at'] = at
+            lines = ['GrokBot circle: still %s (unresolved for over a day)'
+                     % report['status'].upper()] + _details(report)
+            return True, '\n'.join(lines), state
     if was and not now:
+        state['announced_at'] = at
         return True, 'GrokBot circle recovered: all checks ok.', state
     return False, '', state
 

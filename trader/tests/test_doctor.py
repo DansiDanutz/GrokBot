@@ -79,6 +79,14 @@ class DoctorTests(unittest.TestCase):
         got = run(autopilot_tick_age_s=400)
         self.assertEqual(got['autopilot']['status'], 'fail')
 
+    def test_a_held_decision_gate_is_named_not_an_anonymous_stall(self):
+        got = run(recovery_reconciliation_pending=1)
+        self.assertEqual(got['autopilot']['status'], 'fail')
+        self.assertIn('reconciliation', got['autopilot']['detail'])
+        got = run(funding_reconciliation_pending=2)
+        self.assertEqual(got['autopilot']['status'], 'fail')
+        self.assertIn('decision gate', got['autopilot']['detail'])
+
     def test_a_publisher_that_stopped_deploying_is_caught(self):
         got = run(publisher_success_age_s=3000)
         self.assertEqual(got['publisher']['status'], 'warn')

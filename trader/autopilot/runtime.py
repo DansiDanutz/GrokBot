@@ -10,7 +10,7 @@ from trader.autopilot.liquidation import enrich
 from trader.autopilot.constants import (MAJORS, DECISION_INTERVAL_S, SNAPSHOT_MAX_INTERVAL_S,
                                         TICK_STALE_ALERT_S, KUCOIN_DOWN_ALERT_S, LOCAL_ERROR,
                                         BLACKOUT_MIN_ROWS, ENTRY_STALL_ALERT_H, MAX_BOTS)
-from trader.autopilot.market import ingest_open_minutes, candles_after
+from trader.autopilot.market import ingest_open_minutes, candles_after, minute_times
 from trader.autopilot.storage import atomic_json, read_json, EventLog, _safe
 from trader.data.kucoin_public import PublicClient
 from trader.papergrid.engine import _mark
@@ -188,6 +188,34 @@ class Runner:
         self.recovered = True
         return []  # Committed recovery events are already in the pending journal.
 
+    def _reconcile_recovery(self, now):
+        """Resolve boundary closes taken during recovery once the public candle
+        record proves contiguous coverage of the unverified window. Without this
+        a single such close gated all future entries forever (seen 2026-09-17,
+        bot 56): the pending map had a writer but no reader."""
+        pending = self.state['runtime']['pending_recovery_reconciliation']
+        for key in sorted(pending):
+            entry = pending[key]
+            try:
+                # Verify the enclosing minutes, so even a sub-minute tick gap
+                # needs its committed candle before the desk trades again.
+                start = int(entry['last_processed_ms']) // 60000 * 60000
+                cutoff = -(-int(entry['observed_ms']) // 60000) * 60000
+                expected = set(range(start, cutoff, 60000))
+                covered = minute_times(self.database, entry['symbol'], start, cutoff)
+            except (OSError, ValueError, TypeError, KeyError, DatabaseError):
+                continue
+            if expected - covered:
+                continue
+            resolved = dict(entry, status='RESOLVED', reason='COVERAGE_VERIFIED',
+                            resolved_ms=now)
+            for wrapper in self.state['closed_bots']:
+                if wrapper['engine'].get('bot_id') == entry.get('bot_id'):
+                    wrapper['recovery_reconciliation'] = resolved
+            del pending[key]
+            print('autopilot recovery reconciliation resolved: bot %s %s'
+                  % (entry.get('bot_id'), entry.get('symbol')), flush=True)
+
     def _productivity(self, now):
         """Is the daemon still doing its job, not merely still running?"""
         radar = self.radar or {}
@@ -278,7 +306,14 @@ class Runner:
         self.state['pending_events'] = []
         self._archive_evidence(flush=True)
         atomic_json(self.state_path, self.state)
-        view = enrich(policy.snapshot(self.state, now, self._health(now)), self.database, now)
+        view = policy.snapshot(self.state, now, self._health(now))
+        try:
+            view = enrich(view, self.database, now)
+        except (OSError, ValueError, RuntimeError, DatabaseError) as error:
+            # Enrichment reads the shared market DB; a transient lock must not
+            # kill the daemon or veto the state checkpoint already written.
+            print('autopilot enrich error: ' + type(error).__name__,
+                  file=sys.stderr, flush=True)
         atomic_json(self.snapshot_path, view)
         return view
 
@@ -379,6 +414,7 @@ class Runner:
             if radar is not None and now - radar['asof_ms'] > 120 * 60000:
                 radar = dict(radar, sections={}, rows=[dict(r, passes_liquidity=False) for r in radar.get('rows', [])])
             # Apply funding through close time even if the last trade preceded a boundary.
+            self._reconcile_recovery(now)
             funding_ready = not (meta['pending_funding_reconciliation']
                                  or meta['pending_recovery_reconciliation']
                                  or meta.get('setup_evidence_archive_status') in {'BLOCKED', 'CAPACITY_BLOCKED'})

@@ -72,6 +72,8 @@ def gather(now_ms=None, database=None):
     f['max_bots'] = snap.get('max_bots') or 5
     f['hours_since_open'] = snap.get('hours_since_open')
     f['vacancy_age_h'] = _vacancy_age_h(snap, now)
+    f['recovery_reconciliation_pending'] = snap.get('recovery_reconciliation_pending')
+    f['funding_reconciliation_pending'] = snap.get('funding_reconciliation_pending')
 
     pub = _json(ROOT / 'vercel-publisher' / 'publisher.json') or {}
     last = pub.get('last_success_at')

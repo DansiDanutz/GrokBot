@@ -104,7 +104,7 @@ def enrich(snapshot, database, now_ms):
                                      else 'METADATA_UNAVAILABLE')
     try:
         path = _safe_path(database)
-        with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=.2)) as connection:
+        with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=5)) as connection:
             cache = {}
             for row in rows:
                 symbol = row.get('symbol')

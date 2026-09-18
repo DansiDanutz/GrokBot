@@ -66,6 +66,14 @@ def _autopilot(f):
     if age >= TICK_STALE_S:
         return _check('autopilot', 'fail', 'last tick %ds ago' % age,
                       'autopilot is alive but not ticking; check its log')
+    held = ((f.get('recovery_reconciliation_pending') or 0)
+            + (f.get('funding_reconciliation_pending') or 0))
+    if held:
+        # Name the gate, not just its symptom: this exact silence ran for a
+        # day as an anonymous entry stall before 2026-09-18.
+        return _check('autopilot', 'fail',
+                      '%d unresolved reconciliation(s) hold the decision gate' % held,
+                      'no new entries until pending reconciliation resolves')
     free = max(0, f.get('max_bots', 0) - f.get('open_bots', 0))
     # How long the SLOT has stood empty, not how long since the last entry. A
     # desk that runs full for five hours and then closes a bot has a brand-new

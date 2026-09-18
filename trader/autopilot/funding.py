@@ -17,7 +17,7 @@ MAX_RAW_BYTES = 65536
 def settlements(database, symbol, after_ms, through_ms):
     path = _safe_path(database)
     found, latest = {}, None
-    with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=.2)) as db:
+    with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=5)) as db:
         rows = db.execute(
             'SELECT time_ms, observed_at_ms, funding_rate, raw_json FROM ticker_snapshots '
             'WHERE symbol=? AND observed_at_ms>=? AND observed_at_ms<=? '
