@@ -65,8 +65,21 @@ main{padding-bottom:56px}
 .metric span{display:block;font:700 9.5px/1.3 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--muted-foreground);margin-bottom:6px}
 .metric strong{display:block;font:600 14px/1.2 var(--mono);overflow-wrap:anywhere}
 .metric strong.flash{border-radius:4px}
-.metric.pnl::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--primary)}
+.metric.pnl::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--muted-2)}
+.metric.pnl.up::before{background:var(--primary)}
 .metric.pnl.down::before{background:var(--destructive)}
+.metric.pnl.up strong{color:var(--up)}
+.metric.pnl.down strong{color:var(--dn)}
+.metric.hero{grid-column:span 2;background:linear-gradient(180deg,rgba(255,255,255,.03),transparent),var(--card-2)}
+.metric.hero strong{font-size:22px;letter-spacing:.01em}
+@media (max-width:560px){.metric.hero{grid-column:span 1}.metric.hero strong{font-size:18px}}
+details.explain{margin:0 0 14px;max-width:88ch}
+details.explain summary{cursor:pointer;color:var(--muted-foreground);font:600 11.5px/1.4 var(--sans);letter-spacing:.02em;list-style:none;display:inline-flex;align-items:center;gap:6px;padding:3px 0;user-select:none}
+details.explain summary::-webkit-details-marker{display:none}
+details.explain summary::before{content:"";width:0;height:0;border-left:5px solid var(--muted-2);border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .15s}
+details.explain[open] summary::before{transform:rotate(90deg)}
+details.explain summary:hover{color:var(--foreground)}
+details.explain>.muted{margin:6px 0 0;padding:10px 12px;border-left:2px solid var(--border-2);background:var(--card-2);border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 /* hover lift */
 .card:hover,.metric:hover,.detail:hover,.chartbox:hover{transform:translateY(-1px);box-shadow:var(--shadow-card-hover)}
 tr.bot-row:hover{transform:translateY(-1px);box-shadow:0 10px 22px -12px rgba(0,0,0,.6)}
@@ -76,6 +89,7 @@ table.desk{width:100%;min-width:640px;border-collapse:separate;border-spacing:0;
 table.desk th{text-align:left;font:700 9.5px/1.2 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted-foreground);padding:9px 10px;border-bottom:1px solid var(--border-2);white-space:nowrap;background:var(--card-2)}
 table.desk td{padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle}
 table.desk tbody tr:last-child td{border-bottom:0}
+table.desk tbody tr:hover td{background:rgba(255,255,255,.028)}
 td.r,th.r{text-align:right}
 tr.bot-row{cursor:pointer}
 tr.bot-row:hover td{background:#1b2330}
@@ -122,7 +136,7 @@ td.range small{display:flex;justify-content:space-between;width:120px;font:500 9
 .group{margin-top:16px}.group:first-child{margin-top:0}
 .group h3{font:700 11px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted-foreground);margin:0 0 4px}
 .totals{font:500 11.5px/1.7 var(--mono);color:var(--muted-foreground);margin:0 0 8px}
-.reason{color:var(--warn-text);font-weight:600;max-width:340px;white-space:normal!important;font-size:11.5px}
+.reason{color:var(--muted-foreground);font-weight:600;max-width:340px;white-space:normal!important;font-size:11.5px}
 /* equity chart */
 .chartbox{margin-top:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card-2);box-shadow:var(--shadow-card);padding:12px}
 svg.curve{width:100%;height:auto;display:block;cursor:crosshair}
@@ -224,15 +238,15 @@ footer{font-size:11.5px;color:var(--muted-foreground);margin-top:24px;line-heigh
 <span class="pill STALE" id="sum-health">LOADING</span>
 </div><nav class="anchors" aria-label="Paper desk sections"><a href="#account">Account</a><a href="#trade-activity">Latest fills</a><a href="#positions">Positions</a><a href="#history">History</a><a href="#today-hourly">Today</a><a href="#account-history">Equity</a><a href="#watchlist">Watchlist</a><a href="#scoring">Scoring</a><a href="#events-panel">Events</a></nav></div><div id="notice" class="notice" hidden></div>
 <section class="panel" id="account" aria-label="Paper account"><h2>Paper account · USDT</h2><p class="muted">Starting bankroll is separate from current balance and floating PnL. Watchlist candidates are not positions.</p><div class="account-grid" id="account-values"><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div><div class="skeleton sk-metric"></div></div></section>
-<section class="panel" id="trade-activity"><h2>Latest fills · active paper bots</h2><p class="muted">Latest executed paper fill for each active bot in the available event feed, not an instruction to trade. Green BUY and red SELL describe the fill, not the bot’s trend. Rows are newest first; select a row to jump to its position. Public activity is a published snapshot; local activity updates every 10 seconds.</p><div id="trade-actions"></div></section>
+<section class="panel" id="trade-activity"><h2>Latest fills · active paper bots</h2><details class="explain"><summary>How to read this</summary><p class="muted">Latest executed paper fill for each active bot in the available event feed, not an instruction to trade. Green BUY and red SELL describe the fill, not the bot’s trend. Rows are newest first; select a row to jump to its position. Public activity is a published snapshot; local activity updates every 10 seconds.</p></details><div id="trade-actions"></div></section>
 <section class="panel" id="self-learning" hidden><h2>Self-learning</h2><p class="muted">Rules the daily 07:00 review promotes from audited evidence. Advisory findings stay proposals; deleting the rules store returns every behavior to default.</p><p id="learning-line"></p><div class="badge-line" id="learning-chips"></div><p class="muted" id="learning-doctrine" hidden></p><p class="muted" id="learning-evidence" hidden></p></section>
 
-<section class="panel" id="positions"><h2>Open paper positions</h2><div class="head-extras"><span class="badge-line" id="positions-extreme" hidden></span><span class="dirchips" id="dir-chips" hidden></span></div><p class="muted">New-entry rules: At least 12 configured grids inside confirmed support / resistance only, with estimated leveraged return greater than 1% per completed grid after both 0.06% fill fees at 5×. Entry targets allow one-order rounding tolerance: Long 40% BUY / 60% SELL; Short 60% BUY / 40% SELL; Neutral 50% / 50% across both books. These are pending-order proportions, not guaranteed profits. Existing bots keep their original ranges and orders; the current split changes as fills occur.</p><p class="muted" id="positions-note">Loading open positions.</p><div id="positions-bots"></div></section>
+<section class="panel" id="positions"><h2>Open paper positions</h2><div class="head-extras"><span class="badge-line" id="positions-extreme" hidden></span><span class="dirchips" id="dir-chips" hidden></span></div><details class="explain"><summary>Entry rules · how a bot qualifies</summary><p class="muted">New-entry rules: At least 12 configured grids inside confirmed support / resistance only, with estimated leveraged return greater than 1% per completed grid after both 0.06% fill fees at 5×. Entry targets allow one-order rounding tolerance: Long 40% BUY / 60% SELL; Short 60% BUY / 40% SELL; Neutral 50% / 50% across both books. These are pending-order proportions, not guaranteed profits. Existing bots keep their original ranges and orders; the current split changes as fills occur.</p></details><p class="muted" id="positions-note">Loading open positions.</p><div id="positions-bots"></div></section>
 <section class="panel" id="history"><h2>Position history <span class="chip winrate" id="history-winrate" hidden></span></h2><p class="muted">Latest 20 closed paper bots, including their close reason and final accounting. A watchlist promotion is not a position close.</p><div id="history-bots"></div></section>
 <section class="panel" id="close-economics" hidden><h2>Why bots closed · economics</h2><p class="muted">Every retained closed bot (30-day window), grouped by close reason. Grid income is what the ladder earned from completed pairs; Close result is what the final position handed back (or added) when the bot stopped. A reason that repeatedly gives back more than its grids earned is a strategy signal, not bad luck.</p><div class="table-scroll"><table class="desk"><thead><tr><th>Close reason</th><th class="r">Bots</th><th class="r">Wins</th><th class="r">Grid income</th><th class="r">Close result</th><th class="r">Fees</th><th class="r">Funding</th><th class="r">Net</th></tr></thead><tbody id="close-econ-body"></tbody></table></div><p class="muted" id="close-econ-note" hidden></p></section>
-<section class="panel" id="today-hourly"><h2>Today · hourly</h2><p class="muted">Account equity per UTC clock hour for the current day — a green candle closes at or above the hour open, a red one below; the wick spans the hour's high to low. The glyph under an hour counts grid bots that were open during it.</p><div class="chartbox" id="hourly"><div class="skeleton sk-chart"></div></div><p class="muted">Open counts use open bots plus the newest 20 closed bots, so early-hour counts may undercount.</p></section>
+<section class="panel" id="today-hourly"><h2>Today · hourly</h2><details class="explain"><summary>How to read this</summary><p class="muted">Account equity per UTC clock hour for the current day — a green candle closes at or above the hour open, a red one below; the wick spans the hour's high to low. The glyph under an hour counts grid bots that were open during it.</p></details><div class="chartbox" id="hourly"><div class="skeleton sk-chart"></div></div><p class="muted">Open counts use open bots plus the newest 20 closed bots, so early-hour counts may undercount.</p></section>
 <section class="panel" id="account-history"><h2>Account history · equity</h2><p class="muted">Equity includes floating PnL. This is an equity curve, not a cash balance history.</p><div class="chartbox" id="curve"><div class="skeleton sk-chart"></div></div><div class="axes"><span id="curve-start">No samples yet</span><span id="curve-end"></span></div></section>
-<section class="panel" id="watchlist"><h2>Watchlist</h2><p class="muted">Up to 10 candidates, not 10 trades: Core can open up to 5 bots; Bench waits. An ACTIVE card has an open bot. Moving a coin to Bench does not close its bot; the bot follows its own exit rules.</p><p class="muted" id="watchlist-asof" hidden></p><p class="muted" id="watchlist-order-note" hidden>Cards are ordered by watchlist score; entries pick by rank.</p><div class="columns"><div><h3>Core · up to 5</h3><div class="cards" id="core"></div></div><div><h3>Bench · up to 5</h3><div class="cards" id="bench"></div></div></div><details open><summary>Latest watchlist changes · last 24</summary><ul class="feed" id="watch-events"></ul></details></section>
+<section class="panel" id="watchlist"><h2>Watchlist</h2><details class="explain"><summary>How to read this</summary><p class="muted">Up to 10 candidates, not 10 trades: Core can open up to 5 bots; Bench waits. An ACTIVE card has an open bot. Moving a coin to Bench does not close its bot; the bot follows its own exit rules.</p></details><p class="muted" id="watchlist-asof" hidden></p><p class="muted" id="watchlist-order-note" hidden>Cards are ordered by watchlist score; entries pick by rank.</p><div class="columns"><div><h3>Core · up to 5</h3><div class="cards" id="core"></div></div><div><h3>Bench · up to 5</h3><div class="cards" id="bench"></div></div></div><details open><summary>Latest watchlist changes · last 24</summary><ul class="feed" id="watch-events"></ul></details></section>
 <section class="panel" id="scoring"><h2>How the score is calculated</h2><p><strong>Score / 100 = component points minus penalties, clamped between 0 and 100.</strong> This is a fixed ranking formula, not a probability of profit. The score does not change the bot’s exit rules.</p><div class="columns"><div><h3>Earned points · maximum 100</h3><ul>
 <li><strong>Oscillation · 30:</strong> expected grids/hour × 1.5; maximum 30 at 20 grids/hour.</li>
 <li><strong>Trend clarity · 20:</strong> LONG/SHORT = 20; TURNING-UP/DOWN = 14; NEUTRAL in the middle 25–75% of its 7-day range = 16, otherwise 6. LONG/SHORT means the daily and 4-hour trends agree.</li>
@@ -558,7 +572,8 @@ function account(report){
 const a=report.account||{},ok=Object.keys(a).length>0;
 const start=fin(a.starting_equity)?a.starting_equity:fin(report.starting_equity)?report.starting_equity:null;
 const net=fin(report.equity)&&fin(start)?report.equity-start:null;
-const cells=[['Equity · USDT',ok?fmt(report.equity):'—',''],['Net PnL · USDT',ok?signed(net):'—',fin(net)?net<0?'down':net>0?'up':'':''],['Realized net PnL',ok?fmt(a.realized_pnl):'—',ok&&fin(a.realized_pnl)?a.realized_pnl<0?'down':a.realized_pnl>0?'up':'':''],['Floating PnL',ok?fmt(a.unrealized_pnl):'—',ok&&fin(a.unrealized_pnl)?a.unrealized_pnl<0?'down':a.unrealized_pnl>0?'up':'':''],['Fees paid',ok?fmt(a.fees):'—',''],['Funding paid',ok?fmt(a.funding):'—',''],['Balance · realized',ok?fmt(a.balance):'—',''],['Free balance',ok?fmt(a.free_balance):'—',''],['Allocated margin',ok?fmt(a.allocated_margin):'—',''],['Reserved margin',ok?fmt(a.reserved_margin):'—',''],['Starting bankroll',ok?fmt(a.starting_equity):'—',''],['Grids / hour · open bots',openGridsPerHour(report),'']];
+const sign=v=>ok&&fin(v)?(v<0?'pnl down':v>0?'pnl up':'pnl'):'';
+const cells=[['Equity · USDT',ok?fmt(report.equity):'—','hero'],['Net PnL · USDT',ok?signed(net):'—','hero '+sign(net)],['Realized net PnL',ok?signed(a.realized_pnl):'—',sign(a.realized_pnl)],['Floating PnL',ok?signed(a.unrealized_pnl):'—',sign(a.unrealized_pnl)],['Balance · realized',ok?fmt(a.balance):'—',''],['Free balance',ok?fmt(a.free_balance):'—',''],['Allocated margin',ok?fmt(a.allocated_margin):'—',''],['Reserved margin',ok?fmt(a.reserved_margin):'—',''],['Starting bankroll',ok?fmt(a.starting_equity):'—',''],['Fees paid',ok?fmt(a.fees):'—',''],['Funding paid',ok?fmt(a.funding):'—',''],['Grids / hour · open bots',openGridsPerHour(report),'']];
 const dd=accountMetric('Max drawdown',fin(report.max_drawdown_pct)?fmt(report.max_drawdown_pct)+'%':'—');
 dd.children[1].id='drawdown';
 id('account-values').replaceChildren(...cells.map(([l,v,c])=>accountMetric(l,v,c||null)),dd);
@@ -582,6 +597,7 @@ if(s24){
   else{s24.textContent=(v>0?'+':'')+fmt(v)+'%';s24.className='sum-num '+(v<0?'negative':v>0?'positive':'');}
 }}
 const CH={W:900,H:260,L:14,R:84,T:16,B:30,MAXPTS:400};
+function svgShow(node,on){if(node)node.setAttribute('display',on?'':'none');}
 function equityChart(report){
 const box=id('curve');chartRefs=null;
 const rows=arr(report.equity_curve).filter(p=>Array.isArray(p)&&fin(p[0])&&fin(p[1]));
@@ -639,7 +655,7 @@ const dot=svgEl('circle',null,{r:4});
 const tip=svgEl('g','tip');
 const tipBox=svgEl('rect',null,{width:158,height:54,rx:8});
 const t1n=svgText('tip-text',{x:10,y:18},''),t2n=svgText('tip-text strong',{x:10,y:34},''),t3n=svgText('tip-text',{x:10,y:49},'');
-tip.append(tipBox,t1n,t2n,t3n);xg.append(vline,hline,dot,tip);xg.hidden=true;
+tip.append(tipBox,t1n,t2n,t3n);xg.append(vline,hline,dot,tip);svgShow(xg,false);
 svg.append(xg);
 box.replaceChildren(svg);
 const rmaxArr=[];let r2=-Infinity;for(const p of rows){r2=Math.max(r2,p[1]);rmaxArr.push(r2);}
@@ -649,7 +665,7 @@ const c=chartRefs;if(!c||!c.svg.getBoundingClientRect)return;
 const rect=c.svg.getBoundingClientRect();
 if(!rect.width)return;
 const vx=(clientX-rect.left)*(CH.W/rect.width);
-if(vx<CH.L||vx>CH.W-CH.R){c.xg.hidden=true;return;}
+if(vx<CH.L||vx>CH.W-CH.R){svgShow(c.xg,false);return;}
 const frac=(vx-CH.L)/((CH.W-CH.L-CH.R)||1),t=c.t0+frac*((c.t1-c.t0)||1);
 const rows=c.rows;let lo=0,hi=rows.length-1;
 while(hi-lo>1){const mid=(lo+hi)>>1;if(rows[mid][0]<=t)lo=mid;else hi=mid;}
@@ -662,10 +678,10 @@ c.t1n.textContent=time(p[0]);
 c.t2n.textContent='Equity '+fmt(p[1])+' USDT';
 c.t3n.textContent='Drawdown '+fmt(ddp,2)+'%';
 c.tip.setAttribute('transform','translate('+clamp(x-79,CH.L,CH.W-CH.R-162).toFixed(1)+' '+clamp(y-66,CH.T,CH.H-CH.B-58).toFixed(1)+')');
-c.xg.hidden=false;}
+svgShow(c.xg,true);}
 function onChartMove(ev){chartPoint(ev.clientX,ev.clientY);}
 function onChartTouch(ev){if(ev.touches&&ev.touches[0])chartPoint(ev.touches[0].clientX,ev.touches[0].clientY);}
-function onChartLeave(){if(chartRefs&&chartRefs.xg)chartRefs.xg.hidden=true;}
+function onChartLeave(){if(chartRefs)svgShow(chartRefs.xg,false);}
 const HC={W:900,H:240,L:14,R:84,T:14,B:44},DAY_MS=86400000,HR_MS=3600000;
 function hourlyChart(report){
 const box=id('hourly');hourlyRefs=null;
@@ -714,7 +730,7 @@ const dot=svgEl('circle',null,{r:3.5});
 const tip=svgEl('g','tip');
 const tipBox=svgEl('rect',null,{width:252,height:40,rx:8});
 const t1n=svgText('tip-text',{x:10,y:17},''),t2n=svgText('tip-text strong',{x:10,y:33},'');
-tip.append(tipBox,t1n,t2n);xg.append(hiBox,vline,hline,dot,tip);xg.hidden=true;
+tip.append(tipBox,t1n,t2n);xg.append(hiBox,vline,hline,dot,tip);svgShow(xg,false);
 svg.append(xg);
 box.replaceChildren(svg);
 hourlyRefs={svg,byHour,counts,Y,slotW,xg,hiBox,vline,hline,dot,tip,t1n,t2n};}
@@ -723,7 +739,7 @@ const c=hourlyRefs;if(!c||!c.svg.getBoundingClientRect)return;
 const rect=c.svg.getBoundingClientRect();if(!rect.width)return;
 const vx=(clientX-rect.left)*(HC.W/rect.width);
 const h=Math.floor((vx-HC.L)/c.slotW);
-if(h<0||h>23||!c.byHour.has(h)){c.xg.hidden=true;return;}
+if(h<0||h>23||!c.byHour.has(h)){svgShow(c.xg,false);return;}
 const b=c.byHour.get(h),cx=HC.L+(h+.5)*c.slotW,cy=c.Y(b[4]);
 c.hiBox.setAttribute('x',(HC.L+h*c.slotW).toFixed(2));
 c.vline.setAttribute('x1',cx.toFixed(1));c.vline.setAttribute('x2',cx.toFixed(1));
@@ -734,10 +750,10 @@ c.t1n.textContent=hh+':00–'+nh+':00 UTC';
 const chg=b[1]?(b[4]-b[1])/b[1]*100:null;
 c.t2n.textContent='O '+fmt(b[1])+' H '+fmt(b[2])+' L '+fmt(b[3])+' C '+fmt(b[4])+(fin(chg)?' · '+(chg>0?'+':'')+fmt(chg,2)+'%':'')+' · '+c.counts[h]+' open';
 c.tip.setAttribute('transform','translate('+clamp(cx-126,HC.L,HC.W-HC.R-256).toFixed(1)+' '+clamp(cy-50,HC.T,HC.H-90).toFixed(1)+')');
-c.xg.hidden=false;}
+svgShow(c.xg,true);}
 function onHourlyMove(ev){hourlyPoint(ev.clientX,ev.clientY);}
 function onHourlyTouch(ev){if(ev.touches&&ev.touches[0])hourlyPoint(ev.touches[0].clientX,ev.touches[0].clientY);}
-function onHourlyLeave(){if(hourlyRefs&&hourlyRefs.xg)hourlyRefs.xg.hidden=true;}
+function onHourlyLeave(){if(hourlyRefs)svgShow(hourlyRefs.xg,false);}
 function renderTradeActions(){
 const opened=arr(lastReport&&lastReport.open_bots),root=id('trade-actions');
 if(!opened.length){root.replaceChildren(el('p','empty','No active paper bots.'));return;}
