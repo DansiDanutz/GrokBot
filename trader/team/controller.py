@@ -93,13 +93,23 @@ def idle_hours(state, facts, now_ms):
 def _resolve(row, facts, now_ms):
     receipt = (facts.get('receipts') or {}).get(row['dispatch_id'])
     if receipt:
+        expected = roster.BY_ID.get(row['role']) or {}
+        role = str(receipt.get('role') or '')
+        answered_ms = receipt.get('answered_at_ms')
+        try:
+            answered_ms = int(answered_ms)
+        except (TypeError, ValueError):
+            answered_ms = None
+        if (role not in {row['role'], str(expected.get('name') or '')}
+                or str(receipt.get('room') or '') != str(row.get('room') or '')
+                or answered_ms is None
+                or answered_ms < int(row.get('created_at_ms') or 0)):
+            return dict(row, receipt_error='receipt identity/timestamp mismatch')
+        late = row.get('status') == 'BLOCKED' or answered_ms > int(row.get('due_at_ms') or 0)
         return dict(row, status='DONE', answered_at=receipt.get('answered_at'),
-                    answered_at_ms=receipt.get('answered_at_ms'),
-                    room=receipt.get('room') or row.get('room'))
-    request = (row.get('payload') or {}).get('request_id')
-    if request and request in (facts.get('engineering_results') or ()):
-        return dict(row, status='DONE', answered_at=_iso(now_ms),
-                    answered_at_ms=now_ms, receipt=str(request))
+                    answered_at_ms=answered_ms,
+                    room=receipt.get('room') or row.get('room'),
+                    late=bool(late), blocked_at=row.get('blocked_at'))
     if not roster.BY_ID[row['role']]['installed']:
         return dict(row, status='NOT_INSTALLED')
     if now_ms > (row.get('due_at_ms') or 0):
@@ -116,8 +126,14 @@ def reconcile(state, facts, now_ms):
             # A dispatch recorded NOT_INSTALLED before Dan added the bot must
             # still close once that role answers: the receipt is proof the answer
             # exists, and leaving it would have the board deny work that was done.
-            # BLOCKED stays terminal on purpose - a missed deadline is a fact,
-            # and a late answer should not quietly erase that it was late.
+            # Preserve the deadline breach, but allow a later valid steward
+            # receipt to resolve the work as a late completion.
+            if row.get('status') == 'BLOCKED' and row['dispatch_id'] in receipts:
+                after = _resolve(row, facts, now_ms)
+                if after.get('status') == 'DONE':
+                    rows.append(after)
+                    done.append(after)
+                    continue
             if row.get('status') == 'NOT_INSTALLED' and row['dispatch_id'] in receipts:
                 after = _resolve(dict(row, status=OPEN), facts, now_ms)
                 rows.append(after)
@@ -199,14 +215,17 @@ def gaps(state, facts, status_rows):
     return out or ['none the controller can compute']
 
 
-def _standing(fired, created, open_keys, facts, state, status_rows, now_ms):
+def _standing(fired, created, done, open_keys, facts, state, status_rows, now_ms):
     """Lead synthesis, Secretary final response and the daily discovery audit."""
     out, date = [], facts['local_date']
-    if created:
+    # Do not ask Lead to close a cycle while its specialist work is still
+    # pending. A later wake with completed specialist receipts creates the
+    # synthesis dispatch and records the causal dependency.
+    if done and not any(r.get('event') == 'SYNTHESIS' for r in created):
         out.append(_dispatch('SYNTHESIS', 'grid_desk_lead',
-                             dict(count=len(created)), now_ms, 1))
+                             dict(count=len(done), depends_on=[r['dispatch_id'] for r in done]), now_ms, 1))
     outcomes = sorted({i['name'] for i in fired
-                       if i['name'] in routing.USER_FACING})
+                       if i['name'] in routing.USER_FACING}) if done else []
     if outcomes:
         out.append(_dispatch('FINAL_RESPONSE', 'paper_desk_secretary',
                              dict(outcomes=', '.join(outcomes)), now_ms, 1))
@@ -248,13 +267,20 @@ def phase_outcomes(state, facts, fired, done, now_ms):
     for phase in events.PHASES:
         if events.PHASE_EVENT[phase] not in names:
             continue
+        current = today[phase]
         eligible = phase != 'engineering' or bool(pending)
-        today[phase] = dict(today[phase], updated_at=stamp, started_at=stamp,
+        if phase == 'engineering' and not eligible and current.get('status') == 'RUNNING':
+            # A later empty inbox does not erase an already-started need.
+            continue
+        today[phase] = dict(current, updated_at=stamp, started_at=current.get('started_at') or stamp,
                             status='RUNNING' if eligible else 'NO_ELIGIBLE_NEED',
-                            request_id=pending[0] if (phase == 'engineering' and pending) else None)
+                            request_id=pending[0] if (phase == 'engineering' and pending) else current.get('request_id'))
     for row in done:
         date_key, _, phase = str(row.get('key') or '').partition(':')
-        if phase in events.PHASES and date_key in out:
+        artifact_ms = (facts.get('phase_artifacts') or {}).get(phase)
+        artifact_fresh = (isinstance(artifact_ms, (int, float))
+                          and artifact_ms >= int(row.get('created_at_ms') or 0))
+        if phase in events.PHASES and date_key in out and artifact_fresh:
             out[date_key][phase] = dict(out[date_key][phase], status='COMPLETED',
                                         completed_at=row.get('answered_at') or stamp,
                                         receipt=row['dispatch_id'], updated_at=stamp)
@@ -288,11 +314,14 @@ def roster_status(dispatches, facts, idle, now_ms):
 
 def _record_cycle(state, now_ms, fired, created, summary_id):
     cycles = dict(state.get('cycles') or {})
-    cycles[summary_id] = dict(status='COMPLETED', trigger='launchd',
+    required = [r for r in created if r.get('event') != 'DISCOVERY']
+    cycles[summary_id] = dict(status='AWAITING_RECEIPTS' if required else 'COMPLETED',
+                              trigger='heartbeat',
                               observed_utc=_iso(now_ms),
                               scheduled_local_hour=_local(now_ms).isoformat(),
                               events=[i['name'] for i in fired],
                               dispatched=[r['dispatch_id'] for r in created],
+                              required_dispatches=[r['dispatch_id'] for r in required],
                               updated_at=_iso(now_ms))
     return dict(sorted(cycles.items())[-KEEP_CYCLES:])
 
@@ -315,7 +344,7 @@ def cycle(state, facts, now_ms):
               - _reserve(fired, state, facts))
     created = _route(fired, open_keys, now_ms, budget)
     status = roster_status(rows + created, facts, idle, now_ms)
-    created += _standing(fired, created, open_keys, facts, state, status, now_ms)
+    created += _standing(fired, created, done, open_keys, facts, state, status, now_ms)
     return _finish(state, facts, rows, created, fired, done, blocked, status, now_ms)
 
 
@@ -329,6 +358,14 @@ def _finish(state, facts, rows, created, fired, done, blocked, status, now_ms):
     identifier = cycle_id(now_ms)
     dispatches = _keep(rows + created)
     markers = events.advance(state.get('markers') or {}, facts, fired)
+    outcomes = phase_outcomes(state, facts, fired, done, now_ms)
+    phase_dates = dict((state.get('markers') or {}).get('phase_dates') or {})
+    for phase, row in outcomes.get(facts['local_date'], {}).items():
+        if row.get('status') in ('COMPLETED', 'NO_ELIGIBLE_NEED'):
+            phase_dates[phase] = facts['local_date']
+        elif row.get('status') in ('RUNNING', 'PENDING', 'BLOCKED'):
+            phase_dates.pop(phase, None)
+    markers['phase_dates'] = phase_dates
     markers['cycle_id'] = identifier
     if any(r['event'] == 'DISCOVERY' for r in created):
         markers['discovery_date'] = facts['local_date']
@@ -336,7 +373,7 @@ def _finish(state, facts, rows, created, fired, done, blocked, status, now_ms):
                      dispatches=dispatches, markers=markers,
                      last_wake_at=_iso(now_ms), last_cycle_at_ms=now_ms,
                      cycles=_record_cycle(state, now_ms, fired, created, identifier),
-                     daily_phase_outcomes=phase_outcomes(state, facts, fired, done, now_ms))
+                     daily_phase_outcomes=outcomes)
     summary = dict(
         cycle_id=identifier, at=_iso(now_ms), local_time=_local(now_ms).isoformat(),
         events=['%s(%s)' % (i['name'], i['key']) for i in fired],

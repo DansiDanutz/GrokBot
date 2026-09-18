@@ -135,6 +135,13 @@ def gather(now_ms, *, runtime, evidence, experiments_root, radar, database, stat
     receipt_rows = receipts(Path(evidence) / 'receipts')
     done, pending = experiments(experiments_root)
     report = checks.assess(doctor.gather(now_ms=now_ms, database=database))
+    evidence_root = Path(evidence)
+    phase_artifacts = {
+        'data': mtime_ms(evidence_root / 'supabase-market-context.json'),
+        'engineering': mtime_ms(evidence_root / 'engineering-status.json'),
+        'research': max((row.get('answered_at_ms') or 0 for row in receipt_rows.values()),
+                        default=None),
+    }
     return dict(
         now_ms=now_ms, doctor=report,
         watchlist_scan_id=snapshot.get('watchlist_scan_id'),
@@ -150,4 +157,5 @@ def gather(now_ms, *, runtime, evidence, experiments_root, radar, database, stat
         counterfactual_date=replay_date,
         liq_clusters_ms=mtime_ms(paths['liq_clusters']),
         receipts=receipt_rows, engineering_results=done, pending_requests=pending,
+        phase_artifacts=phase_artifacts,
         role_seen_ms=_role_seen(paths, snapshot, review, replay_ms, receipt_rows, state))
