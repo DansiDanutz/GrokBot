@@ -73,6 +73,7 @@ DECISION_CLOSE_REASONS = {
     'MANUAL': 106,
     'PROFILE_UPDATE': 107,
     'RISK_LIMIT': 108,
+    'STALL_EXIT': 109,
 }
 
 
@@ -157,6 +158,42 @@ def _hold_gate(state, wrapper, reason, rules, now_ms, events):
     events.append(_wrapper_decision(state, wrapper, now_ms, 'skip',
                                     [DECISION_RULES['learned_min_hold']]))
     return None
+
+
+def _stall_exit(wrapper, rules, now_ms, events):
+    """Learned early exit for a grid stalled in a trending market.
+
+    Evidence (reports/range-break-discriminators-2026-09-18.md): range-break
+    winners ran 8.5 grids/hour median vs 3.9 for losers; geometry did not
+    discriminate. Fires only when the store carries a stall_exit object -
+    absent or null keeps today's behavior exactly."""
+    config = rules.get('stall_exit')
+    if not isinstance(config, dict):
+        return None
+    bot = wrapper['engine']
+    hours = (now_ms - bot['opened_ms']) / HOUR_MS
+    if hours < config['warmup_hours']:
+        return None
+    if bot['completed_grids'] / hours >= config['min_grids_per_hour']:
+        return None
+    span = bot['range_high'] - bot['range_low']
+    if span <= 0:
+        return None
+    position = (bot['last_price'] - bot['range_low']) / span
+    travel = config['adverse_travel']
+    if bot['direction'] == 'LONG':
+        adverse = position <= 1 - travel
+    elif bot['direction'] == 'SHORT':
+        adverse = position >= travel
+    else:
+        adverse = position <= 1 - travel or position >= travel
+    if not adverse:
+        return None
+    events.append(_rule_block_event(now_ms, bot, 2,
+                                    hold_hours=round(hours, 4),
+                                    grids_per_hour=round(bot['completed_grids'] / hours, 4),
+                                    range_position=round(position, 4)))
+    return 'STALL_EXIT'
 
 
 def _opportunity_enabled(rules):
@@ -656,6 +693,10 @@ def advance(state, updates):
                     _mark(current,price)
                     events.append(dict(ts_ms=update['ts_ms'],bot_id=current['bot_id'],symbol=current['symbol'],type='RESERVE',amount=reserve))
                 if protection_needed(current):reason='RISK_LIMIT'
+        if not reason:
+            reason = _stall_exit(wrapper, rules, update['ts_ms'], events)
+            if reason:
+                price = wrapper['engine']['last_price']
         reason = _hold_gate(result, wrapper, reason, rules, update['ts_ms'], events)
         if reason:
             wrapper['engine'], emitted = close_bot(wrapper['engine'], price, update['ts_ms'], reason)

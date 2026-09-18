@@ -105,6 +105,19 @@ def validate_store(data):
         agent_influence = rules.get("agent_influence_enabled")
         if agent_influence is not None and not isinstance(agent_influence, bool):
             errors.append("agent_influence_enabled must be a boolean or absent")
+        stall = rules.get("stall_exit")
+        if stall is not None:
+            if not isinstance(stall, dict) or set(stall) != {
+                    "warmup_hours", "min_grids_per_hour", "adverse_travel"}:
+                errors.append("stall_exit must be null or an object with warmup_hours,"
+                              " min_grids_per_hour and adverse_travel")
+            else:
+                if not _is_number(stall["warmup_hours"]) or not 0.5 <= stall["warmup_hours"] <= 48:
+                    errors.append("stall_exit.warmup_hours must be between 0.5 and 48")
+                if not _is_number(stall["min_grids_per_hour"]) or not 0 < stall["min_grids_per_hour"] <= 100:
+                    errors.append("stall_exit.min_grids_per_hour must be between 0 and 100")
+                if not _is_number(stall["adverse_travel"]) or not 0.5 <= stall["adverse_travel"] <= 0.99:
+                    errors.append("stall_exit.adverse_travel must be between 0.5 and 0.99")
         cooldowns = rules.get("symbol_cooldowns")
         if not isinstance(cooldowns, dict):
             errors.append("symbol_cooldowns must be an object")
