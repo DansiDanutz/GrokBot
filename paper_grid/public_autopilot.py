@@ -340,6 +340,23 @@ def safe(source):
             result[status_key] = enum(source.get(status_key), ('NO_RECORDED_FAILURE', 'PENDING'))
             if (count > 0) != (result[status_key] == 'PENDING'):
                 raise ValueError('inconsistent reconciliation status')
+    if source.get('close_reasons') is not None:
+        reasons = obj(source['close_reasons'])
+        if len(reasons) > len(REASONS) + 1:
+            raise ValueError('too many close reasons')
+        projected = {}
+        for key, value in reasons.items():
+            key = enum(key, REASONS + ('UNKNOWN',))
+            row = numbers(obj(value), ('bots', 'wins', 'grid_profit', 'close_pnl',
+                                       'fees', 'funding', 'net'))
+            for count_key in ('bots', 'wins'):
+                count = row[count_key]
+                if count is None or count < 0 or count != int(count):
+                    raise ValueError('invalid close reason count')
+            if row['wins'] > row['bots']:
+                raise ValueError('invalid close reason wins')
+            projected[key] = row
+        result['close_reasons'] = projected
     if 'setup_evidence_archive_status' in source:
         result['setup_evidence_archive_status'] = enum(source['setup_evidence_archive_status'],
             ('PENDING', 'COMPLETE', 'BLOCKED', 'CAPACITY_BLOCKED'))

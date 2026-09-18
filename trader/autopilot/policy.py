@@ -745,6 +745,20 @@ def snapshot(state, now_ms, health):
                     net=sum(r['net'] for r in rows), pnl=sum(r['net'] for r in rows),
                     grids_per_hour=sum(r['grids_per_hour'] for r in rows))
     visible_closed = closed[-20:]
+    close_reasons = {}
+    for row in closed:
+        key = row.get('reason') or 'UNKNOWN'
+        bucket = close_reasons.setdefault(key, dict(
+            bots=0, wins=0, grid_profit=0.0, close_pnl=0.0,
+            fees=0.0, funding=0.0, net=0.0))
+        bucket['bots'] += 1
+        bucket['wins'] += 1 if row['net'] > 0 else 0
+        bucket['grid_profit'] += row['grid_profit']
+        # What the final position hand-back cost, separate from grid income.
+        bucket['close_pnl'] += row['realized_pnl'] - row['grid_profit']
+        bucket['fees'] += row['fees_paid']
+        bucket['funding'] += row['funding_paid']
+        bucket['net'] += row['net']
     groups = {}
     for direction in ('LONG', 'SHORT', 'NEUTRAL'):
         op, cl = ([r for r in rows if r['direction'] == direction] for rows in (opened, closed))
@@ -764,6 +778,7 @@ def snapshot(state, now_ms, health):
                 peak_equity=state['peak_equity'], max_drawdown_pct=state['max_drawdown_pct'],
                 change_24h_pct=change(24), change_7d_pct=change(168),
                 open_bots=opened, closed_bots=visible_closed, groups=groups, totals=totals(opened+closed),
+                close_reasons=close_reasons,
                 equity_curve=_downsample(state['equity_curve'], 2000),
                 equity_hourly=_downsample(state.get('equity_hourly', []), 168),
                 watchlist={k: deepcopy(state.get('watchlist', watchlist.initial())[k]) for k in ('core', 'bench')},

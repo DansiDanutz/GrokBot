@@ -22,6 +22,45 @@ class AutopilotPublicTests(unittest.TestCase):
         self.assertEqual(set(result['groups']), {'LONG', 'SHORT', 'NEUTRAL'})
         self.assertEqual(source, before)
 
+    def test_close_reasons_project_as_a_closed_vocabulary(self):
+        source = self.source()
+        source['close_reasons'] = dict(RANGE_BREAK=dict(
+            bots=40, wins=11, grid_profit=1865.89, close_pnl=-2541.81,
+            fees=476.79, funding=-5.28, net=-1147.43))
+        result = public_autopilot.safe(source)
+        self.assertEqual(result['close_reasons']['RANGE_BREAK']['bots'], 40)
+        self.assertAlmostEqual(result['close_reasons']['RANGE_BREAK']['close_pnl'], -2541.81)
+        source['close_reasons'] = dict(SECRET_REASON=dict(
+            bots=1, wins=0, grid_profit=0, close_pnl=0, fees=0, funding=0, net=0))
+        with self.assertRaises(ValueError):
+            public_autopilot.safe(source)
+        source['close_reasons'] = dict(MAX_AGE=dict(
+            bots=1, wins=2, grid_profit=0, close_pnl=0, fees=0, funding=0, net=0))
+        with self.assertRaises(ValueError):
+            public_autopilot.safe(source)
+
+    def test_snapshot_aggregates_close_reasons_from_all_retained_closed_bots(self):
+        from trader.autopilot.policy import new_state, snapshot
+        state = new_state(1000)
+        base = dict(symbol='RAYUSDTM', direction='LONG', opened_ms=1000, closed_ms=2000,
+                    last_price=1.0, equity=1000.0, peak_equity=1000.0, orders=[], lines=[],
+                    completed_grids=3, grids=10, grid_profit=30.0, realized_pnl=10.0,
+                    unrealized_pnl=0.0, fees_paid=5.0, funding_paid=1.0)
+        for bot_id, reason in enumerate(('RANGE_BREAK', 'RANGE_BREAK', 'MAX_AGE'), start=1):
+            engine = dict(base, bot_id=bot_id, reason=reason)
+            state['closed_bots'].append(dict(engine=engine, reserve_usdt=0.0,
+                                             source_section='long', range_verified=1))
+        view = snapshot(state, 3000, dict(heartbeat_ms=3000, tick_age_s=1,
+                                          kucoin_ok=True, radar_age_min=1))
+        reasons = view['close_reasons']
+        self.assertEqual(reasons['RANGE_BREAK']['bots'], 2)
+        self.assertEqual(reasons['MAX_AGE']['bots'], 1)
+        # net = realized + unrealized - fees - funding = 10 - 5 - 1 = 4 per bot
+        self.assertAlmostEqual(reasons['RANGE_BREAK']['net'], 8.0)
+        # close_pnl separates the final position result from grid income
+        self.assertAlmostEqual(reasons['RANGE_BREAK']['close_pnl'], -40.0)
+        self.assertEqual(reasons['RANGE_BREAK']['wins'], 2)
+
     def test_curve_is_validated_before_downsampling_and_bounds_preserved(self):
         source = self.source()
         source['equity_curve'] = [[i, 10000+i] for i in range(3000)]

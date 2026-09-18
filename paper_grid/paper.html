@@ -229,6 +229,7 @@ footer{font-size:11.5px;color:var(--muted-foreground);margin-top:24px;line-heigh
 
 <section class="panel" id="positions"><h2>Open paper positions</h2><div class="head-extras"><span class="badge-line" id="positions-extreme" hidden></span><span class="dirchips" id="dir-chips" hidden></span></div><p class="muted">New-entry rules: At least 12 configured grids inside confirmed support / resistance only, with estimated leveraged return greater than 1% per completed grid after both 0.06% fill fees at 5×. Entry targets allow one-order rounding tolerance: Long 40% BUY / 60% SELL; Short 60% BUY / 40% SELL; Neutral 50% / 50% across both books. These are pending-order proportions, not guaranteed profits. Existing bots keep their original ranges and orders; the current split changes as fills occur.</p><p class="muted" id="positions-note">Loading open positions.</p><div id="positions-bots"></div></section>
 <section class="panel" id="history"><h2>Position history <span class="chip winrate" id="history-winrate" hidden></span></h2><p class="muted">Latest 20 closed paper bots, including their close reason and final accounting. A watchlist promotion is not a position close.</p><div id="history-bots"></div></section>
+<section class="panel" id="close-economics" hidden><h2>Why bots closed · economics</h2><p class="muted">Every retained closed bot (30-day window), grouped by close reason. Grid income is what the ladder earned from completed pairs; Close result is what the final position handed back (or added) when the bot stopped. A reason that repeatedly gives back more than its grids earned is a strategy signal, not bad luck.</p><div class="table-scroll"><table class="desk"><thead><tr><th>Close reason</th><th class="r">Bots</th><th class="r">Wins</th><th class="r">Grid income</th><th class="r">Close result</th><th class="r">Fees</th><th class="r">Funding</th><th class="r">Net</th></tr></thead><tbody id="close-econ-body"></tbody></table></div><p class="muted" id="close-econ-note" hidden></p></section>
 <section class="panel" id="today-hourly"><h2>Today · hourly</h2><p class="muted">Account equity per UTC clock hour for the current day — a green candle closes at or above the hour open, a red one below; the wick spans the hour's high to low. The glyph under an hour counts grid bots that were open during it.</p><div class="chartbox" id="hourly"><div class="skeleton sk-chart"></div></div><p class="muted">Open counts use open bots plus the newest 20 closed bots, so early-hour counts may undercount.</p></section>
 <section class="panel" id="account-history"><h2>Account history · equity</h2><p class="muted">Equity includes floating PnL. This is an equity curve, not a cash balance history.</p><div class="chartbox" id="curve"><div class="skeleton sk-chart"></div></div><div class="axes"><span id="curve-start">No samples yet</span><span id="curve-end"></span></div></section>
 <section class="panel" id="watchlist"><h2>Watchlist</h2><p class="muted">Up to 10 candidates, not 10 trades: Core can open up to 5 bots; Bench waits. An ACTIVE card has an open bot. Moving a coin to Bench does not close its bot; the bot follows its own exit rules.</p><p class="muted" id="watchlist-asof" hidden></p><p class="muted" id="watchlist-order-note" hidden>Cards are ordered by watchlist score; entries pick by rank.</p><div class="columns"><div><h3>Core · up to 5</h3><div class="cards" id="core"></div></div><div><h3>Bench · up to 5</h3><div class="cards" id="bench"></div></div></div><details open><summary>Latest watchlist changes · last 24</summary><ul class="feed" id="watch-events"></ul></details></section>
@@ -380,9 +381,11 @@ function stopEquivalent(r){return r.direction==='LONG'&&fin(r.range_low)?r.range
 function valuesList(r,kind){
 const qty=r.position_contracts,exposure=fin(qty)&&fin(r.price)?(fin(r.long_contracts)?Math.abs(r.long_contracts)+Math.abs(r.short_contracts):Math.abs(qty))*r.price:null;
 const values=kind==='open'?[['Original opening price',px(openingPrice(r))],['Base units per grid',fmt(r.contracts_per_line,6)],['Contract lots per grid',fin(r.contract_lots)?fmt(r.contract_lots,6):'Legacy model'],['Quantity source',r.quantity_is_observed===1?'Matched observed form':'Conservative paper sizing'],['Grids configured',fmt(r.grids,0)],['Average position entry',px(r.avg_entry)],['Mark / last price',px(r.price)],['Exposure · USDT',fmt(exposure)],['Margin / reserve',fmt(r.notional_usdt+(r.reserve_added_usdt||0))+' / '+fmt(r.reserve_usdt)],['Leverage',fmt(r.leverage,0)+'×'],['Range',px(r.range_low)+' .. '+px(r.range_high)]]:[['Last price',px(r.price)]];
-values.push(['Completed grids',fmt(r.completed_grids,0)+' / '+fmt(r.grids,0)+' levels'],['Grids/h since open',fmt(r.grids_per_hour)],['Gross grid profit',fmt(r.grid_profit)],['Fees paid',fmt(r.fees_paid)],['Funding paid',fmt(r.funding_paid)],['Floating PnL',fmt(r.unrealized_pnl)],['Realized PnL',fmt(r.realized_pnl)],['Net PnL · USDT',fmt(r.net)]);
-const count=r.completed_grids,gross=fin(count)&&count>0&&fin(r.grid_profit)?r.grid_profit/count:null,afterCosts=gross!==null&&fin(r.fees_paid)&&fin(r.funding_paid)?(r.grid_profit-r.fees_paid-r.funding_paid)/count:null;
-values.push(['Avg gross / completed grid',fmt(gross,4)+' USDT'],['Avg grid profit after all bot costs',fmt(afterCosts,4)+' USDT']);
+values.push(['Completed grids',fmt(r.completed_grids,0)+' / '+fmt(r.grids,0)+' levels'],['Grids/h since open',fmt(r.grids_per_hour)],['Gross grid profit',fmt(r.grid_profit)]);
+if(fin(r.realized_pnl)&&fin(r.grid_profit))values.push([kind==='open'?'Position result · realized so far':'Position result at close',fmt(r.realized_pnl-r.grid_profit)]);
+values.push(['Fees paid',fmt(r.fees_paid)],['Funding paid',fmt(r.funding_paid)],['Floating PnL',fmt(r.unrealized_pnl)],['Realized PnL · grid + position',fmt(r.realized_pnl)],['Net PnL · USDT',fmt(r.net)]);
+const count=r.completed_grids,gross=fin(count)&&count>0&&fin(r.grid_profit)?r.grid_profit/count:null,afterCosts=gross!==null&&fin(r.fees_paid)&&fin(r.funding_paid)?(r.grid_profit-r.fees_paid-r.funding_paid)/count:null,allIn=fin(count)&&count>0&&fin(r.net)?r.net/count:null;
+values.push(['Avg gross / completed grid',fmt(gross,4)+' USDT'],['Avg grid profit after fees + funding',fmt(afterCosts,4)+' USDT'],['Net per grid · incl. position result',fmt(allIn,4)+' USDT']);
 if(kind==='open'){const ladder=gridLadder(r),pending=ladder.filter(o=>o.side==='BUY'||o.side==='SELL'),buys=pending.filter(o=>o.side==='BUY').length,sells=pending.length-buys,profits=fin(r.contracts_per_line)&&r.contracts_per_line>0?(fin(r.grid_interval)?[pairNet(r.contracts_per_line,r.range_low,r.range_low+r.grid_interval),pairNet(r.contracts_per_line,r.range_high-r.grid_interval,r.range_high)]:ladder.slice(0,-1).map((v,i)=>pairNet(r.contracts_per_line,v.price,ladder[i+1].price))):[];values.push(['Pending orders now · BUY / SELL',pending.length?fmt(buys,0)+' / '+fmt(sells,0)+' ('+fmt(buys/pending.length*100,1)+'% / '+fmt(sells/pending.length*100,1)+'%)':'—'],['New-entry target · BUY / SELL',entryTarget(r.direction)]);values.push(['Grid return after fees · estimated',fin(r.profit_pct_min)?fmt(r.profit_pct_min,6)+'% .. '+fmt(r.profit_pct_max,6)+'%':'Legacy grid · before 1% rule'],['Grid spacing',fin(r.grid_interval)?'Arithmetic · '+px(r.grid_interval)+' USDT':'Legacy geometric']);values.push(['Net per grid pair · after two fees',profits.length?fmt(Math.min(...profits),6)+' .. '+fmt(Math.max(...profits),6)+' USDT':'—']);if(fin(r.long_contracts))values.push(['Long / short base units',fmt(r.long_contracts,6)+' / '+fmt(r.short_contracts,6)],['Long / short entry',px(r.long_avg_entry)+' / '+px(r.short_avg_entry)]);values.push(['Funding settlement',fin(r.funding_interval_ms)?fmt(r.funding_interval_ms/3600000)+' hours':'Unverified'],['Funding evidence',r.funding_schedule_status||'Legacy'],['Reserve added',fmt(r.reserve_added_usdt||0)+' USDT']);const ratio=1;values.push(['Total allocation · margin + reserve',fin(r.notional_usdt)&&fin(r.reserve_usdt)?fmt(r.notional_usdt+(r.reserve_added_usdt||0)+r.reserve_usdt)+' USDT':'—'],['Stop-loss · range boundary',r.direction==='NEUTRAL'?px(r.range_low)+' / '+px(r.range_high)+' USDT':px(stopEquivalent(r))+' USDT'],['Range source',r.range_verified===1?'Confirmed support / resistance at entry':'Legacy range · set before structure filter'],['Range-break lower / upper',ratio&&fin(r.range_low)&&fin(r.range_high)?px(r.range_low/ratio)+' / '+px(r.range_high*ratio):'—'],['Liquidation · isolated estimate',liquidationText(r)],['If 200 reserve were added',fin(r.liquidation?.with_reserve_price)?px(r.liquidation.with_reserve_price)+' USDT':'No positive estimate available'],['Maintenance / assumed liquidation fee',fin(r.liquidation?.mmr)?fmt(r.liquidation.mmr*100,3)+'% / '+fmt(r.liquidation.fee_rate*100,3)+'%':'—'],['Risk metadata timestamp',time(r.liquidation?.metadata_at_ms)]);}
 return values;}
 function buildRow(record,r,kind){
@@ -424,7 +427,19 @@ const sp=el('div','sparkhead');sp.append(el('span',null,'Net PnL path'),spark(r.
 const values=valuesList(r,kind),main=values.filter(v=>!LIQ_KEYS.includes(v[0])),liq=values.filter(v=>LIQ_KEYS.includes(v[0]));
 const grid=el('div','detailgrid');grid.append(...main.map(([l,v])=>metric(l,v)));
 const liqBox=el('div','liq');liqBox.append(el('h4',null,'Liquidation & risk'));liqBox.append(...liq.map(([l,v])=>metric(l,v)));
-wrap.append(top,info,setup,sp,grid,liqBox,...gridDetails(r,record));
+const prov=r.setup_evidence&&r.setup_evidence.range_provenance;
+let provBox=null;
+if(prov){
+  provBox=el('div','liq');provBox.append(el('h4',null,'How this range was chosen'));
+  const sup=prov.selected_support||{},res=prov.selected_resistance||{};
+  const provItems=[['Support level',px(sup.price)+' · '+fmt(sup.touches,0)+' touches'],['Resistance level',px(res.price)+' · '+fmt(res.touches,0)+' touches'],['Evidence window',fin(prov.observed_candles)?fmt(prov.observed_candles,0)+' hourly candles · coverage '+fmt((prov.coverage_ratio||0)*100,0)+'%':'—'],['Structure analyzed at',time(prov.analysis_asof_ms)]];
+  if(fin(sup.last_confirmed_at_ms))provItems.push(['Support last confirmed',time(sup.last_confirmed_at_ms)]);
+  if(fin(res.last_confirmed_at_ms))provItems.push(['Resistance last confirmed',time(res.last_confirmed_at_ms)]);
+  const gp=r.setup_evidence.grid_pairs;
+  if(gp&&fin(gp.min_long_margin_return_pct)&&fin(gp.min_short_margin_return_pct))provItems.push(['Min margin return per pair · long / short',fmt(gp.min_long_margin_return_pct,3)+'% / '+fmt(gp.min_short_margin_return_pct,3)+'%']);
+  provBox.append(...provItems.map(([l,v])=>metric(l,v)));
+}
+wrap.append(top,info,setup,sp,grid,liqBox);if(provBox)wrap.append(provBox);wrap.append(...gridDetails(r,record));
 const box=el('details');box.append(el('summary',null,'Model notes'),el('p','muted',kind==='open'?NOTES_OPEN:NOTES_CLOSED));
 wrap.append(box);
 cell.append(wrap);
@@ -804,12 +819,35 @@ const ev=id('learning-evidence');
 if(typeof rs.evidence_headline==='string'&&rs.evidence_headline){ev.hidden=false;ev.textContent=rs.evidence_headline;}
 else ev.hidden=true;
 }
+function closeEconomics(report){
+const panel=id('close-economics'),body=id('close-econ-body'),note=id('close-econ-note');
+if(!panel||!body)return;
+const reasons=report.close_reasons;
+const entries=reasons&&typeof reasons==='object'?Object.entries(reasons).filter(([,v])=>v&&fin(v.bots)&&v.bots>0).sort((a,b)=>((a[1].net??0)-(b[1].net??0))):[];
+if(!entries.length){panel.hidden=true;return;}
+body.replaceChildren();
+let totalGrid=0,totalClose=0,totalNet=0;
+for(const [reason,v] of entries){
+  const tr=el('tr');
+  tr.append(el('td','reason',(CLOSE_REASONS[reason]||reason)));
+  tr.append(el('td','r',fmt(v.bots,0)));
+  tr.append(el('td','r',fmt(v.wins,0)+(v.bots?' ('+fmt(v.wins/v.bots*100,0)+'%)':'')));
+  tr.append(el('td','r '+(v.grid_profit<0?'negative':'positive'),signed(v.grid_profit)));
+  tr.append(el('td','r '+(v.close_pnl<0?'negative':'positive'),signed(v.close_pnl)));
+  tr.append(el('td','r',fmt(v.fees)));
+  tr.append(el('td','r',fmt(v.funding)));
+  tr.append(el('td','r '+(v.net<0?'negative':'positive'),signed(v.net)));
+  body.append(tr);
+  totalGrid+=fin(v.grid_profit)?v.grid_profit:0;totalClose+=fin(v.close_pnl)?v.close_pnl:0;totalNet+=fin(v.net)?v.net:0;
+}
+if(note){note.hidden=false;note.textContent='Totals · grid income '+signed(totalGrid)+' · close results '+signed(totalClose)+' · net '+signed(totalNet)+' USDT.'+(totalClose<0&&-totalClose>totalGrid?' Position closes are currently giving back more than the grids earn: the exit rule, not the grid, drives the net result.':'');}
+panel.hidden=false;}
 function render(report,isStatic){
 if(!report||!fin(report.generated_at_ms)||!fin(report.equity))throw Error('invalid snapshot');
 lastReport=report;rememberGrids(report.completed_grid_events);staticMode=isStatic;
 receivedAt=Math.min(Date.now(),report.generated_at_ms);
 lastRenderedKey=String(report.generated_at_ms)+'|'+(fin(report.published_at_ms)?report.published_at_ms:'');
-headerNumbers(report);account(report);renderLearning(report);watchlist(report);renderBots(report);equityChart(report);hourlyChart(report);
+headerNumbers(report);account(report);renderLearning(report);watchlist(report);renderBots(report);closeEconomics(report);equityChart(report);hourlyChart(report);
 const points=arr(report.equity_curve);
 id('curve-start').textContent=points.length?time(points[0][0])+' · '+fmt(points[0][1])+' USDT':'No samples yet';
 id('curve-end').textContent=points.length?time(points.at(-1)[0])+' · '+fmt(points.at(-1)[1])+' USDT':'';
