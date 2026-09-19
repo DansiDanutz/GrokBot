@@ -18,6 +18,7 @@ class PaperPageTests(unittest.TestCase):
         self.assertNotIn('.style', page)
         for href in ('/paper', '/radar', '/control'):
             self.assertIn('href="' + href + '"', page)
+        self.assertIn('<h1><a href="/" aria-label="Paper Desk home">Paper Desk</a></h1>', page)
         self.assertNotRegex(page, r'<(?:script|link)[^>]+(?:src|href)="https?')
 
     def test_position_sections_precede_watchlist(self):
