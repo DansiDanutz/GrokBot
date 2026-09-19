@@ -29,9 +29,9 @@ the existing watchlist score, falling back to other qualified rows only when no
 candidate section exists. Selected rows receive typed direction probabilities, range
 quality, entry probability, evidence probability, confidence, latency and token
 usage. Deterministic scoring, ordering, ranges and paper decisions do not change.
-Provider failure leaves a row untouched and marks the run degraded. The switch is
-absent from the LaunchAgent template until a dedicated GrokBot credential path is
-reviewed. Never put the key in source, a plist, JSON output or committed commands.
+Provider failure leaves a row untouched and marks the run degraded. The LaunchAgent
+template enables shadow evaluation and loads `TYPESAFE_API_KEY` through the private
+credential wrapper; the key never appears in source, a plist, JSON output or logs.
 
 The uninstalled template `config/launchd/com.danslab.trader-radar.plist.example` runs at minute `05` each hour. Before considering installation, replace `REPLACE_WITH_DAN_CHAT_ID` and manually run its wrapped command once. The wrapper reads `DLS_TELEGRAM_BOT_TOKEN` from `~/.config/danslab/credentials/telegram.json`; the token never belongs in source or a plist. Telegram sends the top three per section only when their symbol identities change.
 

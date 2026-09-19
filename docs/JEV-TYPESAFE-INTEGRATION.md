@@ -92,6 +92,12 @@ Every integration must log request purpose, model alias, latency, input tokens,
 answer distribution, confidence when present, fallback reason, and downstream
 action. Never log the API key or raw authorization headers.
 
+The installed radar uses the existing private credential-exec boundary. Its
+owner-only credential JSON contains both the Telegram token and TypeSafe key, while
+the plist contains only the file path and `--jev-shadow`. Every hourly scan remains
+usable if TypeSafe fails because the deterministic report is written with a degraded
+shadow status.
+
 ## Global agent availability
 
 The canonical skill is `~/.agents/skills/typesafe-ai`. Symlinks expose it to
@@ -99,4 +105,3 @@ Claude, Codex, Zcode, OpenCode, Pi, and Kimi so each harness reads the same curr
 instructions. The skill is guidance, not a globally enabled API proxy; individual
 applications still need an explicit, server-side credential path and an audited
 call site.
-

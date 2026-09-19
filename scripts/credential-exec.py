@@ -8,7 +8,8 @@ import stat
 import sys
 
 
-ALLOWED_KEYS = frozenset({'DLS_TELEGRAM_BOT_TOKEN', 'SEMECLAW_BOT_TOKEN'})
+ALLOWED_KEYS = frozenset({'DLS_TELEGRAM_BOT_TOKEN', 'SEMECLAW_BOT_TOKEN',
+                          'TYPESAFE_API_KEY'})
 
 
 def credentials(path):

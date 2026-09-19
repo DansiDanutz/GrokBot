@@ -8,6 +8,7 @@
     <string>--</string><string>/opt/homebrew/bin/python3</string><string>-m</string><string>trader.radar</string>
     <string>--database</string><string>/Users/davidai/Sandbox/grokbot/market-data/phase-2-20260911/market.sqlite3</string>
     <string>--json</string><string>/Users/davidai/Sandbox/grokbot/radar/radar.json</string>
+    <string>--jev-shadow</string>
     <string>--telegram-chat-id</string><string>REPLACE_WITH_DAN_CHAT_ID</string>
     <string>--telegram-state</string><string>/Users/davidai/Sandbox/grokbot/radar/telegram-state.json</string>
   </array>
