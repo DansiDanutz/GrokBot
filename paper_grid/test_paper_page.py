@@ -29,6 +29,8 @@ class PaperPageTests(unittest.TestCase):
         for section in ('positions', 'history', 'account-history', 'watchlist'):
             self.assertIn('href="#' + section + '"', page)
         self.assertIn('not a cash balance history', page)
+        self.assertIn('.section-nav{position:static}', page)
+        self.assertIn('.anchors{flex-wrap:nowrap;overflow-x:auto', page)
 
     def test_score_formula_is_visible_and_linked(self):
         page = PAGE.read_text()
