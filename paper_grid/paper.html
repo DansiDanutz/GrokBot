@@ -797,13 +797,14 @@ function ingestEvents(payload){
 rememberGrids(arr(payload&&payload.events));
 if(eventIndex.size!==eventRows.length){eventIndex.clear();for(const r of eventRows)eventIndex.set(keyOfEvent(r.e),1);}
 for(const e of arr(payload&&payload.events)){
-  if(!fin(e.ts_ms)||!EVENT_TYPES.has(e.type)||!fin(e.bot_id)||typeof e.symbol!=='string')continue;
-  const k=keyOfEvent(e);
-  if(eventIndex.has(k))continue;
-  eventRows.push({e});eventIndex.set(k,1);
+  if(!fin(e.ts_ms))continue;
   const eid=fin(e.event_id)?e.event_id:0;
   if(e.ts_ms>eventCursor){eventCursor=e.ts_ms;eventCursorId=eid;}
   else if(e.ts_ms===eventCursor){eventCursorId=Math.max(eventCursorId,eid);}
+  if(!EVENT_TYPES.has(e.type)||!fin(e.bot_id)||typeof e.symbol!=='string')continue;
+  const k=keyOfEvent(e);
+  if(eventIndex.has(k))continue;
+  eventRows.push({e});eventIndex.set(k,1);
 }
 eventRows=eventRows.sort((a,b)=>a.e.ts_ms-b.e.ts_ms||(a.e.event_id||0)-(b.e.event_id||0));
 if(eventRows.length>50){eventRows=eventRows.slice(-50);eventIndex.clear();for(const r of eventRows)eventIndex.set(keyOfEvent(r.e),1);}

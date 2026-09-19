@@ -31,7 +31,7 @@ def _table(title, rows, directions_only=False):
     return lines
 
 
-def main(argv=None, printer=print):
+def main(argv=None, printer=print, environ=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--database", required=True)
     parser.add_argument("--json", required=True)
@@ -43,6 +43,8 @@ def main(argv=None, printer=print):
                         help="skip the advisory annotation entirely")
     parser.add_argument("--telegram-chat-id")
     parser.add_argument("--telegram-state")
+    parser.add_argument("--jev-shadow", action="store_true",
+                        help="request advisory TypeSafe judgments for up to ten candidates")
     args = parser.parse_args(argv)
     report = analyse(args.database, args.asof_ms, args.liquidation_clusters)
     if not args.liquidation_clusters and not args.no_liquidation_clusters:
@@ -51,6 +53,9 @@ def main(argv=None, printer=print):
         path = liquidity_levels.refresh(liquidity_levels.DEFAULT_PATH,
                                         args.database, entered, now)
         report = liquidity_levels.annotate(report, path, now)
+    if args.jev_shadow:
+        from trader.radar.jev import enrich_from_environment
+        report = enrich_from_environment(report, environ if environ is not None else __import__('os').environ)
     destination = Path(args.json).expanduser().absolute()
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name("." + destination.name + ".pending")
@@ -58,6 +63,10 @@ def main(argv=None, printer=print):
     temporary.replace(destination)
     printer(f"Analysed {len(report['rows'])} symbols; "
             f"{sum(row['passes_liquidity'] for row in report['rows'])} pass liquidity filters.")
+    if args.jev_shadow:
+        shadow = report['jev_shadow']
+        printer(f"JEV shadow: {shadow['evaluated']}/{shadow['attempted']} evaluated; "
+                f"{shadow['failed']} failed.")
     for key, title in LABELS:
         for line in _table(title, report["sections"][key], key == "majors"):
             printer(line)

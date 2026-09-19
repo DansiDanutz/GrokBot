@@ -13,6 +13,25 @@ python3 -m trader.radar \
 
 Open `/radar` on the existing paper server. The publisher includes the same page at `/radar` and copies a bounded public DTO to `/data/radar.json`.
 
+### Optional JEV shadow judgments
+
+An operator can explicitly add TypeSafe JEV judgments to the private radar JSON:
+
+```sh
+TYPESAFE_API_KEY='loaded-by-private-wrapper' python3 -m trader.radar \
+  --database ~/Sandbox/grokbot/market-data/phase-2-20260911/market.sqlite3 \
+  --json ~/Sandbox/grokbot/radar/radar.json \
+  --jev-shadow
+```
+
+This evaluates at most ten liquidity-qualified rows ordered by the existing
+watchlist score. Selected rows receive typed direction probabilities, range
+quality, entry probability, evidence probability, confidence, latency and token
+usage. Deterministic scoring, ordering, ranges and paper decisions do not change.
+Provider failure leaves a row untouched and marks the run degraded. The switch is
+absent from the LaunchAgent template until a dedicated GrokBot credential path is
+reviewed. Never put the key in source, a plist, JSON output or committed commands.
+
 The uninstalled template `config/launchd/com.danslab.trader-radar.plist.example` runs at minute `05` each hour. Before considering installation, replace `REPLACE_WITH_DAN_CHAT_ID` and manually run its wrapped command once. The wrapper reads `DLS_TELEGRAM_BOT_TOKEN` from `~/.config/danslab/credentials/telegram.json`; the token never belongs in source or a plist. Telegram sends the top three per section only when their symbol identities change.
 
 ## Columns and sections

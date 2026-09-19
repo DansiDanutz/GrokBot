@@ -66,6 +66,7 @@ td.sym small{display:block;font:500 11px/1.4 var(--mono);color:var(--muted);lett
 .gph .meter{height:6px;background:var(--grid);border-radius:3px;margin-top:6px;overflow:hidden}
 .gph .meter i{display:block;height:100%;background:var(--accent);width:var(--w,0%)}
 .pos{color:var(--accent)}.neg{color:var(--danger)}
+.jev{min-width:180px}.jev b{display:block;font:700 11px/1.4 var(--sans);letter-spacing:.5px;text-transform:uppercase}.jev small{display:block;color:var(--muted);font:500 11px/1.45 var(--mono)}
 .empty{color:var(--muted);font-size:14px;padding:6px 2px 16px}
 .legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px 28px;margin:34px 0 0;padding:22px 24px;background:var(--surface);border:1px solid var(--line);border-radius:16px;font-size:13px;color:var(--muted)}
 .legend b{display:block;color:var(--ink);margin-bottom:3px;font-size:13px}
@@ -131,10 +132,11 @@ function rangeCell(r,cls){const td=el('td','range');const bar=el('div','bar');co
  const mark=el('span','mark');mark.style.setProperty('--px',Math.max(0,Math.min(100,(r.price-a)/span*100)).toFixed(1)+'%');mark.title='current price';
  bar.append(span_el,mark);const lbl=el('div','lbl');lbl.append(el('span',null,px(r.range_low)),el('span',null,px(r.range_high)));td.append(bar,lbl);void full;return td}
 function table(rows,cls){const wrap=el('div','tbl'),t=el('table'),th=el('thead'),tb=el('tbody'),hr=el('tr');
- [['Coin','l'],['Direction','l'],['Price',''],['24h',''],['Grid range','l'],['Step',''],['Grids',''],['Est. grids/h','l'],['Funding',''],['Turnover',''],['ATR 1h','']].forEach(([n,c])=>hr.append(el('th',c,n)));
+ [['Coin','l'],['Direction','l'],['JEV shadow','l'],['Price',''],['24h',''],['Grid range','l'],['Step',''],['Grids',''],['Est. grids/h','l'],['Funding',''],['Turnover',''],['ATR 1h','']].forEach(([n,c])=>hr.append(el('th',c,n)));
  th.append(hr);const max=Math.max(...rows.map(r=>r.expected_grids_per_hour||0),0.01);
  for(const r of rows){const tr=el('tr');const sym=el('td','sym l',short(r.symbol));sym.append(el('small',null,r.symbol));tr.append(sym);
   const dc=el('td','l');dc.append(el('span','chip '+r.direction,dirWord[r.direction]||r.direction));tr.append(dc);
+  const jc=el('td','jev l');if(r.jev&&r.jev.direction){jc.append(el('b',dirClass(r.jev.direction),r.jev.direction+' · '+fmt(r.jev.direction_confidence*100,0)+'% confidence'));jc.append(el('small',null,'entry '+fmt(r.jev.entry_probability*100,0)+'% · range '+fmt(r.jev.range_quality,1)+'/3 · evidence '+fmt(r.jev.evidence_probability*100,0)+'%'))}else jc.textContent='—';tr.append(jc);
   tr.append(el('td','num',px(r.price)));tr.append(el('td','num '+(r.change_24h_pct>=0?'pos':'neg'),(r.change_24h_pct>=0?'+':'')+fmt(r.change_24h_pct,1)+'%'));
   tr.append(rangeCell(r,cls));tr.append(el('td','num',fmt(r.step_pct,2)+'%'));tr.append(el('td','num',fmt(r.grids,0)));
   const g=el('td','gph l');g.append(el('span','v',fmt(r.expected_grids_per_hour,1)));const m=el('div','meter'),i=el('i');i.style.setProperty('--w',(r.expected_grids_per_hour/max*100).toFixed(0)+'%');m.append(i);g.append(m);tr.append(g);

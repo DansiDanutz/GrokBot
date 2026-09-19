@@ -219,7 +219,11 @@ class PublicSnapshotTests(unittest.TestCase):
             low_7d=40_000, high_7d=55_000, range_low=48_000, range_high=55_000,
             step_pct=.8, grids=17, expected_grids_per_hour=2.4, rank_score=2.4,
             grid_interval=400, profit_pct_min=1.01, profit_pct_max=1.5,
-            passes_liquidity=True)]})
+            passes_liquidity=True, jev=dict(model='jev-latest', direction='LONG',
+            direction_probabilities=dict(LONG=.7, SHORT=.1, NEUTRAL=.15, REJECT=.05),
+            direction_confidence=.72, range_quality=2.4, range_confidence=.61,
+            entry_probability=.64, evidence_probability=.81, latency_ms=120,
+            input_tokens=123))]})
         payload['private'] = SECRET
         (radar / 'radar.json').write_text(json.dumps(payload))
         self.export()
@@ -228,6 +232,8 @@ class PublicSnapshotTests(unittest.TestCase):
         self.assertEqual(exported['sections']['long'][0]['direction'], 'LONG')
         self.assertEqual(exported['sections']['long'][0]['snapshot_age_min'], 4)
         self.assertEqual(exported['sections']['long'][0]['profit_pct_min'], 1.01)
+        self.assertEqual(exported['sections']['long'][0]['jev']['direction'], 'LONG')
+        self.assertEqual(exported['sections']['long'][0]['jev']['entry_probability'], .64)
         self.assertEqual(exported['sections']['long'][0]['grid_interval'], 400)
         self.assertNotIn(SECRET, json.dumps(exported))
 

@@ -304,6 +304,17 @@ def _radar(source):
             row = dict(symbol=_symbol(item.get('symbol')), direction=item['direction'],
                        passes_liquidity=item.get('passes_liquidity') is True)
             row.update(_numbers(item, numeric))
+            if item.get('jev') is not None:
+                jev = _object(item['jev'])
+                jev_direction = jev.get('direction')
+                if jev_direction not in ('LONG', 'SHORT', 'NEUTRAL', 'REJECT'):
+                    raise ValueError('invalid JEV direction')
+                probabilities = _object(jev.get('direction_probabilities'))
+                row['jev'] = dict(model='jev-latest', direction=jev_direction,
+                    direction_probabilities={key: _number(probabilities.get(key))
+                        for key in ('LONG', 'SHORT', 'NEUTRAL', 'REJECT')},
+                    **_numbers(jev, ('direction_confidence range_quality range_confidence '
+                        'entry_probability evidence_probability latency_ms input_tokens').split()))
             result['sections'][section].append(row)
     return result
 

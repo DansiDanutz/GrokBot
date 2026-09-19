@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 from trader.radar.cli import main
+from trader.radar.jev import enrich
 from trader.radar.radar import analyse
 
 
@@ -105,6 +106,41 @@ class RadarTests(unittest.TestCase):
         self.assertEqual(payload["asof_ms"], NOW)
         self.assertTrue(any("TURNING UP" in line for line in lines))
         self.assertTrue(any("est.grids/h" in line for line in lines))
+
+    def test_jev_shadow_enriches_top_qualifying_rows_without_changing_rank(self):
+        report = analyse(self.database, NOW)
+        before = [row["symbol"] for row in report["rows"]]
+        calls = []
+        def evaluator(state, questions):
+            calls.append((state, questions))
+            return {"model": "jev-test", "answers": {
+                "direction": {"choice": "LONG", "probabilities": {
+                    "LONG": .7, "SHORT": .1, "NEUTRAL": .15, "REJECT": .05}, "confidence": .72},
+                "range_quality": {"score": 2.4, "probabilities": {
+                    "0": .05, "1": .1, "2": .35, "3": .5}, "confidence": .61},
+                "entry_now": {"noul": .64}, "evidence_sufficient": {"noul": .81}},
+                "usage": {"input_tokens": 123}}
+        enriched = enrich(report, evaluator=evaluator, limit=2)
+        self.assertEqual([row["symbol"] for row in enriched["rows"]], before)
+        selected = [row for row in enriched["rows"] if "jev" in row]
+        self.assertEqual(len(selected), 2)
+        self.assertEqual(selected[0]["jev"]["direction"], "LONG")
+        self.assertEqual(set(calls[0][1]), {"direction", "range_quality", "entry_now", "evidence_sufficient"})
+        self.assertEqual(enriched["jev_shadow"]["failed"], 0)
+
+    def test_jev_shadow_failure_keeps_deterministic_rows(self):
+        report = analyse(self.database, NOW)
+        expected = json.loads(json.dumps(report["rows"]))
+        enriched = enrich(report, evaluator=lambda *_: (_ for _ in ()).throw(RuntimeError("private")), limit=1)
+        self.assertEqual(enriched["rows"], expected)
+        self.assertEqual(enriched["jev_shadow"]["status"], "degraded")
+
+    def test_cli_jev_shadow_requires_explicit_key(self):
+        destination = Path(self.temp.name) / "radar.json"
+        with self.assertRaisesRegex(ValueError, "TYPESAFE_API_KEY"):
+            main(["--database", str(self.database), "--json", str(destination),
+                  "--asof-ms", str(NOW), "--no-liquidation-clusters", "--jev-shadow"],
+                 printer=lambda _line: None, environ={})
 
     def test_oldest_required_snapshot_age_blocks_liquidity_and_is_printed(self):
         connection = sqlite3.connect(self.database)
