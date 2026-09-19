@@ -104,7 +104,13 @@ def client(api_key, *, opener=urlopen, timeout=6):
 def enrich(report, *, evaluator, limit=10):
     """Attach advisory judgments to the highest scored qualifying rows in place."""
     rows = report.get("rows", [])
-    candidates = sorted((row for row in rows if row.get("passes_liquidity")),
+    sections = report.get("sections") if isinstance(report.get("sections"), dict) else {}
+    visible = {item.get("symbol") for key, values in sections.items() if key != "majors"
+               for item in values if isinstance(item, dict)}
+    pool = [row for row in rows if row.get("passes_liquidity") and row.get("symbol") in visible]
+    if not pool:
+        pool = [row for row in rows if row.get("passes_liquidity")]
+    candidates = sorted(pool,
                         key=lambda row: (-row.get("score", 0), row.get("symbol", "")))[:limit]
     failed = tokens = 0
     for row in candidates:

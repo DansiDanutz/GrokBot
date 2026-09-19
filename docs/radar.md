@@ -24,8 +24,9 @@ TYPESAFE_API_KEY='loaded-by-private-wrapper' python3 -m trader.radar \
   --jev-shadow
 ```
 
-This evaluates at most ten liquidity-qualified rows ordered by the existing
-watchlist score. Selected rows receive typed direction probabilities, range
+This evaluates at most ten visible, liquidity-qualified candidate rows ordered by
+the existing watchlist score, falling back to other qualified rows only when no
+candidate section exists. Selected rows receive typed direction probabilities, range
 quality, entry probability, evidence probability, confidence, latency and token
 usage. Deterministic scoring, ordering, ranges and paper decisions do not change.
 Provider failure leaves a row untouched and marks the run degraded. The switch is
