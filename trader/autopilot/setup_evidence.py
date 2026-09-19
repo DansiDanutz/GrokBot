@@ -165,7 +165,33 @@ def _break_even(pair_net, seed_fee, flatten_fee, spread_cost, funding):
                            'this is not an admission threshold or a profitability forecast.')
 
 
-def build(row, bot):
+def _entry_decision(row, decision_context, source_section, slot_direction, open_label):
+    """Freeze the bounded, machine-readable reason for opening this bot."""
+    parts = []
+    for part in row.get('score_parts') or []:
+        if not isinstance(part, dict) or not isinstance(part.get('code'), str):
+            continue
+        value, points = _number(part.get('value')), _number(part.get('points'))
+        if value is not None and points is not None:
+            parts.append(dict(code=part['code'][:40], value=value, points=points))
+    jev = row.get('jev')
+    jev_fields = ('model', 'direction', 'direction_confidence', 'range_quality',
+                  'range_confidence', 'entry_probability', 'evidence_probability',
+                  'latency_ms', 'input_tokens')
+    frozen_jev = ({key: deepcopy(jev[key]) for key in jev_fields if key in jev}
+                  if isinstance(jev, dict) else None)
+    return dict(
+        source_section=source_section,
+        slot_direction=slot_direction,
+        open_label=open_label,
+        context=deepcopy(decision_context) if isinstance(decision_context, dict) else None,
+        score_parts=parts,
+        jev=frozen_jev,
+    )
+
+
+def build(row, bot, *, decision_context=None, source_section=None,
+          slot_direction=None, open_label=None):
     """Freeze the actual opened layout and its source evidence, without new entry rules."""
     price, quantity = bot['opening_price'], bot['contracts_per_line']
     maker, taker = bot['fee_rate_maker'], bot['fee_rate_taker']
@@ -225,6 +251,8 @@ def build(row, bot):
     dossier = dict(
         version=1, status='RECORDED', bot_id=bot['bot_id'], symbol=bot['symbol'],
         opened_ms=bot['opened_ms'], direction=bot['direction'],
+        entry_decision=_entry_decision(row, decision_context, source_section,
+                                       slot_direction, open_label),
         range_status='VERIFIED' if structure and structure.get('status') == 'VERIFIED' else 'MISSING',
         range_evidence=structure,
         coinglass_liquidation_clusters=dict(

@@ -33,6 +33,41 @@ class SetupEvidenceTests(unittest.TestCase):
         self.assertNotEqual(setup_evidence.evidence_id(altered), dossier['evidence_id'])
         self.assertEqual(json.loads(json.dumps(dossier)), dossier)
 
+    def test_entry_motivation_is_frozen_with_score_parts_and_jev(self):
+        candidate, bot = self.make(
+            score=71.5,
+            score_parts=[
+                {'code': 'OSCILLATION', 'value': 18.4, 'points': 27.6},
+                {'code': 'ROOM', 'value': 1.6, 'points': 12.0},
+            ],
+            jev={
+                'model': 'jev-latest', 'direction': 'LONG',
+                'direction_confidence': .82, 'range_quality': 2.5,
+                'range_confidence': .76, 'entry_probability': .68,
+                'evidence_probability': .91, 'latency_ms': 412.3,
+                'input_tokens': 832,
+            },
+        )
+        decision = {
+            'direction': 'LONG', 'radar_direction': 'LONG',
+            'radar_score': 71.5, 'expected_grids_per_hour': 18.4,
+            'range_width_pct': 12.5, 'funding_rate': -.01, 'kucoin_ok': 1,
+        }
+        dossier = setup_evidence.build(
+            candidate, bot, decision_context=decision,
+            source_section='long', slot_direction='LONG', open_label='LONG')
+
+        self.assertEqual(dossier['entry_decision']['context'], decision)
+        self.assertEqual(dossier['entry_decision']['source_section'], 'long')
+        self.assertEqual(dossier['entry_decision']['score_parts'][0]['code'], 'OSCILLATION')
+        self.assertEqual(dossier['entry_decision']['jev']['direction'], 'LONG')
+        candidate['score_parts'][0]['points'] = -99
+        candidate['jev']['direction'] = 'REJECT'
+        decision['radar_score'] = 0
+        self.assertEqual(dossier['entry_decision']['context']['radar_score'], 71.5)
+        self.assertEqual(dossier['entry_decision']['score_parts'][0]['points'], 27.6)
+        self.assertEqual(dossier['entry_decision']['jev']['direction'], 'LONG')
+
     def test_fee_math_and_return_denominator_are_explicit(self):
         candidate, bot = self.make()
         dossier = setup_evidence.build(candidate, bot)

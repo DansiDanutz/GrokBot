@@ -596,11 +596,15 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
             bot = open_bot(spec, marked['price'], now_ms)
             bot['risk_metadata_at_ms'] = now_ms - int(row.get('snapshot_age_min',0)*60000)
             context = _decision_context(marked, direction, result)
+            open_label = labels.get(bot['symbol'])
             result['open_bots'].append(dict(engine=bot, reserve_usdt=reserve,
                                            source_section=section, slot_direction=slot, signals=[],
-                                           open_label=labels.get(bot['symbol']),
+                                           open_label=open_label,
                                            range_verified=row.get('range_verified', 0),
-                                           setup_evidence=setup_evidence.build(marked, bot),
+                                           setup_evidence=setup_evidence.build(
+                                               marked, bot, decision_context=context,
+                                               source_section=section, slot_direction=slot,
+                                               open_label=open_label),
                                            decision_context=context))
             result['next_bot_id'] += 1
             result['radar_seen'][bot['symbol']] = [dict(scan_id=scan_id, present=True)]
