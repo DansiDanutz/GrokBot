@@ -7,6 +7,7 @@ from pathlib import Path
 
 from trader.radar import liquidity_levels
 from trader.radar.radar import analyse
+from trader.radar.entry import VERSION
 
 
 LABELS = (("majors", "MAJORS READ"), ("turning_up", "TURNING UP"),
@@ -46,7 +47,7 @@ def main(argv=None, printer=print, environ=None):
     parser.add_argument("--jev-shadow", action="store_true",
                         help="request advisory TypeSafe judgments for up to ten candidates")
     args = parser.parse_args(argv)
-    report = analyse(args.database, args.asof_ms, args.liquidation_clusters)
+    report = analyse(args.database, args.asof_ms, args.liquidation_clusters, entry_policy=VERSION)
     if not args.liquidation_clusters and not args.no_liquidation_clusters:
         now = args.asof_ms if args.asof_ms is not None else int(time.time() * 1000)
         entered = [row["symbol"] for rows in report["sections"].values() for row in rows]
@@ -63,6 +64,7 @@ def main(argv=None, printer=print, environ=None):
     temporary.replace(destination)
     printer(f"Analysed {len(report['rows'])} symbols; "
             f"{sum(row['passes_liquidity'] for row in report['rows'])} pass liquidity filters.")
+    printer(f"Entry policy: {VERSION}; {sum(r.get('entry_viable',0) for r in report['rows'])} confirmed setups.")
     if args.jev_shadow:
         shadow = report['jev_shadow']
         printer(f"JEV shadow: {shadow['evaluated']}/{shadow['attempted']} evaluated; "

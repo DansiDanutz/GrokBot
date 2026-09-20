@@ -38,7 +38,7 @@ def _system(now, kind, code=0):
 
 class Runner:
     def __init__(self, database, state, radar, snapshot, *, client=None, now_ms=None,
-                 chat_id=None, telegram_state=None, notifier=None):
+                 chat_id=None, telegram_state=None, notifier=None, entry_policy=None):
         self.database, self.state_path, self.radar_path, self.snapshot_path = guarded_paths(
             database, state, radar, snapshot)
         self.now_ms = now_ms or (lambda: int(time.time() * 1000))
@@ -59,6 +59,16 @@ class Runner:
         self.state.setdefault('runtime', dict(quotes={}, kucoin_ok=False,
                               kucoin_down_since_ms=None, alert_active=False, last_write_ms=0,
                               last_decision_ms=0, radar_scan_id=None))
+        from trader.radar.entry import VERSION
+        entry_policy = entry_policy or self.state['runtime'].get('entry_policy_version')
+        if entry_policy not in (None, VERSION):
+            raise ValueError('unknown entry policy')
+        self.entry_policy = entry_policy
+        if entry_policy:
+            meta = self.state['runtime']
+            if meta.get('entry_policy_version') != entry_policy:
+                meta['entry_policy_activated_ms'] = self.now_ms()
+            meta['entry_policy_version'] = entry_policy
         self.state['runtime'].setdefault('last_tick_ms', self.state['started_ms'])
         self.state['runtime'].setdefault('pending_funding_reconciliation', {})
         self.state['runtime'].setdefault('pending_recovery_reconciliation', {})
@@ -240,7 +250,9 @@ class Runner:
         meta = self.state['runtime']
         # Tick age measures the last successful allTickers pass, not the last trade
         # of the thinnest coin: a quiet contract must not read as a dead feed.
-        return dict(heartbeat_ms=now, tick_age_s=max(0, (now - meta['last_tick_ms']) / 1000),
+        return dict(entry_policy_version=meta.get('entry_policy_version'),
+                    entry_policy_activated_ms=meta.get('entry_policy_activated_ms'),
+                    heartbeat_ms=now, tick_age_s=max(0, (now - meta['last_tick_ms']) / 1000),
                     kucoin_ok=meta['kucoin_ok'], kucoin_down_since_ms=meta['kucoin_down_since_ms'],
                     radar_age_min=max(0, (now - self.radar['asof_ms']) / 60000) if self.radar else None,
                     recovery_pending=not self.recovered,
@@ -467,7 +479,7 @@ class Runner:
             scan_id = str(self.radar['asof_ms']) if self.radar else None
             previous_watchlist = deepcopy(self.state.get('watchlist', {}))
             if funding_ready:
-                self.state, emitted = policy.decide(self.state, radar, prices, now, scan_id, require_live_prices=True)
+                self.state, emitted = policy.decide(self.state, radar, prices, now, scan_id, require_live_prices=True, entry_policy=self.entry_policy)
             else:
                 emitted = []
             current = self.state['watchlist']
