@@ -67,8 +67,11 @@ def open_neutral(spec, price, now_ms):
         seeded = sum(o['pair_entry'] is not None for o in book['orders'])
         if seeded:
             # Initial position establishment executes as a market order (taker).
-            engine._position_fill(book, quantity * seeded * (1 if direction == 'LONG' else -1),
-                                  price, taker=True)
+            seed_fee = engine._position_fill(book, quantity * seeded * (1 if direction == 'LONG' else -1),
+                                             price, taker=True)
+            for order in book['orders']:
+                if order['pair_entry'] is not None:
+                    order['pair_evidence'] = engine._opening_evidence(book,now_ms,price,seed_fee/seeded,1)
         books.append(book)
     bot['hedge_books'] = books
     bot['accounting_model'] = 'independent_hedge_v1'
@@ -112,16 +115,18 @@ def step_neutral(bot, price, at):
                 raise ValueError('closing hedge order exceeds leg inventory')
             fee = engine._position_fill(book, sign * quantity, fill)
             events.append(engine._event(result, at, 'FILL', price=fill, contracts=quantity,
-                side=sign, fee=fee, line=order['line'], book=index))
+                side=sign, fee=fee, line=order['line'], book=index, fill_id=book['fills']))
             if closing:
                 profit = quantity * (fill - order['pair_entry']) * (1 if index == 0 else -1)
                 book['completed_grids'] += 1
                 book['grid_profit'] += profit
                 events.append(engine._event(result, at, 'GRID', price=fill, profit=profit,
-                    completed_grids=sum(b['completed_grids'] for b in result['hedge_books'])))
+                    completed_grids=sum(b['completed_grids'] for b in result['hedge_books']),
+                    **engine._grid_evidence(order,book,at,fee,profit,index)))
             book['orders'].remove(order)
             book['orders'].append(dict(line=empty, side='sell' if sign == 1 else 'buy',
-                paired_line=None if closing else order['line'], pair_entry=None if closing else fill))
+                paired_line=None if closing else order['line'], pair_entry=None if closing else fill,
+                pair_evidence=None if closing else engine._opening_evidence(book,at,fill,fee)))
             book['orders'].sort(key=lambda o: o['line'])
             book['empty_line'] = order['line']
         book['last_ts_ms'] = at

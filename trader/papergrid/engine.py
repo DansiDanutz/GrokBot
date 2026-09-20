@@ -35,6 +35,21 @@ def _event(bot, at, kind, **numbers):
     return dict(ts_ms=at, bot_id=bot['bot_id'], symbol=bot['symbol'], type=kind, **numbers)
 
 
+def _opening_evidence(bot, at, price, fee, seeded=0):
+    return dict(opening_ts_ms=at,opening_fill_id=bot['fills'],opening_price=price,
+                opening_fee=fee,seeded=seeded)
+
+
+def _grid_evidence(order, bot, at, fee, profit, book=0):
+    result=dict(book=book,closing_fill_id=bot['fills'],closing_fee=fee,
+                pair_evidence=0,funding_known=0)
+    opening=order.get('pair_evidence')
+    if isinstance(opening,dict):
+        result.update(opening,pair_evidence=1,holding_ms=at-opening['opening_ts_ms'],
+                      net_before_funding=profit-opening['opening_fee']-fee)
+    return result
+
+
 def _position_fill(bot, quantity, price, *, taker=False):
     old, average = bot['position_contracts'], bot['avg_entry']
     new = old + quantity
@@ -143,8 +158,12 @@ def _open_single_bot(spec, price, now_ms):
     seed_count = sum(order['paired_line'] is not None for order in bot['orders'])
     if seed_count:
         # Initial position establishment executes as a market order (taker).
-        _position_fill(bot, quantity * seed_count * (1 if spec['direction'] == 'LONG' else -1),
-                       price, taker=True)
+        seed_fee = _position_fill(bot, quantity * seed_count * (1 if spec['direction'] == 'LONG' else -1),
+                                  price, taker=True)
+        if spec.get('accounting_version') == 2:
+            for order in bot['orders']:
+                if order['paired_line'] is not None:
+                    order['pair_evidence'] = _opening_evidence(bot,now_ms,price,seed_fee/seed_count,1)
     _mark(bot, price)
     return bot
 
@@ -178,16 +197,18 @@ def _price_update(bot, price, at, events):
         position_before = abs(bot['position_contracts'])
         fee = _position_fill(bot, quantity * sign, fill_price)
         events.append(_event(bot, at, 'FILL', price=fill_price, contracts=quantity,
-                             side=sign, fee=fee, line=i))
+                             side=sign, fee=fee, line=i, fill_id=bot['fills'], book=0))
         if order['paired_line'] is not None and abs(bot['position_contracts']) < position_before:
             pair_entry = order.get('pair_entry') if bot.get('accounting_version') == 2 else bot['lines'][order['paired_line']]
             profit = quantity * abs(fill_price - pair_entry)
             bot['completed_grids'] += 1
             bot['grid_profit'] += profit
             events.append(_event(bot, at, 'GRID', price=fill_price, profit=profit,
-                                 completed_grids=bot['completed_grids']))
+                                 completed_grids=bot['completed_grids'],
+                                 **_grid_evidence(order,bot,at,fee,profit)))
         bot['orders'].remove(order)
-        bot['orders'].append(dict(line=empty, side='sell' if sign == 1 else 'buy', paired_line=i, pair_entry=fill_price))
+        bot['orders'].append(dict(line=empty, side='sell' if sign == 1 else 'buy', paired_line=i, pair_entry=fill_price,
+                                 pair_evidence=_opening_evidence(bot,at,fill_price,fee)))
         bot['orders'].sort(key=lambda row: row['line'])
         bot['empty_line'] = i
         _mark(bot, fill_price)
