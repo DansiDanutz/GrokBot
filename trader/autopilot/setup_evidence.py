@@ -308,5 +308,8 @@ def build(row, bot, *, decision_context=None, source_section=None,
                                'inventory losses can outweigh completed grid gains.'),
         unknowns=unknowns,
     )
+    if row.get('entry_policy_version'):
+        from trader.radar.entry import receipt
+        dossier['entry_policy'] = receipt(row, bot['direction'], bot['opened_ms'])
     dossier['evidence_id'] = evidence_id(dossier)
     return dossier

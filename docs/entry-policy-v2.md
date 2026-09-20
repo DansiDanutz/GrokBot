@@ -35,3 +35,17 @@ and comparisons; stale/unversioned radar cannot open a production bot.
 Activation preserves existing bots, start time, bankroll and equity/history.
 Existing pinned stop/range rules continue. No real orders, resets, replay,
 backtest, manual Telegram send or installed LaunchAgent changes.
+
+## Activation validation
+
+Eleven new offline tests cover stale/missing funding metadata, settlement counts,
+Long/Short/Neutral retests, unclosed/gapped candles, pre-confirmation pivots,
+no chasing, minimum counts, old-radar rejection, existing-bot preservation,
+production CLI wiring and an entry receipt included in the immutable dossier hash.
+`npm run verify`: 1,237 passing tests (39 Node, 356 paper, 818 trader, 24 team).
+
+One read-only current-window scan of the existing database at
+2026-09-20T18:33:08.390Z produced 369 rows, 51 passing liquidity, zero admitted
+setups: 24 missing structure, 1 incomplete hourly history, 4 invalid order split,
+22 insufficient grid room. Output stayed in /tmp until activation. This is not a
+backtest, profitability result or reason to relax the specified gates.

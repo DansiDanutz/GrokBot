@@ -3,8 +3,9 @@ import math
 from copy import deepcopy
 from trader.papergrid.engine import BOT_FEE_RATE
 from trader.radar.spacing import align_bounds, economics, choose_count, funding_stress
+from trader.radar.entry import VERSION, funding_window
 
-# Preserve the deployed baseline; the higher floor belongs to explicit observation.
+# Legacy pure calls keep their baseline; versioned entries and observations use 70.
 MIN_GRIDS = 12
 OBSERVATION_MIN_GRIDS = 70
 MAX_GRIDS = 200
@@ -41,15 +42,24 @@ def layout_valid(low, interval, grids, price, direction, *, split_mode='strict')
 
 
 def select_range(supports, resistances, row, direction, *, evidence=None, split_mode='strict',
-                 funding_settlements=None):
-    """Nearest feasible confirmed pair; experimental rules require observation mode."""
+                 funding_settlements=None, entry_policy=None, asof_ms=None):
+    """Nearest feasible confirmed pair under an explicit version or legacy baseline."""
     if split_mode not in ('strict', 'observe'):
         raise ValueError('unknown split mode')
+    if entry_policy not in (None, VERSION):
+        raise ValueError('unknown entry policy')
+    if entry_policy and (split_mode != 'strict' or funding_settlements is not None):
+        raise ValueError('active entry policy requires strict split and recorded funding window')
     if funding_settlements is not None and (split_mode != 'observe'
             or type(funding_settlements) is not int or funding_settlements < 0):
         raise ValueError('funding scenario requires observation mode and nonnegative settlement count')
     from trader.autopilot.risk import sizing
-    minimum = OBSERVATION_MIN_GRIDS if split_mode == 'observe' else MIN_GRIDS
+    minimum = OBSERVATION_MIN_GRIDS if split_mode == 'observe' or entry_policy else MIN_GRIDS
+    window = funding_window(row, asof_ms) if entry_policy else None
+    if window and window['status'] != 'READY':
+        return None, window['reason']
+    if window:
+        funding_settlements = window['settlements']
     tick = row.get('tick_size',0)
     if evidence is not None and evidence.get('status') != 'VERIFIED':
         return None, evidence.get('reason') or 'MISSING_STRUCTURE'
@@ -107,7 +117,9 @@ def select_range(supports, resistances, row, direction, *, evidence=None, split_
                          maximum_fee_viable_count=maximum,minimum_required_grids=minimum,
                          higher_count_rejections=higher_rejections,
                          fee_rate_maker=BOT_FEE_RATE,fee_rate_taker=BOT_FEE_RATE)
-            if split_mode == 'observe':
+            if window:
+                proof.update(entry_policy_version=entry_policy,funding_window=window)
+            if split_mode == 'observe' or window:
                 proof['funding_stress'] = funding_stress(
                     low,high,count,tick_size=tick,direction=direction,
                     rate_pct=row.get('funding_pct'),

@@ -84,6 +84,18 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(read_json(self.snapshot)['history_archive_status'], 'COMPLETE')
         self.assertEqual(restarted.state['started_ms'], runner.state['started_ms'])
 
+    def test_entry_policy_activation_is_persisted_and_cannot_silently_downgrade(self):
+        from trader.radar.entry import VERSION
+        runner = self.runner(entry_policy=VERSION)
+        view = runner.pass_once()
+        self.assertEqual(view['entry_policy_version'], VERSION)
+        self.assertEqual(view['open_bots'], [])  # Legacy fixture has no confirmation.
+        activated = view['entry_policy_activated_ms']
+        self.clock[0] += 10000
+        restarted = self.runner()
+        self.assertEqual(restarted.entry_policy, VERSION)
+        self.assertEqual(restarted.pass_once()['entry_policy_activated_ms'], activated)
+
     def test_once_tick_fill_and_snapshot_health(self):
         runner = self.runner()
         runner.pass_once()

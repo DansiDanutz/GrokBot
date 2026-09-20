@@ -13,6 +13,7 @@ from trader.radar.scoring import score_row
 from trader.radar.support import assess
 from trader.radar.liquidity_levels import annotate
 from trader.radar.layout import select_range, layout_valid
+from trader.radar.entry import VERSION, retest, admission
 from trader.radar.spacing import economics, choose_count, align_bounds
 
 
@@ -101,7 +102,7 @@ def _direction(hourly, price, asof_ms=None):
 
 
 def _sections(rows):
-    passed = [row for row in rows if row["passes_liquidity"] and row.get("range_verified", 1) and row.get("spacing_viable", 1) and row.get("risk_verified", 1) and layout_valid(
+    passed = [row for row in rows if row["passes_liquidity"] and row.get("entry_viable", 1) and row.get("range_verified", 1) and row.get("spacing_viable", 1) and row.get("risk_verified", 1) and layout_valid(
                   row["range_low"], row.get("grid_interval",0), row["grids"], row["price"],
                   "SHORT" if row["direction"] in ("SHORT","TURNING-DOWN") else
                   "NEUTRAL" if row["direction"] == "NEUTRAL" else "LONG")]
@@ -124,12 +125,14 @@ def _sections(rows):
     return result
 
 
-def analyse(database, asof_ms=None, liquidation_clusters=None):
+def analyse(database, asof_ms=None, liquidation_clusters=None, *, entry_policy=None):
     """Read one SQLite snapshot and return the prototype's deterministic radar.
 
     ``liquidation_clusters`` is an optional derived-cluster file; when given,
     rows gain advisory ``liq_*`` fields and never change otherwise.
     """
+    if entry_policy not in (None, VERSION):
+        raise ValueError('unknown entry policy')
     path = Path(database).expanduser().absolute()
     if not path.is_file() or path.is_symlink():
         raise ValueError("database must be a regular non-symlink file")
@@ -244,7 +247,7 @@ def analyse(database, asof_ms=None, liquidation_clusters=None):
                                 and spread <= MAX_SPREAD_PCT and age_days >= MIN_LISTING_AGE_DAYS
                                 and snapshot_age_min <= MAX_SNAPSHOT_AGE_MIN,
         }
-        selected, rejection = select_range(supports,resistances,row,side,evidence=basis)
+        selected, rejection = select_range(supports,resistances,row,side,evidence=basis,entry_policy=entry_policy,asof_ms=now)
         if basis['status'] == 'REJECTED':
             rejection = basis['reason']
         row['layout_viable'] = int(selected is not None)
@@ -259,6 +262,14 @@ def analyse(database, asof_ms=None, liquidation_clusters=None):
             row['expected_grids_per_hour'] = round(expected_grids_per_hour(
                 atr_1h_pct,row['step_pct'],turnover),2)
             row['rank_score'] = row['expected_grids_per_hour']*min(1.0,turnover/8_000_000)
+        if entry_policy:
+            row['entry_policy_version'] = entry_policy
+            row['entry_retests'] = {d: retest(hourly,basis,row,d,now)
+                                    for d in ('LONG','SHORT','NEUTRAL')}
+            entry_rejection = admission(row,side,now,required_version=entry_policy)
+            row['entry_viable'] = int(selected is not None and not entry_rejection)
+            if selected and entry_rejection:
+                row['setup_rejection'] = entry_rejection
         try:
             row.update(score_row(row))
         except ValueError:
@@ -272,4 +283,6 @@ def analyse(database, asof_ms=None, liquidation_clusters=None):
             "max_spread_pct": MAX_SPREAD_PCT, "min_listing_age_days": MIN_LISTING_AGE_DAYS,
             "max_snapshot_age_min": MAX_SNAPSHOT_AGE_MIN},
             "rows": rows, "sections": _sections(rows)}
+    if entry_policy:
+        report['entry_policy_version'] = entry_policy
     return report if liquidation_clusters is None else annotate(report, liquidation_clusters, now)

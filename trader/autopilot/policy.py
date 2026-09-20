@@ -17,6 +17,7 @@ from trader.radar.rates import expected_grids_per_hour
 from trader.radar.scoring import score_row
 from trader.radar.spacing import economics
 from trader.radar.layout import layout_valid
+from trader.radar.entry import admission as entry_admission
 from trader.autopilot import watchlist
 from trader.autopilot import setup_evidence
 from trader.autopilot import hedge, influence
@@ -60,6 +61,7 @@ DECISION_RULES = {
     'hedge_trigger': 20,
     'influence_boost': 21,
     'influence_veto': 22,
+    'entry_confirmation': 23,
 }
 # Non-risk closes the opportunity-cost gate may defer. PROFILE_UPDATE rebuilds a
 # stale specification rather than abandoning a coin, so it stays unconditional.
@@ -375,13 +377,15 @@ def profile(row, direction, bot_id):
                 funding_pct=row['funding_pct']), reserve
 
 
-def eligible(state, row, direction, source_section, now_ms):
+def eligible(state, row, direction, source_section, now_ms, *, entry_policy=None):
     """Admission shared by slot selection, including explicit trend movers caps."""
-    return _eligibility(state, row, direction, source_section, now_ms)[0]
+    return _eligibility(state, row, direction, source_section, now_ms, entry_policy=entry_policy)[0]
 
 
-def _eligibility(state, row, direction, source_section, now_ms):
+def _eligibility(state, row, direction, source_section, now_ms, *, entry_policy=None):
     blocks = []
+    if entry_admission(row, direction, now_ms, required_version=entry_policy):
+        blocks.append(DECISION_RULES['entry_confirmation'])
     if row.get('range_verified') != 1:
         blocks.append(DECISION_RULES['range_not_verified'])
     bots = [item['engine'] for item in state['open_bots']]
@@ -453,7 +457,7 @@ def _candidates(sections, direction):
             yield name, row
 
 
-def _qualified_rows(radar, rows, now_ms):
+def _qualified_rows(radar, rows, now_ms, *, entry_policy=None):
     scored = []
     for row in rows:
         if not row.get('passes_liquidity', False):
@@ -466,7 +470,7 @@ def _qualified_rows(radar, rows, now_ms):
     allowed = set()
     for direction in SLOTS:
         for section, row in _candidates(sections, direction):
-            if eligible(new_state(now_ms), row, direction, section, now_ms):
+            if eligible(new_state(now_ms), row, direction, section, now_ms, entry_policy=entry_policy):
                 allowed.add(row['symbol'])
     return [r for r in scored if r['symbol'] in allowed]
 
@@ -512,7 +516,7 @@ def _reason(wrapper, labels, missing, now_ms, flip_hysteresis=None):
     return None
 
 
-def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
+def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False, entry_policy=None):
     result, events = deepcopy(state), []
     rules = _learned_rules()
     if watchlist.is_older(scan_id, result.get('watchlist', {}).get('last_scan_id')):
@@ -521,7 +525,7 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
     radar = radar or {'rows': [], 'sections': {}}
     rows = radar.get('rows', [row for section in radar.get('sections', {}).values() for row in section])
     labels = {row['symbol']: row['direction'] for row in rows}
-    qualified = _qualified_rows(radar, rows, now_ms) if radar_available else []
+    qualified = _qualified_rows(radar, rows, now_ms, entry_policy=entry_policy) if radar_available else []
     result.setdefault('watchlist', watchlist.initial())
     if radar_available:
         result['watchlist'], changes = watchlist.update(result['watchlist'], qualified, now_ms, scan_id)
@@ -588,7 +592,7 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
                 skip(row, direction, [DECISION_RULES['learned_symbol_cooldown']])
                 continue
             marked = dict(row, price=prices.get(row['symbol'], row['price']))
-            admitted, blocks = _eligibility(result, marked, direction, section, now_ms)
+            admitted, blocks = _eligibility(result, marked, direction, section, now_ms, entry_policy=entry_policy)
             if not admitted:
                 skip(marked, direction, blocks)
                 continue
@@ -621,7 +625,7 @@ def decide(state, radar, prices, now_ms, scan_id, *, require_live_prices=False):
         if require_live_prices and row['symbol'] not in prices:
             continue
         marked = dict(row, price=prices.get(row['symbol'], row['price']))
-        if _eligibility(result, marked, direction, section, now_ms)[0]:
+        if _eligibility(result, marked, direction, section, now_ms, entry_policy=entry_policy)[0]:
             skip(marked, direction, [DECISION_RULES['influence_veto']])
     for slot in vacancies:
         if not fill(slot, slot):

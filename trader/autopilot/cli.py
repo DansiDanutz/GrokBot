@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 from trader.autopilot.constants import TICK_INTERVAL_S
+from trader.radar.entry import VERSION
 from trader.autopilot.runtime import Runner, guarded_paths
 from trader.autopilot.storage import InstanceLock
 
@@ -45,7 +46,7 @@ def main(argv=None):
             for sig in (signal.SIGTERM, signal.SIGINT):
                 previous[sig] = signal.getsignal(sig)
                 signal.signal(sig, lambda *_: stop.set())
-            runner = Runner(*paths, chat_id=args.telegram_chat_id, telegram_state=args.telegram_state)
+            runner = Runner(*paths, chat_id=args.telegram_chat_id, telegram_state=args.telegram_state, entry_policy=VERSION)
             runner.stop = stop
             if args.command == 'once':
                 runner.pass_once(force_decision=True)
