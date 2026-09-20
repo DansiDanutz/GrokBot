@@ -105,3 +105,37 @@ funding horizon and the grid-floor/split contract remain separate decisions.
 Validation for the funding addition: tests written first (six missing-helper
 failures), then 25 targeted spacing/layout tests pass. Full gates: 1,201 tests
 (39 Node, 356 paper, 782 trader, 24 team) and staged-secret scan.
+
+
+## Fixed-range funded count selection
+
+The pure selector accepts `funding_settlements` only with explicit observation
+mode. It tries smaller counts within the same supplied structural boundaries,
+still requiring 70–200 grids and the existing lot/liquidation checks. Unknown
+funding rejects with UNKNOWN_FUNDING_RATE. Counts that fail the scenario are
+recorded as FUNDING_RETURN_BELOW_1_PERCENT; the count is never silently lowered
+below 70. Default callers do not pass this option and remain unchanged.
+
+Reusing the six previously identified rounded pairs and the saved radar rows
+at the same cutoff (not a new chart assessment or performance replay), the
+one-adverse-settlement scenario yields:
+
+| Coin | Previous count | Funded count | Scenario minimum % at 5x |
+| --- | ---: | ---: | ---: |
+| ARB | 77 | 74 | 1.0067 |
+| FIL | 71 | Rejected | Below 1% even at 70 |
+| NEAR | 76 | 76 | 1.0112 |
+| APT | 70 | Rejected | Below 1% at 70 |
+| JUP | 73 | 71 | 1.1245 |
+| OP | 71 | Rejected | Below 1% even at 70 |
+
+Tick rounding causes discrete jumps in the interval and return, especially
+JUP. These numbers establish conditional mathematical capacity only. They
+are not current recommendations, confirmed entry timing, or an approval to
+adopt the 70-grid policy. Longer holding periods or a changed rate can still
+fail the floor; a scenario is not a guarantee. Existing state is untouched.
+
+Four new tests were run failing first, then passed: fixed-bound maximum count,
+no feasible 70-grid layout, missing funding rejection and explicit-mode guard.
+Full validation: 1,205 tests (39 Node, 356 paper, 786 trader, 24 team), plus
+staged-secret scan. No production activation.

@@ -39,10 +39,14 @@ def layout_valid(low, interval, grids, price, direction, *, split_mode='strict')
     return abs(buys-target*(buys+sells)) <= ORDER_TOLERANCE + 1e-10
 
 
-def select_range(supports, resistances, row, direction, *, evidence=None, split_mode='strict'):
+def select_range(supports, resistances, row, direction, *, evidence=None, split_mode='strict',
+                 funding_settlements=None):
     """Nearest confirmed pair supporting at least 70 fee-safe grids."""
     if split_mode not in ('strict', 'observe'):
         raise ValueError('unknown split mode')
+    if funding_settlements is not None and (split_mode != 'observe'
+            or type(funding_settlements) is not int or funding_settlements < 0):
+        raise ValueError('funding scenario requires observation mode and nonnegative settlement count')
     from trader.autopilot.risk import sizing
     tick = row.get('tick_size',0)
     if evidence is not None and evidence.get('status') != 'VERIFIED':
@@ -69,6 +73,15 @@ def select_range(supports, resistances, row, direction, *, evidence=None, split_
             if not layout_valid(low,spacing['interval'],count,row['price'],direction,split_mode=split_mode):
                 higher_rejections.append(dict(grids=count,reason='ENTRY_SPLIT'))
                 continue
+            if funding_settlements is not None:
+                scenario = funding_stress(low,high,count,tick_size=tick,direction=direction,
+                                          rate_pct=row.get('funding_pct'),settlements=funding_settlements)
+                if scenario['status'] == 'UNKNOWN_RATE':
+                    return None, 'UNKNOWN_FUNDING_RATE'
+                if not scenario['passes_floor']:
+                    reason = 'FUNDING_RETURN_BELOW_1_PERCENT'
+                    higher_rejections.append(dict(grids=count,reason=reason))
+                    continue
             reason = 'LIQUIDATION_OR_LOT_LIMIT'
             candidate = dict(row,range_low=low,range_high=high)
             try:
@@ -95,7 +108,8 @@ def select_range(supports, resistances, row, direction, *, evidence=None, split_
             if split_mode == 'observe':
                 proof['funding_stress'] = funding_stress(
                     low,high,count,tick_size=tick,direction=direction,
-                    rate_pct=row.get('funding_pct'),settlements=1)
+                    rate_pct=row.get('funding_pct'),
+                    settlements=1 if funding_settlements is None else funding_settlements)
             if evidence:
                 proof['selected_support'] = deepcopy(next(p for p in evidence['supports'] if p['price']==support))
                 proof['selected_resistance'] = deepcopy(next(p for p in evidence['resistances'] if p['price']==resistance))

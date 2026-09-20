@@ -145,3 +145,38 @@ class SplitCandidateTests(unittest.TestCase):
         bad=dict(row); bad.pop('maintain_margin')
         self.assertEqual(select_range([(1.4,2)],[(2,2)],bad,'LONG',split_mode='observe')[1],
                          'LIQUIDATION_OR_LOT_LIMIT')
+
+
+class FundedSelectionTests(unittest.TestCase):
+    def select(self,low=.16228,high=.21548,**updates):
+        row=dict(symbol='TEST',price=.18,tick_size=.00001,maintain_margin=.005,
+                 risk_limit=1_000_000,multiplier=1,lot_size=1,funding_pct=.01)
+        row.update(updates)
+        return select_range([(low,2)],[(high,2)],row,'LONG',
+                            split_mode='observe',funding_settlements=1)
+
+    def test_reduces_count_inside_fixed_chart_boundaries(self):
+        result,reason=self.select()
+        self.assertEqual(reason,'')
+        self.assertEqual((result['range_low'],result['range_high']),(.16228,.21548))
+        self.assertGreaterEqual(result['grids'],70)
+        self.assertLess(result['grids'],77)
+        proof=result['range_evidence']
+        self.assertTrue(proof['funding_stress']['passes_floor'])
+        self.assertTrue(any(r['reason']=='FUNDING_RETURN_BELOW_1_PERCENT'
+                            for r in proof['higher_count_rejections']))
+        from trader.radar.spacing import funding_stress
+        self.assertFalse(funding_stress(.16228,.21548,result['grids']+1,
+                         tick_size=.00001,rate_pct=.01,settlements=1)['passes_floor'])
+
+    def test_no_room_rejects_without_widening_or_lowering_minimum(self):
+        result,reason=self.select(.582,.7504,price=.64,tick_size=.0001)
+        self.assertIsNone(result)
+        self.assertEqual(reason,'FUNDING_RETURN_BELOW_1_PERCENT')
+
+    def test_unknown_funding_cannot_produce_candidate(self):
+        self.assertEqual(self.select(funding_pct=None),(None,'UNKNOWN_FUNDING_RATE'))
+
+    def test_funding_experiment_requires_explicit_observation_mode(self):
+        with self.assertRaises(ValueError):
+            select_range([],[],{},'LONG',funding_settlements=1)
