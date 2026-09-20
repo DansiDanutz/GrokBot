@@ -60,3 +60,33 @@ def align_bounds(low, high, tick_size):
     tick = Decimal(str(tick_size))
     return (float((Decimal(str(low))/tick).to_integral_value(rounding=ROUND_CEILING)*tick),
             float((Decimal(str(high))/tick).to_integral_value(rounding=ROUND_FLOOR)*tick))
+
+
+def funding_stress(low, high, grids, *, rate_pct, settlements,
+                   tick_size=0, leverage=GRID_LEVERAGE, direction='LONG'):
+    """Adverse-cost scenario per base unit; not a predicted hold or realized PnL."""
+    if direction not in ('LONG','SHORT','NEUTRAL') or type(settlements) is not int or settlements < 0:
+        raise ValueError('invalid funding scenario')
+    spacing = economics(low,high,grids,tick_size=tick_size,leverage=leverage,direction=direction)
+    if (isinstance(rate_pct,bool) or not isinstance(rate_pct,(int,float))
+            or not math.isfinite(rate_pct)):
+        return dict(status='UNKNOWN_RATE')
+    # Upper chart bound conservatively values one unit held at each settlement.
+    # Ignore receipts; Neutral must survive the paying book without assuming a hedge.
+    paid_rate = abs(rate_pct) if direction == 'NEUTRAL' else max(0,rate_pct*(1 if direction == 'LONG' else -1))
+    funding = high*paid_rate/100*settlements
+    interval = spacing['interval']
+    returns, nets = [], []
+    for index in range(grids):
+        buy = low + index*interval
+        sell = buy + interval
+        net = interval-(buy+sell)*FEE_RATE-funding
+        sides = ('LONG','SHORT') if direction == 'NEUTRAL' else (direction,)
+        for side in sides:
+            returns.append(net/(sell if side == 'SHORT' else buy)*leverage*100)
+        nets.append(net)
+    minimum = min(returns)
+    return dict(status='SCENARIO',settlements=settlements,rate_pct=rate_pct,
+                funding_per_unit=funding,net_per_unit_min=min(nets),
+                profit_pct_min=minimum,
+                passes_floor=spacing['viable'] and minimum > MIN_GRID_PROFIT_PCT+1e-10)

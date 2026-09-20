@@ -138,6 +138,9 @@ class SplitCandidateTests(unittest.TestCase):
         self.assertEqual((result['range_low'],result['range_high']),(1.4,2))
         self.assertGreater(result['profit_pct_min'],1)
         self.assertEqual(result['range_evidence']['split_mode'],'observe')
+        self.assertEqual(result['range_evidence']['funding_stress'],{'status':'UNKNOWN_RATE'})
+        priced,_=select_range([(1.4,2)],[(2,2)],dict(row,funding_pct=.01),'LONG',split_mode='observe')
+        self.assertEqual(priced['range_evidence']['funding_stress']['status'],'SCENARIO')
         self.assertGreater(result['range_evidence']['split_deviation_pct'],0)
         bad=dict(row); bad.pop('maintain_margin')
         self.assertEqual(select_range([(1.4,2)],[(2,2)],bad,'LONG',split_mode='observe')[1],

@@ -2,7 +2,7 @@
 import math
 from copy import deepcopy
 from trader.papergrid.engine import BOT_FEE_RATE
-from trader.radar.spacing import align_bounds, economics, choose_count
+from trader.radar.spacing import align_bounds, economics, choose_count, funding_stress
 
 # New entries require the requested grid capacity inside confirmed structure.
 # Never fabricate wider boundaries or lower the floor to fill empty slots.
@@ -92,6 +92,10 @@ def select_range(supports, resistances, row, direction, *, evidence=None, split_
                          maximum_fee_viable_count=maximum,minimum_required_grids=MIN_GRIDS,
                          higher_count_rejections=higher_rejections,
                          fee_rate_maker=BOT_FEE_RATE,fee_rate_taker=BOT_FEE_RATE)
+            if split_mode == 'observe':
+                proof['funding_stress'] = funding_stress(
+                    low,high,count,tick_size=tick,direction=direction,
+                    rate_pct=row.get('funding_pct'),settlements=1)
             if evidence:
                 proof['selected_support'] = deepcopy(next(p for p in evidence['supports'] if p['price']==support))
                 proof['selected_resistance'] = deepcopy(next(p for p in evidence['resistances'] if p['price']==resistance))
