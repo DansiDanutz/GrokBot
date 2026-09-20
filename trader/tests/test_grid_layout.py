@@ -64,22 +64,135 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(levels(candles,100,2)['support'],90)
 
 class GridFloorTests(unittest.TestCase):
-    """A confirmed structural range must stay usable when it is narrow."""
+    """New setups may not silently lower the requested 70-grid floor."""
 
-    def test_narrow_confirmed_range_keeps_a_feasible_layout(self):
-        """A 12% structural range has no fee-safe 70-grid layout but must stay usable."""
-        from trader.radar.layout import MIN_GRIDS, layout_valid
-        from trader.radar.spacing import choose_count, economics
-        low, high, tick = .13404, .15055, .00001
-        for direction, price in (('SHORT', .1463), ('NEUTRAL', .1420)):
+    def row(self, price=100):
+        return dict(symbol='TEST', price=price, tick_size=.01, maintain_margin=.005,
+                    risk_limit=1_000_000, multiplier=.001, lot_size=1)
+
+    def test_fee_safe_but_undersized_structure_is_rejected(self):
+        result, reason = select_range([(90,3)], [(115,3)], self.row(), 'LONG', split_mode='observe')
+        self.assertIsNone(result)
+        self.assertEqual(reason, 'INSUFFICIENT_GRID_ROOM')
+
+    def test_search_continues_to_supported_outer_pair_for_70_grids(self):
+        result, reason = select_range([(90,3),(80,2)], [(115,3),(130,2)], self.row(), 'LONG', split_mode='observe')
+        self.assertEqual(reason, '')
+        self.assertEqual((result['range_low'],result['range_high']), (80,115))
+        self.assertGreaterEqual(result['grids'],70)
+        self.assertGreater(result['profit_pct_min'],1)
+
+    def test_only_existing_chart_levels_can_be_used(self):
+        result, reason = select_range([(.13404,3)],[(.15055,3)],
+                                     dict(self.row(.1420),tick_size=.00001), 'NEUTRAL', split_mode='observe')
+        self.assertIsNone(result)
+        self.assertEqual(reason,'INSUFFICIENT_GRID_ROOM')
+
+    def test_default_admission_preserves_small_grid_radar(self):
+        from trader.autopilot import policy
+        from trader.tests.test_autopilot_policy import row
+        candidate = row('TEST', grids=20)
+        self.assertTrue(policy.eligible(policy.new_state(0),candidate,'LONG','long',0))
+
+    def test_existing_small_grid_bot_keeps_its_range_and_orders(self):
+        from unittest.mock import patch
+        from trader.autopilot import policy
+        from trader.tests.test_autopilot_policy import row, radar
+        from copy import deepcopy
+        with patch('trader.radar.layout.MIN_GRIDS',12):
+            state, _ = policy.decide(policy.new_state(0),radar(long=[row('TEST',grids=20)]),{},0,'a')
+        self.assertEqual(len(state['open_bots']),1)
+        original = deepcopy(state)
+        updated, _ = policy.advance(state,{'TEST':dict(ts_ms=1000,price=100)})
+        self.assertEqual(state,original)
+        bot=updated['open_bots'][0]['engine']
+        self.assertEqual(bot['grids'],20)
+        self.assertEqual((bot['range_low'],bot['range_high']),(80,130))
+        self.assertEqual(bot['orders'],original['open_bots'][0]['engine']['orders'])
+
+class SplitCandidateTests(unittest.TestCase):
+    def test_observed_ray_layouts_remain_rejected_by_default_but_can_be_compared(self):
+        for direction,low,interval,price,counts in (
+                ('LONG',1.4,.0085,1.5468,(18,52)),
+                ('NEUTRAL',1.1,.0128,1.574,(75,65))):
             with self.subTest(direction=direction):
-                largest = choose_count(low, high, tick_size=tick, direction=direction)
-                self.assertLess(largest, 70)
-                feasible = [count for count in range(largest, MIN_GRIDS - 1, -1)
-                            if economics(low, high, count, tick_size=tick,
-                                         direction=direction)['viable']
-                            and layout_valid(low, economics(low, high, count, tick_size=tick,
-                                             direction=direction)['interval'],
-                                             count, price, direction)]
-                self.assertTrue(feasible, 'no fee-safe layout survives the grid floor')
-                self.assertLess(max(feasible), 70)
+                self.assertEqual(order_split(low,interval,70,price,direction),counts)
+                self.assertFalse(layout_valid(low,interval,70,price,direction))
+                self.assertTrue(layout_valid(low,interval,70,price,direction,split_mode='observe'))
+
+    def test_observation_mode_still_requires_two_sided_orders_and_inside_range(self):
+        self.assertFalse(layout_valid(1.4,.0085,70,1.4,'LONG',split_mode='observe'))
+        self.assertFalse(layout_valid(1.4,.0085,70,2,'LONG',split_mode='observe'))
+        self.assertFalse(layout_valid(1.4,.0085,12,1.45,'LONG',split_mode='observe'))
+        self.assertFalse(layout_valid(1.4,.0085,70,float('nan'),'LONG',split_mode='observe'))
+
+    def test_unknown_mode_cannot_silently_relax_policy(self):
+        with self.assertRaises(ValueError):
+            layout_valid(1.4,.0085,70,1.55,'LONG',split_mode='typo')
+
+    def test_candidate_selection_keeps_structure_fees_and_risk_gates(self):
+        row=dict(symbol='TEST',price=1.5468,tick_size=.0001,maintain_margin=.005,
+                 risk_limit=1_000_000,multiplier=1,lot_size=1)
+        result,reason=select_range([(1.4,2)],[(2,2)],row,'LONG',split_mode='observe')
+        self.assertEqual(reason,'')
+        self.assertEqual((result['range_low'],result['range_high']),(1.4,2))
+        self.assertGreater(result['profit_pct_min'],1)
+        self.assertEqual(result['range_evidence']['split_mode'],'observe')
+        self.assertEqual(result['range_evidence']['funding_stress'],{'status':'UNKNOWN_RATE'})
+        priced,_=select_range([(1.4,2)],[(2,2)],dict(row,funding_pct=.01),'LONG',split_mode='observe')
+        self.assertEqual(priced['range_evidence']['funding_stress']['status'],'SCENARIO')
+        self.assertGreater(result['range_evidence']['split_deviation_pct'],0)
+        bad=dict(row); bad.pop('maintain_margin')
+        self.assertEqual(select_range([(1.4,2)],[(2,2)],bad,'LONG',split_mode='observe')[1],
+                         'LIQUIDATION_OR_LOT_LIMIT')
+
+
+class FundedSelectionTests(unittest.TestCase):
+    def select(self,low=.16228,high=.21548,**updates):
+        row=dict(symbol='TEST',price=.18,tick_size=.00001,maintain_margin=.005,
+                 risk_limit=1_000_000,multiplier=1,lot_size=1,funding_pct=.01)
+        row.update(updates)
+        return select_range([(low,2)],[(high,2)],row,'LONG',
+                            split_mode='observe',funding_settlements=1)
+
+    def test_reduces_count_inside_fixed_chart_boundaries(self):
+        result,reason=self.select()
+        self.assertEqual(reason,'')
+        self.assertEqual((result['range_low'],result['range_high']),(.16228,.21548))
+        self.assertGreaterEqual(result['grids'],70)
+        self.assertLess(result['grids'],77)
+        proof=result['range_evidence']
+        self.assertTrue(proof['funding_stress']['passes_floor'])
+        self.assertTrue(any(r['reason']=='FUNDING_RETURN_BELOW_1_PERCENT'
+                            for r in proof['higher_count_rejections']))
+        from trader.radar.spacing import funding_stress
+        self.assertFalse(funding_stress(.16228,.21548,result['grids']+1,
+                         tick_size=.00001,rate_pct=.01,settlements=1)['passes_floor'])
+
+    def test_no_room_rejects_without_widening_or_lowering_minimum(self):
+        result,reason=self.select(.582,.7504,price=.64,tick_size=.0001)
+        self.assertIsNone(result)
+        self.assertEqual(reason,'FUNDING_RETURN_BELOW_1_PERCENT')
+
+    def test_unknown_funding_cannot_produce_candidate(self):
+        self.assertEqual(self.select(funding_pct=None),(None,'UNKNOWN_FUNDING_RATE'))
+
+    def test_funding_experiment_requires_explicit_observation_mode(self):
+        with self.assertRaises(ValueError):
+            select_range([],[],{},'LONG',funding_settlements=1)
+
+
+class BaselineIsolationTests(unittest.TestCase):
+    def test_all_preserved_small_counts_keep_strict_default(self):
+        for count in range(12,70):
+            with self.subTest(count=count):
+                self.assertTrue(layout_valid(80,1,count,80+.4*count,'LONG'))
+                self.assertFalse(layout_valid(80,1,count,80+.4*count,'LONG',split_mode='observe'))
+
+    def test_default_selector_keeps_fee_safe_narrow_range(self):
+        row=GridFloorTests().row()
+        result,reason=select_range([(90,3)],[(115,3)],row,'LONG')
+        self.assertEqual(reason,'')
+        self.assertLess(result['grids'],70)
+        self.assertEqual(result['range_evidence']['minimum_required_grids'],12)
+        self.assertNotIn('funding_stress',result['range_evidence'])

@@ -2,14 +2,11 @@
 import math
 from copy import deepcopy
 from trader.papergrid.engine import BOT_FEE_RATE
-from trader.radar.spacing import align_bounds, economics, choose_count
+from trader.radar.spacing import align_bounds, economics, choose_count, funding_stress
 
-# Fee safety is enforced by the return floor in spacing.economics, not by the
-# count. Confirmed support/resistance ranges observed on KuCoin are 5-38% wide,
-# where the largest fee-safe count is typically 14-83, so a 70 floor rejected
-# every contract (377 rows, 0 sections, 2026-09-11). Dan's live bots ran 11-140
-# grids.
+# Preserve the deployed baseline; the higher floor belongs to explicit observation.
 MIN_GRIDS = 12
+OBSERVATION_MIN_GRIDS = 70
 MAX_GRIDS = 200
 ORDER_TOLERANCE = 1
 
@@ -26,21 +23,33 @@ def order_split(low, interval, grids, price, direction):
     return gap, grids-gap
 
 
-def layout_valid(low, interval, grids, price, direction):
+def layout_valid(low, interval, grids, price, direction, *, split_mode='strict'):
+    if split_mode not in ('strict', 'observe'):
+        raise ValueError('unknown split mode')
+    minimum = OBSERVATION_MIN_GRIDS if split_mode == 'observe' else MIN_GRIDS
     values = (low, interval, price)
     if (direction not in ('LONG','SHORT','NEUTRAL') or type(grids) is not int
-            or not MIN_GRIDS <= grids <= MAX_GRIDS
+            or not minimum <= grids <= MAX_GRIDS
             or any(isinstance(v,bool) or not isinstance(v,(int,float))
                    or not math.isfinite(v) or v <= 0 for v in values)):
         return False
     buys, sells = order_split(low,interval,grids,price,direction)
+    if split_mode == 'observe':
+        return low < price < low + grids*interval and buys > 0 and sells > 0
     target = {'LONG': .4, 'SHORT': .6, 'NEUTRAL': .5}[direction]
     return abs(buys-target*(buys+sells)) <= ORDER_TOLERANCE + 1e-10
 
 
-def select_range(supports, resistances, row, direction, *, evidence=None):
-    """Narrowest confirmed feasible pair, then greatest feasible grid count."""
+def select_range(supports, resistances, row, direction, *, evidence=None, split_mode='strict',
+                 funding_settlements=None):
+    """Nearest feasible confirmed pair; experimental rules require observation mode."""
+    if split_mode not in ('strict', 'observe'):
+        raise ValueError('unknown split mode')
+    if funding_settlements is not None and (split_mode != 'observe'
+            or type(funding_settlements) is not int or funding_settlements < 0):
+        raise ValueError('funding scenario requires observation mode and nonnegative settlement count')
     from trader.autopilot.risk import sizing
+    minimum = OBSERVATION_MIN_GRIDS if split_mode == 'observe' else MIN_GRIDS
     tick = row.get('tick_size',0)
     if evidence is not None and evidence.get('status') != 'VERIFIED':
         return None, evidence.get('reason') or 'MISSING_STRUCTURE'
@@ -56,16 +65,25 @@ def select_range(supports, resistances, row, direction, *, evidence=None):
     for _,low,high,st,rt,support,resistance in sorted(pairs):
         maximum = choose_count(low,high,tick_size=tick,direction=direction)
         higher_rejections = []
-        for count in range(maximum,MIN_GRIDS-1,-1):
+        for count in range(maximum,minimum-1,-1):
             spacing = economics(low,high,count,tick_size=tick,direction=direction)
             if not spacing['viable']:
                 higher_rejections.append(dict(grids=count,reason='GRID_RETURN_BELOW_1_PERCENT'))
                 continue
             if reason == 'INSUFFICIENT_GRID_ROOM':
                 reason = 'ENTRY_SPLIT'
-            if not layout_valid(low,spacing['interval'],count,row['price'],direction):
+            if not layout_valid(low,spacing['interval'],count,row['price'],direction,split_mode=split_mode):
                 higher_rejections.append(dict(grids=count,reason='ENTRY_SPLIT'))
                 continue
+            if funding_settlements is not None:
+                scenario = funding_stress(low,high,count,tick_size=tick,direction=direction,
+                                          rate_pct=row.get('funding_pct'),settlements=funding_settlements)
+                if scenario['status'] == 'UNKNOWN_RATE':
+                    return None, 'UNKNOWN_FUNDING_RATE'
+                if not scenario['passes_floor']:
+                    reason = 'FUNDING_RETURN_BELOW_1_PERCENT'
+                    higher_rejections.append(dict(grids=count,reason=reason))
+                    continue
             reason = 'LIQUIDATION_OR_LOT_LIMIT'
             candidate = dict(row,range_low=low,range_high=high)
             try:
@@ -76,13 +94,24 @@ def select_range(supports, resistances, row, direction, *, evidence=None):
             buys,sells = order_split(low,spacing['interval'],count,row['price'],direction)
             proof = deepcopy({key:value for key,value in (evidence or {}).items()
                               if key not in ('supports','resistances')})
-            proof.update(status='VERIFIED' if evidence else 'UNVERIFIED', reason='',
+            target = {'LONG': .4, 'SHORT': .6, 'NEUTRAL': .5}[direction]
+            proof.update(split_mode=split_mode,
+                         split_target_buy_pct=100*target,
+                         split_actual_buy_pct=100*buys/(buys+sells),
+                         split_deviation_pct=100*abs(buys/(buys+sells)-target),
+                         status='VERIFIED' if evidence else 'UNVERIFIED', reason='',
                          original_bounds=[support,resistance],rounded_bounds=[low,high],
                          selection='narrowest_confirmed_then_maximum_feasible',
                          grid_count=count,grid_interval=spacing['interval'],
                          actual_upper_line=spacing['actual_upper_line'],
-                         maximum_fee_viable_count=maximum,higher_count_rejections=higher_rejections,
+                         maximum_fee_viable_count=maximum,minimum_required_grids=minimum,
+                         higher_count_rejections=higher_rejections,
                          fee_rate_maker=BOT_FEE_RATE,fee_rate_taker=BOT_FEE_RATE)
+            if split_mode == 'observe':
+                proof['funding_stress'] = funding_stress(
+                    low,high,count,tick_size=tick,direction=direction,
+                    rate_pct=row.get('funding_pct'),
+                    settlements=1 if funding_settlements is None else funding_settlements)
             if evidence:
                 proof['selected_support'] = deepcopy(next(p for p in evidence['supports'] if p['price']==support))
                 proof['selected_resistance'] = deepcopy(next(p for p in evidence['resistances'] if p['price']==resistance))
