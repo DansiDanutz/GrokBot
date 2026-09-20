@@ -97,6 +97,24 @@ class StorageTests(unittest.TestCase):
         for path in self.root.glob("*.jsonl"):
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
+    def test_archive_outage_keeps_recent_events_readable_without_deleting_history(self):
+        log = EventLog(self.root)
+        for day in range(40):
+            log.append([dict(ts_ms=day * 86400000, bot_id=1,
+                             symbol='RAYUSDTM', type='FILL', price=1.5)], prune=False)
+        files = {p.name: p.read_bytes() for p in self.root.glob('events*.jsonl')}
+        self.assertEqual(len(files), 40)
+        events = read_events(self.root, 0)
+        self.assertEqual(len(events), 31)
+        self.assertEqual(events[0]['ts_ms'], 9 * 86400000)
+        self.assertEqual(read_events(self.root, 0, limit=1, latest=True)[0]['ts_ms'], 39 * 86400000)
+        self.assertEqual(files, {p.name: p.read_bytes() for p in self.root.glob('events*.jsonl')})
+        active = self.root / 'events.jsonl'
+        active.unlink()
+        active.symlink_to(self.root / next(iter(files)))
+        with self.assertRaisesRegex(ValueError, 'symlink'):
+            read_events(self.root, 0)
+
     def test_events_schema_rejects_text_bool_and_invalid_identity_before_append(self):
         valid = {"ts_ms": 1, "bot_id": 0, "symbol": "SYSTEM", "type": "ERROR"}
         log = EventLog(self.root)
