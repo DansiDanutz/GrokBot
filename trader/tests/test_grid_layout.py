@@ -64,22 +64,48 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(levels(candles,100,2)['support'],90)
 
 class GridFloorTests(unittest.TestCase):
-    """A confirmed structural range must stay usable when it is narrow."""
+    """New setups may not silently lower the requested 70-grid floor."""
 
-    def test_narrow_confirmed_range_keeps_a_feasible_layout(self):
-        """A 12% structural range has no fee-safe 70-grid layout but must stay usable."""
-        from trader.radar.layout import MIN_GRIDS, layout_valid
-        from trader.radar.spacing import choose_count, economics
-        low, high, tick = .13404, .15055, .00001
-        for direction, price in (('SHORT', .1463), ('NEUTRAL', .1420)):
-            with self.subTest(direction=direction):
-                largest = choose_count(low, high, tick_size=tick, direction=direction)
-                self.assertLess(largest, 70)
-                feasible = [count for count in range(largest, MIN_GRIDS - 1, -1)
-                            if economics(low, high, count, tick_size=tick,
-                                         direction=direction)['viable']
-                            and layout_valid(low, economics(low, high, count, tick_size=tick,
-                                             direction=direction)['interval'],
-                                             count, price, direction)]
-                self.assertTrue(feasible, 'no fee-safe layout survives the grid floor')
-                self.assertLess(max(feasible), 70)
+    def row(self, price=100):
+        return dict(symbol='TEST', price=price, tick_size=.01, maintain_margin=.005,
+                    risk_limit=1_000_000, multiplier=.001, lot_size=1)
+
+    def test_fee_safe_but_undersized_structure_is_rejected(self):
+        result, reason = select_range([(90,3)], [(115,3)], self.row(), 'LONG')
+        self.assertIsNone(result)
+        self.assertEqual(reason, 'INSUFFICIENT_GRID_ROOM')
+
+    def test_search_continues_to_supported_outer_pair_for_70_grids(self):
+        result, reason = select_range([(90,3),(80,2)], [(115,3),(130,2)], self.row(), 'LONG')
+        self.assertEqual(reason, '')
+        self.assertEqual((result['range_low'],result['range_high']), (80,130))
+        self.assertGreaterEqual(result['grids'],70)
+        self.assertGreater(result['profit_pct_min'],1)
+
+    def test_only_existing_chart_levels_can_be_used(self):
+        result, reason = select_range([(.13404,3)],[(.15055,3)],
+                                     dict(self.row(.1420),tick_size=.00001), 'NEUTRAL')
+        self.assertIsNone(result)
+        self.assertEqual(reason,'INSUFFICIENT_GRID_ROOM')
+
+    def test_new_admission_rejects_old_small_grid_radar(self):
+        from trader.autopilot import policy
+        from trader.tests.test_autopilot_policy import row
+        candidate = row('TEST', grids=20)
+        self.assertFalse(policy.eligible(policy.new_state(0),candidate,'LONG','long',0))
+
+    def test_existing_small_grid_bot_keeps_its_range_and_orders(self):
+        from unittest.mock import patch
+        from trader.autopilot import policy
+        from trader.tests.test_autopilot_policy import row, radar
+        from copy import deepcopy
+        with patch('trader.radar.layout.MIN_GRIDS',12):
+            state, _ = policy.decide(policy.new_state(0),radar(long=[row('TEST',grids=20)]),{},0,'a')
+        self.assertEqual(len(state['open_bots']),1)
+        original = deepcopy(state)
+        updated, _ = policy.advance(state,{'TEST':dict(ts_ms=1000,price=100)})
+        self.assertEqual(state,original)
+        bot=updated['open_bots'][0]['engine']
+        self.assertEqual(bot['grids'],20)
+        self.assertEqual((bot['range_low'],bot['range_high']),(80,130))
+        self.assertEqual(bot['orders'],original['open_bots'][0]['engine']['orders'])

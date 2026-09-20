@@ -107,8 +107,8 @@ class RangeAssuranceTests(unittest.TestCase):
         self.assertNotIn('fee_rate_maker',updated)
 
     def test_selected_range_preserves_original_and_rounded_provenance(self):
-        rows=[(r[0],r[1],r[2]+.005 if r[2]==110 else r[2],
-               r[3]+.005 if r[3]==90 else r[3],r[4],r[5]) for r in candles()]
+        rows=[(r[0],r[1],125.005 if r[2]==110 else r[2],
+               75.005 if r[3]==90 else r[3],r[4],r[5]) for r in candles()]
         basis=support.assess(rows,100,2,NOW)
         row=dict(symbol='TEST',price=100,tick_size=.01,maintain_margin=.005,
                  risk_limit=1000000,multiplier=.001,lot_size=1)
@@ -117,8 +117,8 @@ class RangeAssuranceTests(unittest.TestCase):
                                     row,'NEUTRAL',evidence=basis)
         self.assertEqual(reason,'')
         proof=selected['range_evidence']
-        self.assertEqual(proof['original_bounds'],[90.005,110.005])
-        self.assertEqual(proof['rounded_bounds'],[90.01,110.0])
+        self.assertEqual(proof['original_bounds'],[75.005,125.005])
+        self.assertEqual(proof['rounded_bounds'],[75.01,125.0])
         self.assertEqual(proof['status'],'VERIFIED')
         self.assertEqual(proof['fee_rate_maker'],.0006)
         self.assertEqual(proof['fee_rate_taker'],.0006)
@@ -127,8 +127,8 @@ class RangeAssuranceTests(unittest.TestCase):
         basis['supports'][0]['pivot_times_ms'].clear()
         self.assertEqual(proof,original)
         for n in range(selected['grids']+1,201):
-            spacing=economics(90.01,110,n,tick_size=.01,direction='NEUTRAL')
-            self.assertFalse(spacing['viable'] and layout_valid(90.01,spacing['interval'],n,100,'NEUTRAL'))
+            spacing=economics(75.01,125,n,tick_size=.01,direction='NEUTRAL')
+            self.assertFalse(spacing['viable'] and layout_valid(75.01,spacing['interval'],n,100,'NEUTRAL'))
 
     def test_historical_snapshot_lookup_does_not_read_future_quote(self):
         with closing(sqlite3.connect(':memory:')) as db:

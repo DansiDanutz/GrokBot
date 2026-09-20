@@ -4,12 +4,9 @@ from copy import deepcopy
 from trader.papergrid.engine import BOT_FEE_RATE
 from trader.radar.spacing import align_bounds, economics, choose_count
 
-# Fee safety is enforced by the return floor in spacing.economics, not by the
-# count. Confirmed support/resistance ranges observed on KuCoin are 5-38% wide,
-# where the largest fee-safe count is typically 14-83, so a 70 floor rejected
-# every contract (377 rows, 0 sections, 2026-09-11). Dan's live bots ran 11-140
-# grids.
-MIN_GRIDS = 12
+# New entries require the requested grid capacity inside confirmed structure.
+# Never fabricate wider boundaries or lower the floor to fill empty slots.
+MIN_GRIDS = 70
 MAX_GRIDS = 200
 ORDER_TOLERANCE = 1
 
@@ -39,7 +36,7 @@ def layout_valid(low, interval, grids, price, direction):
 
 
 def select_range(supports, resistances, row, direction, *, evidence=None):
-    """Narrowest confirmed feasible pair, then greatest feasible grid count."""
+    """Nearest confirmed pair supporting at least 70 fee-safe grids."""
     from trader.autopilot.risk import sizing
     tick = row.get('tick_size',0)
     if evidence is not None and evidence.get('status') != 'VERIFIED':
@@ -81,7 +78,8 @@ def select_range(supports, resistances, row, direction, *, evidence=None):
                          selection='narrowest_confirmed_then_maximum_feasible',
                          grid_count=count,grid_interval=spacing['interval'],
                          actual_upper_line=spacing['actual_upper_line'],
-                         maximum_fee_viable_count=maximum,higher_count_rejections=higher_rejections,
+                         maximum_fee_viable_count=maximum,minimum_required_grids=MIN_GRIDS,
+                         higher_count_rejections=higher_rejections,
                          fee_rate_maker=BOT_FEE_RATE,fee_rate_taker=BOT_FEE_RATE)
             if evidence:
                 proof['selected_support'] = deepcopy(next(p for p in evidence['supports'] if p['price']==support))
