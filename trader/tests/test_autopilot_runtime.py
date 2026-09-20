@@ -123,6 +123,17 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(len(view['open_bots']), 0)
         self.assertEqual(view['closed_bots'][0]['reason'], 'RANGE_BREAK')
 
+    def test_partial_feed_defers_ordinary_fills_until_recovery(self):
+        runner = self.runner(); runner.pass_once()
+        before = runner.state['open_bots'][0]['engine']['fills']
+        original = self.client.all_tickers
+        self.client.all_tickers = lambda: [r for r in original() if r['symbol'] != 'SOLUSDTM']
+        self.client.price = 95.
+        self.clock[0] += 10000
+        view = runner.pass_once()
+        self.assertFalse(view['kucoin_ok'])
+        self.assertEqual(runner.state['open_bots'][0]['engine']['fills'], before)
+
     def test_feed_recovery_backfills_before_allowing_new_decisions(self):
         runner = self.runner(); runner.pass_once()
         self.client.fail = True

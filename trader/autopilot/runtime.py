@@ -423,8 +423,16 @@ class Runner:
                 self.recovery_attempt_ms = None
             previous = self.state['runtime']['quotes']
             quotes = {s: r for s, r in quotes.items() if r['ts_ms'] >= previous.get(s, {}).get('ts_ms', 0)}
+            meta = self.state['runtime']
+            if complete:
+                meta.update(kucoin_ok=True, kucoin_down_since_ms=None, last_tick_ms=now)
+            else:
+                meta['kucoin_ok'] = False
+                if meta['kucoin_down_since_ms'] is None:
+                    meta['kucoin_down_since_ms'] = now
+                events.append(_system(now, 'ERROR', 1))
             try:
-                if self.recovered:
+                if self.recovered and complete:
                     events.extend(self._apply(quotes))
                 else:
                     events.extend(self._apply(quotes, boundary_only=True))
@@ -437,13 +445,6 @@ class Runner:
                 events.append(_system(now, 'ERROR', LOCAL_ERROR))
             meta = self.state['runtime']
             meta['quotes'] = {s: quotes.get(s, previous.get(s)) for s in required if s in quotes or s in previous}
-            if complete:
-                meta.update(kucoin_ok=True, kucoin_down_since_ms=None, last_tick_ms=now)
-            else:
-                meta['kucoin_ok'] = False
-                if meta['kucoin_down_since_ms'] is None:
-                    meta['kucoin_down_since_ms'] = now
-                events.append(_system(now, 'ERROR', 1))
         meta = self.state['runtime']
         due = force_decision or radar_changed or now - meta['last_decision_ms'] >= DECISION_INTERVAL_S * 1000
         if (due and self.recovered and meta['kucoin_ok']
