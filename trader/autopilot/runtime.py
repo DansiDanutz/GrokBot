@@ -5,7 +5,7 @@ from sqlite3 import Error as DatabaseError
 import sys
 import time
 
-from trader.autopilot import policy, evidence_archive, counterfactual
+from trader.autopilot import policy, evidence_archive, counterfactual, history_archive
 from trader.autopilot.liquidation import enrich
 from trader.autopilot.constants import (MAJORS, DECISION_INTERVAL_S, SNAPSHOT_MAX_INTERVAL_S,
                                         TICK_STALE_ALERT_S, KUCOIN_DOWN_ALERT_S, LOCAL_ERROR,
@@ -69,6 +69,7 @@ class Runner:
         self.radar, self.radar_stamp = None, None
         self.recovered, self.recovery_attempt_ms = not bool(self.state['open_bots']), None
         self.stop = None
+        self.history_imported = False
 
     def _transport(self, tick=False):
         return self.client or PublicClient(timeout=8, deadline=time.monotonic() + 8 if tick else None)
@@ -250,6 +251,7 @@ class Runner:
                     recovery_reconciliation_status=('PENDING' if meta['pending_recovery_reconciliation']
                                                     else 'NO_RECORDED_FAILURE'),
                     setup_evidence_archive_status=meta.get('setup_evidence_archive_status', 'PENDING'),
+                    history_archive_status=meta.get('history_archive_status', 'PENDING'),
                     **self._productivity(now))
 
     def _archive_evidence(self, *, flush=False):
@@ -260,6 +262,17 @@ class Runner:
             # Archive errors must never veto the trading-state/event checkpoint.
             self.state['runtime']['setup_evidence_archive_status'] = 'BLOCKED'
             return dict(status='BLOCKED', pending=1, failed=1)
+
+    def _archive_history(self):
+        try:
+            history_archive.checkpoint(self.log.directory, self.state,
+                                       import_logs=not self.history_imported)
+            self.history_imported = True
+            self.state['runtime']['history_archive_status'] = 'COMPLETE'
+            return True
+        except (OSError, ValueError, TypeError, DatabaseError):
+            self.state['runtime']['history_archive_status'] = 'BLOCKED'
+            return False
 
     def _record_counterfactual(self, radar, prices, emitted, scan_id, now):
         """Research-only recorder: it must never affect trading, state or the pass."""
@@ -273,6 +286,7 @@ class Runner:
                   file=sys.stderr, flush=True)
 
     def _sample(self, now):
+        history_ok = self._archive_history()
         self._archive_evidence()
         pending = self.state['runtime'].get('pending_setup_evidence', {})
         # If a full or invalid archive queue cannot retain a separate copy, keep
@@ -281,6 +295,8 @@ class Runner:
         closed = self.state['closed_bots']
         for wrapper in closed:
             dossier = wrapper.get('setup_evidence')
+            if not history_ok:
+                protected[wrapper['engine']['bot_id']] = wrapper
             if dossier is None:
                 continue
             identifier = dossier.get('evidence_id') if isinstance(dossier, dict) else None
@@ -294,6 +310,11 @@ class Runner:
         if restore:
             sampled['archived_net'] -= sum(policy.net(w['engine']) for w in restore.values())
             sampled['closed_bots'] = [w for w in closed if w['engine']['bot_id'] in retained | restore.keys()]
+        if not history_ok:
+            # Keep evidence available for retry without vetoing risk processing.
+            prior = self.state['equity_curve']
+            last = prior[-1][0] if prior else -1
+            sampled['equity_curve'] = prior + [p for p in sampled['equity_curve'] if p[0] > last]
         self.state = sampled
 
     def _persist(self, now):
@@ -301,8 +322,12 @@ class Runner:
         self._archive_evidence()
         # Persist the pending journal first. Log event_id dedup makes restart retry safe.
         atomic_json(self.state_path, self.state)
-        self.log.append(self.state['pending_events'])
-        self.log.prune(now)
+        history_ok = self._archive_history()
+        self.log.append(self.state['pending_events'], prune=False)
+        if history_ok:
+            self.log.prune(now)
+        else:
+            self.history_imported = False
         self.state['pending_events'] = []
         self._archive_evidence(flush=True)
         atomic_json(self.state_path, self.state)

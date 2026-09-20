@@ -47,6 +47,43 @@ class RuntimeTests(unittest.TestCase):
         return Runner(self.database, self.state, self.radar, self.snapshot,
                       client=self.client, now_ms=lambda: self.clock[0], **kwargs)
 
+    def test_history_failure_preserves_expiring_data_and_bankroll(self):
+        from trader.autopilot import policy
+        runner = self.runner(); runner.pass_once()
+        wrapper = runner.state['open_bots'].pop()
+        wrapper['engine']['closed_ms'] = NOW
+        wrapper['engine']['reason'] = 'RANGE_BREAK'
+        runner.state['closed_bots'].append(wrapper)
+        before_equity = policy._equity(runner.state)
+        old_curve = copy.deepcopy(runner.state['equity_curve'])
+        with patch('trader.autopilot.history_archive.checkpoint', side_effect=OSError('full')):
+            runner._sample(NOW + 31*24*3600000)
+        self.assertEqual(len(runner.state['closed_bots']), 1)
+        self.assertEqual(runner.state['equity_curve'][:len(old_curve)], old_curve)
+        self.assertAlmostEqual(policy._equity(runner.state), before_equity)
+        self.assertEqual(runner._health(NOW)['history_archive_status'], 'BLOCKED')
+        runner._sample(NOW + 31*24*3600000 + 1000)
+        self.assertEqual(runner.state['closed_bots'], [])
+        self.assertAlmostEqual(policy._equity(runner.state), before_equity)
+        import sqlite3
+        from contextlib import closing
+        with closing(sqlite3.connect(runner.log.directory/'history.sqlite3')) as db:
+            self.assertEqual(db.execute('select count(*) from positions').fetchone()[0], 1)
+            self.assertGreater(db.execute('select count(*) from equity').fetchone()[0], 1)
+
+    def test_failed_history_does_not_prune_log_and_restart_imports_it(self):
+        runner = self.runner(); runner.pass_once()
+        self.clock[0] += 10000
+        with patch('trader.autopilot.history_archive.checkpoint', side_effect=OSError('full')):
+            with patch.object(runner.log, 'prune') as prune:
+                runner._persist(self.clock[0])
+                prune.assert_not_called()
+        self.assertEqual(read_json(self.snapshot)['history_archive_status'], 'BLOCKED')
+        restarted = self.runner()
+        restarted._persist(self.clock[0]+10000)
+        self.assertEqual(read_json(self.snapshot)['history_archive_status'], 'COMPLETE')
+        self.assertEqual(restarted.state['started_ms'], runner.state['started_ms'])
+
     def test_once_tick_fill_and_snapshot_health(self):
         runner = self.runner()
         runner.pass_once()

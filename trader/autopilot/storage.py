@@ -239,7 +239,7 @@ class EventLog:
         if day is not None and day < cutoff:
             active.unlink()
 
-    def append(self, events):
+    def append(self, events, *, prune=True):
         events = [validate_event(event) for event in events]
         encoded = [json.dumps(event, allow_nan=False).encode() + b"\n" for event in events]
         if any(len(line) > MAX_EVENT_BYTES for line in encoded):
@@ -278,7 +278,7 @@ class EventLog:
             cutoff = latest - timedelta(days=29)
             for archive in self.directory.glob("events-????-??-??.jsonl"):
                 _safe(archive)
-                if archive.name[7:17] < cutoff.isoformat():
+                if prune and archive.name[7:17] < cutoff.isoformat():
                     archive.unlink()
         directory_fd = os.open(self.directory, os.O_RDONLY)
         try:
@@ -319,8 +319,9 @@ def read_events(directory, since_ms, limit=500, *, after_event_id=None, latest=F
     active = directory / "events.jsonl"
     if active.exists() or active.is_symlink():
         paths.append(active)
-    if len(paths) > 31:
-        raise ValueError("event history exceeds retention cap")
+    # Keep the public read window bounded even when archival failure requires
+    # retaining older files. Never delete unarchived evidence to serve a feed.
+    paths = paths[-31:]
     def rows():
         for path in paths:
             for event in _event_rows(path):
