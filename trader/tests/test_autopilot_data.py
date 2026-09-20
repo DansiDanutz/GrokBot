@@ -48,6 +48,22 @@ class AutopilotDataTests(unittest.TestCase):
         with self.assertRaises(ProtocolError):
             client.all_tickers()
 
+    def test_invalid_numeric_ticker_cannot_poison_other_contracts(self):
+        fixture={'code':'200000','data':[
+            dict(symbol='ETHBTCUSDTM',ts=1729163466659000000,price='0'),
+            dict(symbol='XBTUSDTM',ts=1729163466659000000,price='67153')]}
+        client=PublicClient(opener=lambda *a,**k:Response(fixture))
+        self.assertEqual([r['symbol'] for r in client.all_tickers()],['XBTUSDTM'])
+        fixture['data'][1]['price']='NaN'
+        with self.assertRaises(ProtocolError):client.all_tickers()
+
+    def test_duplicate_identity_still_fails_even_when_first_price_invalid(self):
+        fixture={'code':'200000','data':[
+            dict(symbol='XBTUSDTM',ts=1729163466659000000,price='0'),
+            dict(symbol='XBTUSDTM',ts=1729163466659000000,price='67153')]}
+        with self.assertRaises(ProtocolError):
+            PublicClient(opener=lambda *a,**k:Response(fixture)).all_tickers()
+
     def test_failed_tick_request_does_not_retry_inside_one_pass(self):
         requests = []
         def opener(*args, **kwargs):

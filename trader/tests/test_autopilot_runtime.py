@@ -62,6 +62,47 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(read_json(self.snapshot)['equity'], view['equity'])
         self.assertEqual(self.state.stat().st_mode & 0o777, 0o600)
 
+    def test_missing_open_bot_quote_is_unhealthy_and_blocks_decisions(self):
+        runner=self.runner(); runner.pass_once()
+        original=self.client.all_tickers
+        self.client.all_tickers=lambda:[r for r in original() if r['symbol']!='A']
+        self.clock[0]+=181000
+        with patch('trader.autopilot.runtime.policy.decide') as decide:
+            view=runner.pass_once(force_decision=True)
+        self.assertFalse(view['kucoin_ok'])
+        self.assertGreater(view['tick_age_s'],180)
+        decide.assert_not_called()
+        self.client.all_tickers=original; self.clock[0]+=10000
+        self.assertTrue(runner.pass_once()['kucoin_ok'])
+
+    def test_partial_feed_still_closes_a_bot_at_its_boundary(self):
+        runner = self.runner(); runner.pass_once()
+        original = self.client.all_tickers
+        self.client.all_tickers = lambda: [r for r in original() if r['symbol'] != 'SOLUSDTM']
+        self.clock[0] += 10000
+        self.client.price = 60.
+        view = runner.pass_once()
+        self.assertFalse(view['kucoin_ok'])
+        self.assertEqual(len(view['open_bots']), 0)
+        self.assertEqual(view['closed_bots'][0]['reason'], 'RANGE_BREAK')
+
+    def test_feed_recovery_backfills_before_allowing_new_decisions(self):
+        runner = self.runner(); runner.pass_once()
+        self.client.fail = True
+        self.clock[0] += 60000; runner.pass_once()
+        with Store(self.database) as store:
+            store.upsert('klines', [dict(symbol='A', interval='1m', time_ms=NOW,
+                open=100., high=101., low=95., close=99., volume=1., turnover=100.)])
+        self.client.fail = False
+        self.clock[0] += 10000
+        with patch('trader.autopilot.runtime.policy.decide') as decide:
+            runner.pass_once(force_decision=True)
+            decide.assert_not_called()
+        self.assertFalse(runner.recovered)
+        self.clock[0] += 10000; runner.pass_once()
+        self.assertTrue(runner.recovered)
+        self.assertGreater(runner.state['open_bots'][0]['engine']['fills'], 0)
+
     def test_tick_age_follows_the_fetch_not_the_thinnest_trade(self):
         runner = self.runner(); runner.pass_once()
         self.clock[0] += 10000

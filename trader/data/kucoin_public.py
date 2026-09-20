@@ -211,6 +211,7 @@ class PublicClient:
         if not isinstance(data, list) or len(data) > 5000:
             raise ProtocolError('invalid allTickers response')
         result = {}
+        seen = set()
         for item in data:
             if not isinstance(item, dict):
                 raise ProtocolError('invalid allTickers row')
@@ -219,10 +220,17 @@ class PublicClient:
                 at = epoch_ms(item.get('ts'))
             except ValueError:
                 raise ProtocolError('invalid allTickers identity or timestamp') from None
-            row = dict(symbol=symbol, ts_ms=at, price=number(item.get('price'), positive=True))
-            if symbol in result:
+            if symbol in seen:
                 raise ProtocolError('duplicate allTickers symbol')
-            result[symbol] = row
+            seen.add(symbol)
+            try:
+                price = number(item.get('price'), positive=True)
+            except ProtocolError:
+                # An inactive contract must not suppress valid market quotes.
+                continue
+            result[symbol] = dict(symbol=symbol, ts_ms=at, price=price)
+        if not result:
+            raise ProtocolError('no valid allTickers prices')
         return list(result.values())
 
     def book(self, symbol):
