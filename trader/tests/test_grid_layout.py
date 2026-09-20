@@ -109,3 +109,36 @@ class GridFloorTests(unittest.TestCase):
         self.assertEqual(bot['grids'],20)
         self.assertEqual((bot['range_low'],bot['range_high']),(80,130))
         self.assertEqual(bot['orders'],original['open_bots'][0]['engine']['orders'])
+
+class SplitCandidateTests(unittest.TestCase):
+    def test_observed_ray_layouts_remain_rejected_by_default_but_can_be_compared(self):
+        for direction,low,interval,price,counts in (
+                ('LONG',1.4,.0085,1.5468,(18,52)),
+                ('NEUTRAL',1.1,.0128,1.574,(75,65))):
+            with self.subTest(direction=direction):
+                self.assertEqual(order_split(low,interval,70,price,direction),counts)
+                self.assertFalse(layout_valid(low,interval,70,price,direction))
+                self.assertTrue(layout_valid(low,interval,70,price,direction,split_mode='observe'))
+
+    def test_observation_mode_still_requires_two_sided_orders_and_inside_range(self):
+        self.assertFalse(layout_valid(1.4,.0085,70,1.4,'LONG',split_mode='observe'))
+        self.assertFalse(layout_valid(1.4,.0085,70,2,'LONG',split_mode='observe'))
+        self.assertFalse(layout_valid(1.4,.0085,12,1.45,'LONG',split_mode='observe'))
+        self.assertFalse(layout_valid(1.4,.0085,70,float('nan'),'LONG',split_mode='observe'))
+
+    def test_unknown_mode_cannot_silently_relax_policy(self):
+        with self.assertRaises(ValueError):
+            layout_valid(1.4,.0085,70,1.55,'LONG',split_mode='typo')
+
+    def test_candidate_selection_keeps_structure_fees_and_risk_gates(self):
+        row=dict(symbol='TEST',price=1.5468,tick_size=.0001,maintain_margin=.005,
+                 risk_limit=1_000_000,multiplier=1,lot_size=1)
+        result,reason=select_range([(1.4,2)],[(2,2)],row,'LONG',split_mode='observe')
+        self.assertEqual(reason,'')
+        self.assertEqual((result['range_low'],result['range_high']),(1.4,2))
+        self.assertGreater(result['profit_pct_min'],1)
+        self.assertEqual(result['range_evidence']['split_mode'],'observe')
+        self.assertGreater(result['range_evidence']['split_deviation_pct'],0)
+        bad=dict(row); bad.pop('maintain_margin')
+        self.assertEqual(select_range([(1.4,2)],[(2,2)],bad,'LONG',split_mode='observe')[1],
+                         'LIQUIDATION_OR_LOT_LIMIT')

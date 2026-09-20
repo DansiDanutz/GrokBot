@@ -23,7 +23,9 @@ def order_split(low, interval, grids, price, direction):
     return gap, grids-gap
 
 
-def layout_valid(low, interval, grids, price, direction):
+def layout_valid(low, interval, grids, price, direction, *, split_mode='strict'):
+    if split_mode not in ('strict', 'observe'):
+        raise ValueError('unknown split mode')
     values = (low, interval, price)
     if (direction not in ('LONG','SHORT','NEUTRAL') or type(grids) is not int
             or not MIN_GRIDS <= grids <= MAX_GRIDS
@@ -31,12 +33,16 @@ def layout_valid(low, interval, grids, price, direction):
                    or not math.isfinite(v) or v <= 0 for v in values)):
         return False
     buys, sells = order_split(low,interval,grids,price,direction)
+    if split_mode == 'observe':
+        return low < price < low + grids*interval and buys > 0 and sells > 0
     target = {'LONG': .4, 'SHORT': .6, 'NEUTRAL': .5}[direction]
     return abs(buys-target*(buys+sells)) <= ORDER_TOLERANCE + 1e-10
 
 
-def select_range(supports, resistances, row, direction, *, evidence=None):
+def select_range(supports, resistances, row, direction, *, evidence=None, split_mode='strict'):
     """Nearest confirmed pair supporting at least 70 fee-safe grids."""
+    if split_mode not in ('strict', 'observe'):
+        raise ValueError('unknown split mode')
     from trader.autopilot.risk import sizing
     tick = row.get('tick_size',0)
     if evidence is not None and evidence.get('status') != 'VERIFIED':
@@ -60,7 +66,7 @@ def select_range(supports, resistances, row, direction, *, evidence=None):
                 continue
             if reason == 'INSUFFICIENT_GRID_ROOM':
                 reason = 'ENTRY_SPLIT'
-            if not layout_valid(low,spacing['interval'],count,row['price'],direction):
+            if not layout_valid(low,spacing['interval'],count,row['price'],direction,split_mode=split_mode):
                 higher_rejections.append(dict(grids=count,reason='ENTRY_SPLIT'))
                 continue
             reason = 'LIQUIDATION_OR_LOT_LIMIT'
@@ -73,7 +79,12 @@ def select_range(supports, resistances, row, direction, *, evidence=None):
             buys,sells = order_split(low,spacing['interval'],count,row['price'],direction)
             proof = deepcopy({key:value for key,value in (evidence or {}).items()
                               if key not in ('supports','resistances')})
-            proof.update(status='VERIFIED' if evidence else 'UNVERIFIED', reason='',
+            target = {'LONG': .4, 'SHORT': .6, 'NEUTRAL': .5}[direction]
+            proof.update(split_mode=split_mode,
+                         split_target_buy_pct=100*target,
+                         split_actual_buy_pct=100*buys/(buys+sells),
+                         split_deviation_pct=100*abs(buys/(buys+sells)-target),
+                         status='VERIFIED' if evidence else 'UNVERIFIED', reason='',
                          original_bounds=[support,resistance],rounded_bounds=[low,high],
                          selection='narrowest_confirmed_then_maximum_feasible',
                          grid_count=count,grid_interval=spacing['interval'],

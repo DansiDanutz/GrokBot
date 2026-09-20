@@ -32,3 +32,31 @@ Read-only CLI run at 2026-09-20T09:43:40.947000+00:00 against the existing phase
 369 rows, 51 passing liquidity, zero trade-section candidates (three majors direction-only). Among the liquid rows: 34 INSUFFICIENT_GRID_ROOM, 11 MISSING_STRUCTURE, 6 ENTRY_SPLIT. This is an observation at one instant, not a backtest or proof that no valid setup will occur. The candidate is not deployed: activation would currently stop new admissions. Ratio interpretation and retest semantics remain unresolved; do not loosen them silently.
 
 Both local gates pass: 1,191 tests (39 Node, 356 paper, 772 trader, 24 team), plus staged-secret scan.
+
+## Isolated split observation (not an admission policy)
+
+`split_mode='observe'` is an explicit comparison option on the pure layout
+functions only. All radar and autopilot callers retain the strict default.
+It records target/actual buy percentage and deviation; it does not optimize
+that deviation, approve an entry trigger, or alter running bots. Invalid mode
+names fail explicitly. Structure, minimum count, both-sided orders, price
+inside the effective range, fee floor and sizing/liquidation checks still apply.
+
+Dan's fixed 70-grid RAY examples give LONG 18 buy / 52 sell and NEUTRAL
+75 buy / 65 sell at the supplied entry prices. Both pass the observed split
+check and fail the strict check. The latter differs by one order from the
+74/66 screenshot taken at a different price. These fixtures do not establish
+KuCoin's quantity formula (the Long preview was 37 lots, actual 39).
+
+Bounded read-only inspection of the six ENTRY_SPLIT rows from the saved
+2026-09-20T09:43:40.947Z scan, using the same candle cutoff, finds candidate
+layouts in observation mode: ARB 77 grids, FIL 71, NEAR 76, APT 70, JUP 73,
+OP 71. Minimum modeled leveraged return per grid ranges 1.0039–1.0615% after
+two fill fees, before funding. These are candidate layouts, not six approved
+trades or measured profits. No backtest, execution, JEV call or live file write
+was performed. Entry timing still requires a separately specified rule.
+
+The active contract previously allowed 12–200 grids. The draft's 70 minimum
+is an intentional experimental policy change, not a correction to the deployed
+contract; review must resolve this and the split interpretation before adoption.
+Neither policy change is deployed by this comparison.
