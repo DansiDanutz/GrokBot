@@ -4,9 +4,9 @@ from copy import deepcopy
 from trader.papergrid.engine import BOT_FEE_RATE
 from trader.radar.spacing import align_bounds, economics, choose_count, funding_stress
 
-# New entries require the requested grid capacity inside confirmed structure.
-# Never fabricate wider boundaries or lower the floor to fill empty slots.
-MIN_GRIDS = 70
+# Preserve the deployed baseline; the higher floor belongs to explicit observation.
+MIN_GRIDS = 12
+OBSERVATION_MIN_GRIDS = 70
 MAX_GRIDS = 200
 ORDER_TOLERANCE = 1
 
@@ -26,9 +26,10 @@ def order_split(low, interval, grids, price, direction):
 def layout_valid(low, interval, grids, price, direction, *, split_mode='strict'):
     if split_mode not in ('strict', 'observe'):
         raise ValueError('unknown split mode')
+    minimum = OBSERVATION_MIN_GRIDS if split_mode == 'observe' else MIN_GRIDS
     values = (low, interval, price)
     if (direction not in ('LONG','SHORT','NEUTRAL') or type(grids) is not int
-            or not MIN_GRIDS <= grids <= MAX_GRIDS
+            or not minimum <= grids <= MAX_GRIDS
             or any(isinstance(v,bool) or not isinstance(v,(int,float))
                    or not math.isfinite(v) or v <= 0 for v in values)):
         return False
@@ -41,13 +42,14 @@ def layout_valid(low, interval, grids, price, direction, *, split_mode='strict')
 
 def select_range(supports, resistances, row, direction, *, evidence=None, split_mode='strict',
                  funding_settlements=None):
-    """Nearest confirmed pair supporting at least 70 fee-safe grids."""
+    """Nearest feasible confirmed pair; experimental rules require observation mode."""
     if split_mode not in ('strict', 'observe'):
         raise ValueError('unknown split mode')
     if funding_settlements is not None and (split_mode != 'observe'
             or type(funding_settlements) is not int or funding_settlements < 0):
         raise ValueError('funding scenario requires observation mode and nonnegative settlement count')
     from trader.autopilot.risk import sizing
+    minimum = OBSERVATION_MIN_GRIDS if split_mode == 'observe' else MIN_GRIDS
     tick = row.get('tick_size',0)
     if evidence is not None and evidence.get('status') != 'VERIFIED':
         return None, evidence.get('reason') or 'MISSING_STRUCTURE'
@@ -63,7 +65,7 @@ def select_range(supports, resistances, row, direction, *, evidence=None, split_
     for _,low,high,st,rt,support,resistance in sorted(pairs):
         maximum = choose_count(low,high,tick_size=tick,direction=direction)
         higher_rejections = []
-        for count in range(maximum,MIN_GRIDS-1,-1):
+        for count in range(maximum,minimum-1,-1):
             spacing = economics(low,high,count,tick_size=tick,direction=direction)
             if not spacing['viable']:
                 higher_rejections.append(dict(grids=count,reason='GRID_RETURN_BELOW_1_PERCENT'))
@@ -102,7 +104,7 @@ def select_range(supports, resistances, row, direction, *, evidence=None, split_
                          selection='narrowest_confirmed_then_maximum_feasible',
                          grid_count=count,grid_interval=spacing['interval'],
                          actual_upper_line=spacing['actual_upper_line'],
-                         maximum_fee_viable_count=maximum,minimum_required_grids=MIN_GRIDS,
+                         maximum_fee_viable_count=maximum,minimum_required_grids=minimum,
                          higher_count_rejections=higher_rejections,
                          fee_rate_maker=BOT_FEE_RATE,fee_rate_taker=BOT_FEE_RATE)
             if split_mode == 'observe':

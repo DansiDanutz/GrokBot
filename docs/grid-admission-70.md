@@ -1,29 +1,26 @@
-# Chart-supported capacity for new grid entries
+# Isolated chart-grid admission experiment
 
-New paper admissions require 70–200 configured grids. The selector searches
-confirmed support/resistance pairs in ascending width, rejecting pairs that
-cannot fit 70 grids with the existing minimum margin return strictly above 1%
-after both modeled fill fees at 5x. It then continues to the next confirmed
-pair. This is not permission to invent levels, move a stop arbitrarily, or
-relax the floor when no candidates qualify. Grid count is not open-order count:
-a Neutral bot can have two books and twice the number of open orders.
+The default radar and paper admission preserve the deployed **12–200 grids**,
+strict order split, 5x leverage, fee floor and risk checks. Explicit
+`split_mode='observe'` uses a separate 70-grid minimum and reports split
+deviation without vetoing asymmetric layouts. No production caller enables
+observation mode. Existing positions retain their pinned settings.
 
-Existing 60/40 trend and 50/50 Neutral split checks, fee rates, liquidity,
-quantity sizing and liquidation checks remain unchanged. Consequently Dan's
-RAY examples still fail the hard split tolerance: resolving whether these
-ratios are preferences is a separate policy decision. No new retest thresholds
-are invented in this change. Funding remains outside the displayed margin-return
-floor; it must not be described as a verified all-in return.
+The observation selector considers only supplied confirmed support/resistance
+pairs in ascending width; it never invents wider boundaries. Optional explicit
+`funding_settlements` requires observation mode and chooses the largest count
+that passes that funding scenario as well as existing sizing/liquidation checks.
+Unknown funding rejects. The result is conditional mathematical capacity, not
+an entry approval, all-in profit forecast or confirmation of a retest.
 
-The common `layout_valid` gate rejects stale low-grid radar rows during new
-admission. Existing positions do not call this new-admission gate while being
-advanced; their saved lines, range, quantity and close rules remain in force.
-No live state migration, bankroll reset, service restart or deployment is part
-of this PR. An empty qualified radar means wait, not silently admit fewer grids.
+A review caught the initial draft applying 70 globally. That change is now
+removed: regression tests cover every count from 12 through 69, a default
+fee-safe narrow range, and continued processing of an existing 20-grid bot.
+The higher floor remains available only for explicit comparisons. No policy
+activation, runtime migration, bankroll reset or service restart is included.
 
-Validation includes previously accepted 65/32-grid ranges, a confirmed outer
-pair that supports at least 70 grids, original/rounded chart provenance, old
-radar rejection and continued processing of an existing 20-grid bot.
+The dated evidence below describes earlier draft comparisons, including the
+initial 70-grid strict scan. It does not describe current default admissions.
 
 ## Single current-window check
 
@@ -56,10 +53,9 @@ two fill fees, before funding. These are candidate layouts, not six approved
 trades or measured profits. No backtest, execution, JEV call or live file write
 was performed. Entry timing still requires a separately specified rule.
 
-The active contract previously allowed 12–200 grids. The draft's 70 minimum
-is an intentional experimental policy change, not a correction to the deployed
-contract; review must resolve this and the split interpretation before adoption.
-Neither policy change is deployed by this comparison.
+The active contract allows 12–200 grids. The 70 minimum is isolated in
+observation mode; adopting it or relaxed splits would require a separate policy
+decision. Neither is enabled in production by this comparison.
 
 
 ## Funding diagnostic, 20 September 2026
@@ -139,3 +135,13 @@ Four new tests were run failing first, then passed: fixed-bound maximum count,
 no feasible 70-grid layout, missing funding rejection and explicit-mode guard.
 Full validation: 1,205 tests (39 Node, 356 paper, 786 trader, 24 team), plus
 staged-secret scan. No production activation.
+
+
+## Review correction verification
+
+The two new baseline tests failed first (all 58 counts from 12 through 69 were
+blocked, plus narrow-range selection). After isolation, 31 targeted tests pass.
+Full gates: 1,207 tests (39 Node, 356 paper, 788 trader, 24 team), and staged-secret
+scan. Default calls cannot request a funding selection scenario accidentally:
+they must explicitly opt into observation mode. Prior 70-grid comparison tables
+remain historical evidence and are not rewritten as baseline results.

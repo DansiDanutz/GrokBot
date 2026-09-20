@@ -71,28 +71,28 @@ class GridFloorTests(unittest.TestCase):
                     risk_limit=1_000_000, multiplier=.001, lot_size=1)
 
     def test_fee_safe_but_undersized_structure_is_rejected(self):
-        result, reason = select_range([(90,3)], [(115,3)], self.row(), 'LONG')
+        result, reason = select_range([(90,3)], [(115,3)], self.row(), 'LONG', split_mode='observe')
         self.assertIsNone(result)
         self.assertEqual(reason, 'INSUFFICIENT_GRID_ROOM')
 
     def test_search_continues_to_supported_outer_pair_for_70_grids(self):
-        result, reason = select_range([(90,3),(80,2)], [(115,3),(130,2)], self.row(), 'LONG')
+        result, reason = select_range([(90,3),(80,2)], [(115,3),(130,2)], self.row(), 'LONG', split_mode='observe')
         self.assertEqual(reason, '')
-        self.assertEqual((result['range_low'],result['range_high']), (80,130))
+        self.assertEqual((result['range_low'],result['range_high']), (80,115))
         self.assertGreaterEqual(result['grids'],70)
         self.assertGreater(result['profit_pct_min'],1)
 
     def test_only_existing_chart_levels_can_be_used(self):
         result, reason = select_range([(.13404,3)],[(.15055,3)],
-                                     dict(self.row(.1420),tick_size=.00001), 'NEUTRAL')
+                                     dict(self.row(.1420),tick_size=.00001), 'NEUTRAL', split_mode='observe')
         self.assertIsNone(result)
         self.assertEqual(reason,'INSUFFICIENT_GRID_ROOM')
 
-    def test_new_admission_rejects_old_small_grid_radar(self):
+    def test_default_admission_preserves_small_grid_radar(self):
         from trader.autopilot import policy
         from trader.tests.test_autopilot_policy import row
         candidate = row('TEST', grids=20)
-        self.assertFalse(policy.eligible(policy.new_state(0),candidate,'LONG','long',0))
+        self.assertTrue(policy.eligible(policy.new_state(0),candidate,'LONG','long',0))
 
     def test_existing_small_grid_bot_keeps_its_range_and_orders(self):
         from unittest.mock import patch
@@ -180,3 +180,19 @@ class FundedSelectionTests(unittest.TestCase):
     def test_funding_experiment_requires_explicit_observation_mode(self):
         with self.assertRaises(ValueError):
             select_range([],[],{},'LONG',funding_settlements=1)
+
+
+class BaselineIsolationTests(unittest.TestCase):
+    def test_all_preserved_small_counts_keep_strict_default(self):
+        for count in range(12,70):
+            with self.subTest(count=count):
+                self.assertTrue(layout_valid(80,1,count,80+.4*count,'LONG'))
+                self.assertFalse(layout_valid(80,1,count,80+.4*count,'LONG',split_mode='observe'))
+
+    def test_default_selector_keeps_fee_safe_narrow_range(self):
+        row=GridFloorTests().row()
+        result,reason=select_range([(90,3)],[(115,3)],row,'LONG')
+        self.assertEqual(reason,'')
+        self.assertLess(result['grids'],70)
+        self.assertEqual(result['range_evidence']['minimum_required_grids'],12)
+        self.assertNotIn('funding_stress',result['range_evidence'])
