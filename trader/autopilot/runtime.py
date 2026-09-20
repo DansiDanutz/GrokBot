@@ -389,6 +389,13 @@ class Runner:
             now = self.now_ms()
             required = set(MAJORS) | {w['engine']['symbol'] for w in self.state['open_bots']}
             quotes = {r['symbol']: r for r in rows if r['symbol'] in required and r['ts_ms'] <= now}
+            complete = required <= quotes.keys()
+            if (complete and self.state['runtime']['kucoin_down_since_ms'] is not None
+                    and self.state['open_bots']):
+                # Resume through the existing candle recovery path before new
+                # fills/entries; immediate boundary exits remain available.
+                self.recovered = False
+                self.recovery_attempt_ms = None
             previous = self.state['runtime']['quotes']
             quotes = {s: r for s, r in quotes.items() if r['ts_ms'] >= previous.get(s, {}).get('ts_ms', 0)}
             try:
@@ -405,7 +412,13 @@ class Runner:
                 events.append(_system(now, 'ERROR', LOCAL_ERROR))
             meta = self.state['runtime']
             meta['quotes'] = {s: quotes.get(s, previous.get(s)) for s in required if s in quotes or s in previous}
-            meta.update(kucoin_ok=True, kucoin_down_since_ms=None, last_tick_ms=now)
+            if complete:
+                meta.update(kucoin_ok=True, kucoin_down_since_ms=None, last_tick_ms=now)
+            else:
+                meta['kucoin_ok'] = False
+                if meta['kucoin_down_since_ms'] is None:
+                    meta['kucoin_down_since_ms'] = now
+                events.append(_system(now, 'ERROR', 1))
         meta = self.state['runtime']
         due = force_decision or radar_changed or now - meta['last_decision_ms'] >= DECISION_INTERVAL_S * 1000
         if (due and self.recovered and meta['kucoin_ok']
