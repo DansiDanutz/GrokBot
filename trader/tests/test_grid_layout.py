@@ -194,5 +194,6 @@ class BaselineIsolationTests(unittest.TestCase):
         result,reason=select_range([(90,3)],[(115,3)],row,'LONG')
         self.assertEqual(reason,'')
         self.assertLess(result['grids'],70)
-        self.assertEqual(result['range_evidence']['minimum_required_grids'],12)
+        from trader.radar.layout import MIN_GRIDS
+        self.assertEqual(result['range_evidence']['minimum_required_grids'],MIN_GRIDS)
         self.assertNotIn('funding_stress',result['range_evidence'])

@@ -74,9 +74,9 @@ class EntryTests(unittest.TestCase):
         r=candidate();r.update(entry_policy_version=VERSION,entry_retests={
             'LONG':retest(candles(),basis(),r,'LONG',NOW)})
         self.assertEqual(admission(r,'LONG',NOW,required_version=VERSION),'')
-        # 8 grids is below the deployed 12-200 floor; 20 is a normal layout now
+        # 5 grids is below the deployed 8-200 floor; 20 is a normal layout now
         # that the observation-only 70 no longer gates live admission.
-        for extra in ({'price':102},{'funding_pct':5},{'grids':8}):
+        for extra in ({'price':102},{'funding_pct':5},{'grids':5}):
             self.assertNotEqual(admission(dict(r,**extra),'LONG',NOW,required_version=VERSION),'')
         self.assertNotEqual(admission(r,'LONG',NOW+3*HOUR,required_version=VERSION),'')
 
