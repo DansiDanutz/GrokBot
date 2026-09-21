@@ -36,6 +36,15 @@ RETENTION_MS = 30 * 24 * HOUR_MS
 
 # Closes that protect the account: exempt from the learned min-hold gate.
 RISK_CLOSE_REASONS = frozenset({'STOP_LOSS', 'RANGE_BREAK', 'RISK_LIMIT'})
+
+# Hard floor on one bot's loss, as a share of its notional. The engine's -12%
+# STOP_LOSS stays a journal marker (an in-range grid is still working) and the
+# learned stall rule keeps its own band below this level, so the floor only
+# catches the tail the desk had no answer for: on 2026-09-21 FUSDTM sat at
+# -25.8% of notional inside its range with nothing able to close it. Approved at
+# 20% by Dan on 2026-09-21; it closes with RISK_LIMIT, a reason already handled
+# everywhere (public DTO, page copy, review and counterfactual).
+LOSS_CAP_PCT = 0.20
 _OPPOSING_LABELS = {'LONG': ('SHORT', 'TURNING-DOWN'),
                     'SHORT': ('LONG', 'TURNING-UP')}
 DECISION_RULES = {
@@ -688,6 +697,8 @@ def advance(state, updates):
             events.extend(e for e in emitted if e['type'] != 'STOP_LOSS')
             reason = None
             price = wrapper['engine']['last_price']
+        if not reason and net(wrapper['engine']) <= -LOSS_CAP_PCT * wrapper['engine']['notional_usdt']:
+            reason = 'RISK_LIMIT'
         if not reason and wrapper['engine'].get('accounting_version') == ACCOUNTING_VERSION:
             current=wrapper['engine']
             if update['ts_ms']-current.get('risk_metadata_at_ms',0)>120*60000:

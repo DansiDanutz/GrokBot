@@ -50,7 +50,9 @@ Pure functions, no I/O.
   avg_entry, fees_paid, funding_paid, equity, peak_equity, max_drawdown_pct,
   last_price, last_ts_ms`.
 - Emits, never acts: `RANGE_BREAK` when price is beyond the range by more than one
-  step for 3 consecutive updates; `STOP_LOSS` when
+  step for 3 consecutive updates. The live floor is `policy.LOSS_CAP_PCT`, 20% of
+  notional, which closes with `RISK_LIMIT`; the engine's `STOP_LOSS` below is a
+  journal marker that closes nothing on its own. `STOP_LOSS` is emitted when
   `(realized + unrealized - fees - funding) < -0.12 * notional_usdt`.
 
 `close_bot(bot, price, now_ms, reason) -> (bot, events)`: flatten at price with
