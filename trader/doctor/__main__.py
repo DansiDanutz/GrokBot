@@ -47,15 +47,26 @@ def gather(now_ms=None, database=None):
     f = dict(now_ms=now)
 
     db = Path(database or ROOT / 'market-data' / 'phase-2-20260911' / 'market.sqlite3')
+    con = None
     try:
-        con = sqlite3.connect('file:%s?mode=ro' % db, uri=True)
+        # The live table is keyed by (symbol, interval, time_ms), so an
+        # interval-only MAX can scan the entire history. Bound the read and
+        # fail closed if a large/locked database cannot answer promptly.
+        con = sqlite3.connect('file:%s?mode=ro' % db, uri=True, timeout=0.25)
+        deadline = time.monotonic() + 1.5
+        con.set_progress_handler(lambda: 1 if time.monotonic() >= deadline else 0, 1000)
         f['hourly_committed_ms'] = con.execute(
-            "select max(time_ms) from klines where interval='1h'").fetchone()[0]
-        newest = con.execute("select max(time_ms) from klines where interval='1m'").fetchone()[0]
+            "select time_ms from klines where interval='1h' "
+            "order by time_ms desc limit 1").fetchone()[0]
+        newest = con.execute(
+            "select time_ms from klines where interval='1m' "
+            "order by time_ms desc limit 1").fetchone()[0]
         f['minute_age_s'] = (now - newest) / 1000 if newest else None
-        con.close()
-    except sqlite3.Error:
+    except (sqlite3.Error, TimeoutError):
         f['hourly_committed_ms'] = f['minute_age_s'] = None
+    finally:
+        if con is not None:
+            con.close()
 
     radar = _json(ROOT / 'radar' / 'radar.json') or {}
     rows = radar.get('rows') or []
