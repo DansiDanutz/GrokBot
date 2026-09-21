@@ -11,9 +11,24 @@ HOUR = 3_600_000
 RULE = dict(warmup_hours=3, min_grids_per_hour=4, adverse_travel=0.7)
 
 
+# A 15%-wide range keeps the same 40/60 entry split as the old 80..130 fixture
+# while placing the adverse zone about 15% of notional under water at 5x. The old
+# span put it near 50%, past policy.LOSS_CAP_PCT, so the floor closed these bots
+# before the stall rule could be observed at all.
+# Price sits where each direction's entry split expects it: 40% up the range for
+# LONG, 60% for SHORT, the middle for NEUTRAL.
+SPAN, ENTRY_AT = 15.0, {'LONG': .4, 'SHORT': .6, 'NEUTRAL': .5}
+
+
+def geometry(direction, price=100.0):
+    low = price - ENTRY_AT[direction] * SPAN
+    return dict(range_low=round(low, 4), range_high=round(low + SPAN, 4), grids=25)
+
+
 def opened(direction='LONG'):
     kind = {'LONG': 'long', 'SHORT': 'short', 'NEUTRAL': 'neutral'}[direction]
-    state, _ = policy.decide(policy.new_state(0), radar(**{kind: [row('A', direction)]}),
+    state, _ = policy.decide(policy.new_state(0),
+                             radar(**{kind: [row('A', direction, **geometry(direction))]}),
                              {}, 0, 'a')
     assert state['open_bots'], 'fixture bot did not open'
     return state

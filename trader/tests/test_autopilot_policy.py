@@ -368,6 +368,24 @@ class FiveXBoundaryTests(unittest.TestCase):
         self.assertNotEqual(changed['open_bots'][0]['engine']['bot_id'], old_id)
         self.assertEqual(changed['open_bots'][0]['reserve_usdt'], 200)
 
+    def test_a_bot_past_the_loss_floor_closes_even_inside_its_range(self):
+        """The tail the desk had no answer for: FUSDTM held -25.8% of notional."""
+        state, _ = policy.decide(policy.new_state(0), radar(long=[row('A')]), {}, 0, 'a')
+        bot = state['open_bots'][0]['engine']
+        bot['fees_paid'] = policy.LOSS_CAP_PCT * bot['notional_usdt'] + 1
+        ended, _ = policy.advance(state, {'A': dict(ts_ms=1000, price=100)})
+        self.assertEqual(len(ended['open_bots']), 0)
+        self.assertEqual(ended['closed_bots'][0]['engine']['reason'], 'RISK_LIMIT')
+
+    def test_a_loss_under_the_floor_keeps_the_grid_working(self):
+        """The engine's -12% STOP_LOSS marker still closes nothing by itself."""
+        state, _ = policy.decide(policy.new_state(0), radar(long=[row('A')]), {}, 0, 'a')
+        bot = state['open_bots'][0]['engine']
+        bot['fees_paid'] = 0.13 * bot['notional_usdt']
+        ended, events = policy.advance(state, {'A': dict(ts_ms=1000, price=100)})
+        self.assertEqual(len(ended['open_bots']), 1)
+        self.assertFalse(any(e['type'] == 'CLOSE' for e in events))
+
     def test_loss_amount_does_not_override_the_configured_price_boundary(self):
         state, _ = policy.decide(policy.new_state(0), radar(long=[row('A')]), {}, 0, 'a')
         state['open_bots'][0]['engine']['fees_paid'] = 130
