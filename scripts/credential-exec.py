@@ -41,7 +41,9 @@ def credentials(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--credentials', required=True)
+    # Repeatable so one job can load two unrelated services without their keys
+    # sharing a file: --credentials telegram.json --credentials typesafe.json
+    parser.add_argument('--credentials', required=True, action='append')
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ['--'] else args.command
@@ -49,7 +51,13 @@ def main():
         if not command or not Path(command[0]).is_absolute():
             raise ValueError('absolute executable required')
         env = dict(os.environ)
-        env.update(credentials(args.credentials))
+        loaded = {}
+        for path in args.credentials:
+            for name, value in credentials(path).items():
+                if name in loaded:
+                    raise ValueError('duplicate credential name')
+                loaded[name] = value
+        env.update(loaded)
         os.execvpe(command[0], command, env)
     except (OSError, ValueError, TypeError):
         print('Private credential loader failed; values omitted.', file=sys.stderr)
