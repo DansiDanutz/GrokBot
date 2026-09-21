@@ -6,7 +6,7 @@ from trader.radar.spacing import align_bounds, economics, choose_count, funding_
 from trader.radar.entry import VERSION, funding_window
 
 # Legacy pure calls keep their baseline; versioned entries and observations use 70.
-MIN_GRIDS = 12
+from trader.radar.entry import MIN_GRIDS  # single source of truth for the floor
 OBSERVATION_MIN_GRIDS = 70
 MAX_GRIDS = 200
 ORDER_TOLERANCE = 1
