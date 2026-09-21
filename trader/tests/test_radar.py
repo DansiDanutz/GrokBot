@@ -121,7 +121,7 @@ class RadarTests(unittest.TestCase):
                     "0": .05, "1": .1, "2": .35, "3": .5}, "confidence": .61},
                 "entry_now": {"noul": .64}, "evidence_sufficient": {"noul": .81}},
                 "usage": {"input_tokens": 123}}
-        enriched = enrich(report, evaluator=evaluator, limit=2)
+        enriched = enrich(report, evaluator=evaluator, limit=2, log=lambda _e: None)
         self.assertEqual([row["symbol"] for row in enriched["rows"]], before)
         selected = [row for row in enriched["rows"] if "jev" in row]
         self.assertEqual(len(selected), 2)
@@ -132,7 +132,8 @@ class RadarTests(unittest.TestCase):
     def test_jev_shadow_failure_keeps_deterministic_rows(self):
         report = analyse(self.database, NOW)
         expected = json.loads(json.dumps(report["rows"]))
-        enriched = enrich(report, evaluator=lambda *_: (_ for _ in ()).throw(RuntimeError("private")), limit=1)
+        enriched = enrich(report, evaluator=lambda *_: (_ for _ in ()).throw(RuntimeError("private")),
+                          limit=1, log=lambda _e: None)
         self.assertEqual(enriched["rows"], expected)
         self.assertEqual(enriched["jev_shadow"]["status"], "degraded")
 
@@ -206,6 +207,21 @@ class RadarTests(unittest.TestCase):
             jev = next(row["jev"] for row in enriched["rows"] if "jev" in row)
             self.assertTrue(jev["abstain"], reply["answers"]["direction"])
 
+    def test_jev_shadow_successful_answers_never_reorder_rows(self):
+        report = analyse(self.database, NOW)
+        before = [row["symbol"] for row in report["rows"]]
+        replies = iter([
+            self._jev_reply(direction={"choice": "NEUTRAL", "probabilities": {
+                "LONG": .3, "SHORT": .2, "NEUTRAL": .45, "REJECT": .05}, "confidence": .4}),
+            self._jev_reply(direction={"choice": "LONG", "probabilities": {
+                "LONG": .9, "SHORT": .03, "NEUTRAL": .05, "REJECT": .02}, "confidence": .9})])
+        enriched = enrich(report, evaluator=lambda *_: next(replies), limit=2, log=lambda _e: None)
+        self.assertEqual([row["symbol"] for row in enriched["rows"]], before)
+        margins = [row["jev"]["margin"] for row in enriched["rows"] if "jev" in row]
+        self.assertEqual(len(margins), 2)
+        self.assertLess(margins[0], margins[1], "top-ranked row keeps its slot despite a smaller margin")
+        self.assertEqual(enriched["jev_shadow"]["status"], "ok")
+
     def test_jev_shadow_invalid_payload_marks_row_invalid_and_keeps_rank(self):
         report = analyse(self.database, NOW)
         before = json.loads(json.dumps(report["rows"]))
@@ -226,7 +242,7 @@ class RadarTests(unittest.TestCase):
         json.dumps(enriched, allow_nan=False)
 
     def test_jev_shadow_log_line_is_structured_and_never_contains_the_key(self):
-        secret = "sk-typesafe-SECRET-0123456789"
+        secret = "shadow-test-key-should-never-appear"
         report = analyse(self.database, NOW)
         events = []
         enrich(report, evaluator=lambda *_: self._jev_reply(), limit=1, log=events.append)

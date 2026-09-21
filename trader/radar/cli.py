@@ -67,8 +67,9 @@ def main(argv=None, printer=print, environ=None):
     printer(f"Entry policy: {VERSION}; {sum(r.get('entry_viable',0) for r in report['rows'])} confirmed setups.")
     if args.jev_shadow:
         shadow = report['jev_shadow']
+        failed, invalid = shadow['failed'], shadow['invalid']
         printer(f"JEV shadow: {shadow['evaluated']}/{shadow['attempted']} evaluated; "
-                f"{shadow["failed"]} failed; {shadow["invalid"]} invalid.")
+                f"{failed} failed; {invalid} invalid.")
     for key, title in LABELS:
         for line in _table(title, report["sections"][key], key == "majors"):
             printer(line)
