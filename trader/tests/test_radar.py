@@ -6,7 +6,8 @@ import tempfile
 import unittest
 
 from trader.radar.cli import main
-from trader.radar.jev import enrich
+from trader.radar import jev as jev_module
+from trader.radar.jev import enrich, validate_answers
 from trader.radar.radar import analyse
 
 
@@ -134,6 +135,130 @@ class RadarTests(unittest.TestCase):
         enriched = enrich(report, evaluator=lambda *_: (_ for _ in ()).throw(RuntimeError("private")), limit=1)
         self.assertEqual(enriched["rows"], expected)
         self.assertEqual(enriched["jev_shadow"]["status"], "degraded")
+
+    def _jev_reply(self, **overrides):
+        reply = {"model": "jev-test", "answers": {
+            "direction": {"choice": "LONG", "probabilities": {
+                "LONG": .7, "SHORT": .1, "NEUTRAL": .15, "REJECT": .05}, "confidence": .72},
+            "range_quality": {"score": 2.4, "confidence": .61},
+            "entry_now": {"noul": .64}, "evidence_sufficient": {"noul": .81}},
+            "usage": {"input_tokens": 123}}
+        reply["answers"].update(overrides)
+        return reply
+
+    def test_jev_model_is_pinned_to_a_version(self):
+        self.assertEqual(jev_module.MODEL, "jev-1.13.0")
+
+    def test_validate_answers_rejects_choice_that_is_not_argmax(self):
+        reply = self._jev_reply(direction={"choice": "SHORT", "probabilities": {
+            "LONG": .7, "SHORT": .1, "NEUTRAL": .15, "REJECT": .05}, "confidence": .72})
+        with self.assertRaisesRegex(ValueError, "argmax"):
+            validate_answers(reply)
+
+    def test_validate_answers_rejects_probabilities_off_criteria_or_not_normalised(self):
+        extra = self._jev_reply(direction={"choice": "LONG", "probabilities": {
+            "LONG": .7, "SHORT": .1, "NEUTRAL": .15, "REJECT": .05, "FLAT": 0}, "confidence": .7})
+        with self.assertRaisesRegex(ValueError, "criteria"):
+            validate_answers(extra)
+        skewed = self._jev_reply(direction={"choice": "LONG", "probabilities": {
+            "LONG": .7, "SHORT": .3, "NEUTRAL": .15, "REJECT": .05}, "confidence": .7})
+        with self.assertRaisesRegex(ValueError, "sum"):
+            validate_answers(skewed)
+
+    def test_validate_answers_rejects_missing_ids_and_out_of_range_values(self):
+        reply = self._jev_reply()
+        del reply["answers"]["entry_now"]
+        with self.assertRaisesRegex(ValueError, "question"):
+            validate_answers(reply)
+        with self.assertRaisesRegex(ValueError, "range_quality"):
+            validate_answers(self._jev_reply(range_quality={"score": 3.5, "confidence": .5}))
+        with self.assertRaisesRegex(ValueError, "entry_now"):
+            validate_answers(self._jev_reply(entry_now={"noul": float("nan")}))
+        with self.assertRaisesRegex(ValueError, "evidence_sufficient"):
+            validate_answers(self._jev_reply(evidence_sufficient={"noul": 1.2}))
+
+    def test_validate_answers_labels_range_quality_from_legend(self):
+        answer = validate_answers(self._jev_reply())
+        self.assertEqual(answer["range_quality"], 2.4)
+        self.assertEqual(answer["range_quality_label"], "good")
+        self.assertEqual(jev_module.RANGE_QUALITY_LEGEND, ("poor", "marginal", "good", "strong"))
+
+    def test_jev_shadow_derives_advisory_abstention_fields(self):
+        report = analyse(self.database, NOW)
+        enriched = enrich(report, evaluator=lambda *_: self._jev_reply(), limit=1, log=lambda _e: None)
+        jev = next(row["jev"] for row in enriched["rows"] if "jev" in row)
+        self.assertEqual(jev["status"], "ok")
+        self.assertFalse(jev["abstain"])
+        self.assertAlmostEqual(jev["margin"], .55)
+        self.assertAlmostEqual(jev["noul_confidence"]["entry_now"], .28)
+        self.assertAlmostEqual(jev["noul_confidence"]["evidence_sufficient"], .62)
+
+    def test_jev_shadow_abstains_on_thin_margin_low_evidence_or_reject(self):
+        thin = self._jev_reply(direction={"choice": "LONG", "probabilities": {
+            "LONG": .4, "SHORT": .3, "NEUTRAL": .2, "REJECT": .1}, "confidence": .4})
+        weak = self._jev_reply(evidence_sufficient={"noul": .3})
+        reject = self._jev_reply(direction={"choice": "REJECT", "probabilities": {
+            "LONG": .05, "SHORT": .05, "NEUTRAL": .1, "REJECT": .8}, "confidence": .8})
+        for reply in (thin, weak, reject):
+            report = analyse(self.database, NOW)
+            enriched = enrich(report, evaluator=lambda *_, reply=reply: reply, limit=1,
+                              log=lambda _e: None)
+            jev = next(row["jev"] for row in enriched["rows"] if "jev" in row)
+            self.assertTrue(jev["abstain"], reply["answers"]["direction"])
+
+    def test_jev_shadow_invalid_payload_marks_row_invalid_and_keeps_rank(self):
+        report = analyse(self.database, NOW)
+        before = json.loads(json.dumps(report["rows"]))
+        bad = self._jev_reply(direction={"choice": "SHORT", "probabilities": {
+            "LONG": .7, "SHORT": .1, "NEUTRAL": .15, "REJECT": .05}, "confidence": .72})
+        events = []
+        enriched = enrich(report, evaluator=lambda *_: bad, limit=1, log=events.append)
+        self.assertEqual([row["symbol"] for row in enriched["rows"]],
+                         [row["symbol"] for row in before])
+        marked = [row for row in enriched["rows"] if "jev" in row]
+        self.assertEqual(len(marked), 1)
+        self.assertEqual(marked[0]["jev"], {"status": "invalid"})
+        stripped = [{k: v for k, v in row.items() if k != "jev"} for row in enriched["rows"]]
+        self.assertEqual(stripped, before)
+        self.assertEqual(enriched["jev_shadow"]["invalid"], 1)
+        self.assertEqual(enriched["jev_shadow"]["status"], "degraded")
+        self.assertEqual(events[0]["fallback_reason"], "invalid_payload")
+        json.dumps(enriched, allow_nan=False)
+
+    def test_jev_shadow_log_line_is_structured_and_never_contains_the_key(self):
+        secret = "sk-typesafe-SECRET-0123456789"
+        report = analyse(self.database, NOW)
+        events = []
+        enrich(report, evaluator=lambda *_: self._jev_reply(), limit=1, log=events.append)
+        failing = analyse(self.database, NOW)
+        enrich(failing, evaluator=lambda *_: (_ for _ in ()).throw(RuntimeError(secret)),
+               limit=1, log=events.append)
+        self.assertEqual(len(events), 2)
+        ok, failed = events
+        self.assertEqual(ok["purpose"], "radar_shadow_judgment")
+        self.assertEqual(ok["model"], jev_module.MODEL)
+        self.assertEqual(ok["downstream_action"], "shadow_only")
+        self.assertEqual(ok["input_tokens"], 123)
+        self.assertIn("latency_ms", ok)
+        self.assertEqual(ok["answer_distribution"]["direction"]["LONG"], .7)
+        self.assertEqual(ok["confidence"]["direction"], .72)
+        self.assertIsNone(ok["fallback_reason"])
+        self.assertEqual(failed["fallback_reason"], "RuntimeError")
+        self.assertEqual(failed["downstream_action"], "shadow_only")
+        for event in events:
+            self.assertNotIn(secret, json.dumps(event))
+            self.assertNotIn("Authorization", json.dumps(event))
+
+    def test_jev_shadow_default_log_writes_json_line_without_key(self):
+        import io
+        from contextlib import redirect_stderr
+        report = analyse(self.database, NOW)
+        buffer = io.StringIO()
+        with redirect_stderr(buffer):
+            enrich(report, evaluator=lambda *_: self._jev_reply(), limit=1)
+        line = json.loads(buffer.getvalue().strip().splitlines()[-1])
+        self.assertEqual(line["downstream_action"], "shadow_only")
+        self.assertNotIn("Bearer", buffer.getvalue())
 
     def test_cli_jev_shadow_requires_explicit_key(self):
         destination = Path(self.temp.name) / "radar.json"

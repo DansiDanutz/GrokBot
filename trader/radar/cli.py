@@ -68,7 +68,7 @@ def main(argv=None, printer=print, environ=None):
     if args.jev_shadow:
         shadow = report['jev_shadow']
         printer(f"JEV shadow: {shadow['evaluated']}/{shadow['attempted']} evaluated; "
-                f"{shadow['failed']} failed.")
+                f"{shadow["failed"]} failed; {shadow["invalid"]} invalid.")
     for key, title in LABELS:
         for line in _table(title, report["sections"][key], key == "majors"):
             printer(line)
