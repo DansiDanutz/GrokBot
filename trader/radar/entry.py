@@ -2,11 +2,16 @@
 import math
 from copy import deepcopy
 from trader.radar.spacing import funding_stress
+# One floor for the whole desk; layout.MIN_GRIDS imports this name so the two
+# cannot drift. docs/grid-admission-70.md: the deployed range is 12-200 grids and
+# the 70 floor is observation-only - "activation would currently stop new
+# admissions". It had leaked into this enforced policy, where it rejected 51 of 52
+# liquid rows on 2026-09-21 and the desk opened nothing for a day.
+MIN_GRIDS = 12
 
 VERSION = 'funding4h_retest1h_v1'
 HOUR_MS = 3_600_000
 FUNDING_HOURS = 4
-MIN_GRIDS = 70
 MAX_EVIDENCE_AGE_MS = 2 * HOUR_MS
 
 
