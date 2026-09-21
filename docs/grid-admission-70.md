@@ -1,6 +1,6 @@
 # Isolated chart-grid admission experiment
 
-The default radar and paper admission preserve the deployed **12–200 grids**,
+The default radar and paper admission preserve the deployed **8–200 grids** (12 until 2026-09-21; see trader/radar/entry.py for the measurement that moved it),
 strict order split, 5x leverage, fee floor and risk checks. Explicit
 `split_mode='observe'` uses a separate 70-grid minimum and reports split
 deviation without vetoing asymmetric layouts. No production caller enables

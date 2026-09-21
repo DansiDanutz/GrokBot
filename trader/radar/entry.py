@@ -7,7 +7,16 @@ from trader.radar.spacing import funding_stress
 # the 70 floor is observation-only - "activation would currently stop new
 # admissions". It had leaked into this enforced policy, where it rejected 51 of 52
 # liquid rows on 2026-09-21 and the desk opened nothing for a day.
-MIN_GRIDS = 12
+#
+# 12 -> 8 on 2026-09-21 after counting the binding gate on every liquid row across
+# four scans: 78 of 200 rejections were INSUFFICIENT_GRID_ROOM and not one row ever
+# reached the funding or retest gates. Confirmed structural ranges had narrowed to
+# 0.77-4.0% wide, holding 2-11 fee-safe grids (DOTUSDTM 3.99% -> 11, HUSDTM 3.95%
+# -> 11), so layouts were being discarded for falling one or two grids short. Each
+# grid still has to clear both fills and the 1% margin floor in spacing.economics;
+# this count floor only asserts a bot is worth opening, and Dan's live KuCoin bots
+# have run 11 grids.
+MIN_GRIDS = 8
 
 VERSION = 'funding4h_retest1h_v1'
 HOUR_MS = 3_600_000
