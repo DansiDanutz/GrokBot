@@ -306,11 +306,18 @@ def _radar(source):
             row.update(_numbers(item, numeric))
             if item.get('jev') is not None:
                 jev = _object(item['jev'])
+                status = jev.get('status', 'ok')
+                if status != 'ok':
+                    row['jev'] = dict(status=str(status)[:16])
+                    result['sections'][section].append(row)
+                    continue
                 jev_direction = jev.get('direction')
                 if jev_direction not in ('LONG', 'SHORT', 'NEUTRAL', 'REJECT'):
                     raise ValueError('invalid JEV direction')
                 probabilities = _object(jev.get('direction_probabilities'))
-                row['jev'] = dict(model='jev-latest', direction=jev_direction,
+                model = jev.get('model')
+                row['jev'] = dict(model=model[:64] if isinstance(model, str) and model else 'jev-latest',
+                    direction=jev_direction,
                     direction_probabilities={key: _number(probabilities.get(key))
                         for key in ('LONG', 'SHORT', 'NEUTRAL', 'REJECT')},
                     **_numbers(jev, ('direction_confidence range_quality range_confidence '

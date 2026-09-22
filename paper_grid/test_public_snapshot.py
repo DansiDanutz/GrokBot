@@ -237,6 +237,26 @@ class PublicSnapshotTests(unittest.TestCase):
         self.assertEqual(exported['sections']['long'][0]['grid_interval'], 400)
         self.assertNotIn(SECRET, json.dumps(exported))
 
+    def test_radar_publishes_invalid_jev_status_without_direction(self):
+        radar = self.runtime.parent / 'radar'
+        radar.mkdir()
+        base = dict(symbol='BTCUSDTM', direction='LONG', price=50_000, passes_liquidity=True)
+        rows = [dict(base, jev=dict(status='invalid')),
+                dict(base, symbol='ETHUSDTM', jev=dict(model='jev-1.13.0', status='ok',
+                    direction='SHORT', direction_probabilities=dict(LONG=.1, SHORT=.7,
+                    NEUTRAL=.15, REJECT=.05), direction_confidence=.7, abstain=False))]
+        payload = dict(schema_version=1, generated_at_ms=AT * 1000, asof_ms=AT * 1000,
+            constants={}, filters={}, rows=[], sections={'short': rows})
+        (radar / 'radar.json').write_text(json.dumps(payload))
+        self.export()
+        exported = json.loads((self.root / 'site/data/radar.json').read_text())
+        invalid, valid = exported['sections']['short']
+        self.assertEqual(invalid['symbol'], 'BTCUSDTM')
+        self.assertEqual(invalid['jev'], dict(status='invalid'))
+        self.assertEqual(valid['jev']['model'], 'jev-1.13.0')
+        self.assertEqual(valid['jev']['direction'], 'SHORT')
+        self.assertNotIn('abstain', valid['jev'])
+
     def test_audits_regenerated_from_numeric_dto(self):
         audit = self.add_audit()
         for ext in ('.html', '.md'):

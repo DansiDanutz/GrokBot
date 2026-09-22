@@ -1,25 +1,45 @@
-"""Optional TypeSafe JEV shadow judgments for deterministic radar rows."""
+"""Optional TypeSafe JEV shadow judgments for deterministic radar rows.
+
+Every field written under ``row["jev"]`` is advisory telemetry for the shadow
+period described in docs/JEV-TYPESAFE-INTEGRATION.md. Nothing in the radar,
+the autopilot policy or the paper executor reads ``abstain``, ``margin`` or
+``noul_confidence`` for ordering, sizing or admission; they exist so recorded
+outcomes can be calibrated later. A JEV answer never becomes an exchange order
+or an authorization.
+"""
 
 import json
 import math
 import os
+import sys
 import time
 from urllib.request import Request, urlopen
 
 
 URL = "https://api.typesafe.ai/v1/systemone"
-MODEL = "jev-latest"
+# Pinned on purpose: the abstention thresholds below were tuned against this
+# model version. Bumping the alias without re-tuning silently changes what
+# "abstain" means, so treat MODEL and the ABSTAIN_* constants as one unit.
+MODEL = "jev-1.13.0"
 KEY_ENV = "TYPESAFE_API_KEY"
 QUESTION_IDS = ("direction", "range_quality", "entry_now", "evidence_sufficient")
+DIRECTION_CRITERIA = ("LONG", "SHORT", "NEUTRAL", "REJECT")
+RANGE_QUALITY_LEGEND = ("poor", "marginal", "good", "strong")
+PROBABILITY_SUM_TOLERANCE = 0.02
+ABSTAIN_EVIDENCE_FLOOR = 0.5
+ABSTAIN_MARGIN_FLOOR = 0.15
+LOG_PURPOSE = "radar_shadow_judgment"
+DOWNSTREAM_ACTION = "shadow_only"
 
 QUESTIONS = {
     "direction": {"type": "choice",
         "instructions": "Which grid direction best fits this market state for the next several hours?",
-        "criteria": {"LONG": "upward grid bias", "SHORT": "downward grid bias",
-                     "NEUTRAL": "two-sided range", "REJECT": "no suitable grid setup"}},
+        "criteria": dict(zip(DIRECTION_CRITERIA, (
+            "upward grid bias", "downward grid bias",
+            "two-sided range", "no suitable grid setup")))},
     "range_quality": {"type": "score",
         "instructions": "Rate whether the supplied support/resistance range is likely to contain useful oscillation.",
-        "criteria": ["poor", "marginal", "good", "strong"]},
+        "criteria": list(RANGE_QUALITY_LEGEND)},
     "entry_now": {"type": "noul",
         "instructions": "Is the current price a suitable entry inside the supplied range now?"},
     "evidence_sufficient": {"type": "noul",
@@ -39,43 +59,105 @@ def state_for(row):
     return {key: row[key] for key in STATE_FIELDS if key in row}
 
 
-def _number(value, low=0, high=1):
+def _number(value, name, low=0, high=1):
     if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high:
-        raise ValueError("invalid JEV answer")
+        raise ValueError(f"invalid JEV answer: {name} must be finite in [{low}, {high}]")
     return float(value)
 
 
-def _answer(reply, elapsed_ms):
-    if not isinstance(reply, dict) or not isinstance(reply.get("answers"), dict):
-        raise ValueError("invalid JEV response")
-    answers = reply["answers"]
-    if set(answers) != set(QUESTION_IDS):
-        raise ValueError("invalid JEV response")
-    direction = answers["direction"]
-    choice = direction.get("choice")
-    probabilities = direction.get("probabilities")
-    if choice not in ("LONG", "SHORT", "NEUTRAL", "REJECT") or not isinstance(probabilities, dict):
-        raise ValueError("invalid JEV direction")
-    direction_probs = {key: _number(probabilities.get(key))
-                       for key in ("LONG", "SHORT", "NEUTRAL", "REJECT")}
-    quality = answers["range_quality"]
-    result = {
-        "model": str(reply.get("model") or MODEL)[:64],
+def _direction(answer):
+    if not isinstance(answer, dict):
+        raise ValueError("invalid JEV answer: direction")
+    choice = answer.get("choice")
+    probabilities = answer.get("probabilities")
+    if choice not in DIRECTION_CRITERIA or not isinstance(probabilities, dict):
+        raise ValueError("invalid JEV answer: direction choice outside criteria")
+    if set(probabilities) != set(DIRECTION_CRITERIA):
+        raise ValueError("invalid JEV answer: direction probabilities must cover exactly the criteria")
+    probs = {key: _number(probabilities[key], f"direction.probabilities.{key}")
+             for key in DIRECTION_CRITERIA}
+    if abs(sum(probs.values()) - 1) > PROBABILITY_SUM_TOLERANCE:
+        raise ValueError("invalid JEV answer: direction probabilities must sum to 1")
+    ordered = sorted(probs.values(), reverse=True)
+    if probs[choice] != ordered[0]:
+        raise ValueError("invalid JEV answer: direction choice must be the argmax")
+    return choice, probs, _number(answer.get("confidence"), "direction.confidence"), ordered[0] - ordered[1]
+
+
+def validate_answers(payload):
+    """Strict codec: normalise a TypeSafe reply or raise ValueError with the reason."""
+    if not isinstance(payload, dict) or not isinstance(payload.get("answers"), dict):
+        raise ValueError("invalid JEV response: answers missing")
+    answers = payload["answers"]
+    missing = [key for key in QUESTION_IDS if not isinstance(answers.get(key), dict)]
+    if missing or set(answers) != set(QUESTION_IDS):
+        raise ValueError("invalid JEV response: expected exactly the question ids "
+                         + ", ".join(QUESTION_IDS))
+    choice, probs, direction_confidence, margin = _direction(answers["direction"])
+    top = len(RANGE_QUALITY_LEGEND) - 1
+    quality = _number(answers["range_quality"].get("score"), "range_quality.score", 0, top)
+    entry = _number(answers["entry_now"].get("noul"), "entry_now.noul")
+    evidence = _number(answers["evidence_sufficient"].get("noul"), "evidence_sufficient.noul")
+    return {
+        "status": "ok",
+        "model": str(payload.get("model") or MODEL)[:64],
         "direction": choice,
-        "direction_probabilities": direction_probs,
-        "direction_confidence": _number(direction.get("confidence")),
-        "range_quality": _number(quality.get("score"), 0, 3),
-        "range_confidence": _number(quality.get("confidence")),
-        "entry_probability": _number(answers["entry_now"].get("noul")),
-        "evidence_probability": _number(answers["evidence_sufficient"].get("noul")),
-        "latency_ms": round(elapsed_ms, 1),
-        "input_tokens": 0,
+        "direction_probabilities": probs,
+        "direction_confidence": direction_confidence,
+        "margin": round(margin, 6),
+        "range_quality": quality,
+        "range_quality_label": RANGE_QUALITY_LEGEND[min(top, int(round(quality)))],
+        "range_confidence": _number(answers["range_quality"].get("confidence"),
+                                    "range_quality.confidence"),
+        "entry_probability": entry,
+        "evidence_probability": evidence,
+        "noul_confidence": {"entry_now": _noul_confidence(entry),
+                            "evidence_sufficient": _noul_confidence(evidence)},
+        "abstain": (evidence < ABSTAIN_EVIDENCE_FLOOR or margin < ABSTAIN_MARGIN_FLOOR
+                    or choice == "REJECT"),
+        "input_tokens": _input_tokens(payload),
     }
-    usage = reply.get("usage") or {}
+
+
+def _noul_confidence(probability):
+    return round(min(1.0, abs(probability - 0.5) * 2), 6)
+
+
+def _input_tokens(payload):
+    usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
     tokens = usage.get("input_tokens", 0)
-    if type(tokens) is int and 0 <= tokens <= 10_000_000:
-        result["input_tokens"] = tokens
-    return result
+    return tokens if type(tokens) is int and 0 <= tokens <= 10_000_000 else 0
+
+
+def _answer(reply, elapsed_ms):
+    return {**validate_answers(reply), "latency_ms": round(elapsed_ms, 1)}
+
+
+def _log_line(symbol, *, latency_ms, answer=None, fallback_reason=None, input_tokens=0):
+    """Structured per-call record. Carries no credential or raw header material."""
+    return {
+        "purpose": LOG_PURPOSE,
+        "model": MODEL,
+        "symbol": symbol,
+        "latency_ms": round(latency_ms, 1),
+        "input_tokens": input_tokens,
+        "answer_distribution": None if answer is None else {
+            "direction": answer["direction_probabilities"],
+            "range_quality": answer["range_quality"],
+            "entry_now": answer["entry_probability"],
+            "evidence_sufficient": answer["evidence_probability"]},
+        "confidence": None if answer is None else {
+            "direction": answer["direction_confidence"],
+            "range_quality": answer["range_confidence"],
+            "abstain": answer["abstain"],
+            "margin": answer["margin"]},
+        "fallback_reason": fallback_reason,
+        "downstream_action": DOWNSTREAM_ACTION,
+    }
+
+
+def _stderr_log(event):
+    print(json.dumps(event, sort_keys=True, allow_nan=False), file=sys.stderr, flush=True)
 
 
 def client(api_key, *, opener=urlopen, timeout=6):
@@ -101,8 +183,13 @@ def client(api_key, *, opener=urlopen, timeout=6):
     return evaluate
 
 
-def enrich(report, *, evaluator, limit=10):
-    """Attach advisory judgments to the highest scored qualifying rows in place."""
+def enrich(report, *, evaluator, limit=10, log=_stderr_log):
+    """Attach advisory judgments to the highest scored qualifying rows in place.
+
+    Ranking, sections and every deterministic field are left untouched. A reply
+    that fails ``validate_answers`` marks the row ``{"status": "invalid"}``; a
+    transport failure leaves the row without ``jev`` at all. Neither path raises.
+    """
     rows = report.get("rows", [])
     sections = report.get("sections") if isinstance(report.get("sections"), dict) else {}
     visible = {item.get("symbol") for key, values in sections.items() if key != "majors"
@@ -112,21 +199,36 @@ def enrich(report, *, evaluator, limit=10):
         pool = [row for row in rows if row.get("passes_liquidity")]
     candidates = sorted(pool,
                         key=lambda row: (-row.get("score", 0), row.get("symbol", "")))[:limit]
-    failed = tokens = 0
+    failed = invalid = tokens = 0
     for row in candidates:
+        symbol = row.get("symbol")
+        started = time.monotonic()
         try:
-            started = time.monotonic()
             reply = evaluator(state_for(row), QUESTIONS)
-            elapsed = reply.pop("_elapsed_ms", (time.monotonic() - started) * 1000)
-            row["jev"] = _answer(reply, elapsed)
-            tokens += row["jev"]["input_tokens"]
-        except Exception:
+        except Exception as error:
             failed += 1
+            log(_log_line(symbol, latency_ms=(time.monotonic() - started) * 1000,
+                          fallback_reason=type(error).__name__))
+            continue
+        elapsed = (reply.pop("_elapsed_ms", None) if isinstance(reply, dict) else None)
+        elapsed = elapsed if elapsed is not None else (time.monotonic() - started) * 1000
+        try:
+            answer = _answer(reply, elapsed)
+        except ValueError:
+            invalid += 1
+            row["jev"] = {"status": "invalid"}
+            log(_log_line(symbol, latency_ms=elapsed, fallback_reason="invalid_payload",
+                          input_tokens=_input_tokens(reply) if isinstance(reply, dict) else 0))
+            continue
+        row["jev"] = answer
+        tokens += answer["input_tokens"]
+        log(_log_line(symbol, latency_ms=elapsed, answer=answer,
+                      input_tokens=answer["input_tokens"]))
     report["jev_shadow"] = {"enabled": True, "model": MODEL,
-                            "status": "ok" if not failed else "degraded",
+                            "status": "ok" if not (failed or invalid) else "degraded",
                             "attempted": len(candidates),
-                            "evaluated": len(candidates) - failed,
-                            "failed": failed, "input_tokens": tokens}
+                            "evaluated": len(candidates) - failed - invalid,
+                            "failed": failed, "invalid": invalid, "input_tokens": tokens}
     return report
 
 
