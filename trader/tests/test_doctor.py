@@ -71,6 +71,25 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(got['autopilot']['status'], 'fail')
         self.assertIn('slot', got['autopilot']['detail'].lower())
 
+    def test_an_empty_desk_with_no_candidate_is_a_supply_failure(self):
+        """The stall check needs a candidate to fire, so this one was silent.
+
+        On 2026-09-21/22 the desk held nothing for 26 hours with an empty
+        watchlist and the circle read 'ok, ticking' the whole way.
+        """
+        got = run(open_bots=0, core_candidates=0, vacancy_age_h=26.0)
+        self.assertEqual(got['autopilot']['status'], 'fail')
+        self.assertIn('no position and no candidate', got['autopilot']['detail'])
+
+    def test_a_short_gap_without_candidates_is_not_a_failure(self):
+        got = run(open_bots=0, core_candidates=0, vacancy_age_h=2.0)
+        self.assertEqual(got['autopilot']['status'], 'ok')
+
+    def test_a_working_desk_with_one_idle_slot_is_left_alone(self):
+        """Four bots running and nothing to fill the fifth is not a failure."""
+        got = run(open_bots=4, core_candidates=0, vacancy_age_h=26.0)
+        self.assertEqual(got['autopilot']['status'], 'ok')
+
     def test_full_slots_are_never_a_stall(self):
         got = run(hours_since_open=40.0)
         self.assertEqual(got['autopilot']['status'], 'ok')
