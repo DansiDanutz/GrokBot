@@ -12,6 +12,7 @@ MIN_FREE_BYTES = 5 * 1024 ** 3          # the collector's own write reserve
 TICK_STALE_S = 180
 RADAR_MAX_AGE_MIN = 90                  # hourly job plus generous slack
 ENTRY_STALL_H = 3
+NO_CANDIDATE_H = 6                      # empty hours are normal; a shift is not
 PUBLISHER_MAX_AGE_S = 900               # three missed five-minute cycles
 BLACKOUT_MIN_ROWS = 50
 TEAM_STALE_S = 2 * 3600                 # hourly :15 controller plus one miss
@@ -88,6 +89,16 @@ def _autopilot(f):
                       '%d free slot(s) and %d candidate(s), nothing opened in %.1fh'
                       % (free, f['core_candidates'], waiting),
                       'entries are blocked; read the DECISION rule_blocks')
+    # A desk holding nothing, with nothing to open, used to read 'ok, ticking':
+    # the stall check above needs a candidate to fire, so the worse condition -
+    # the radar supplying nothing at all - was the silent one. It ran 26 hours
+    # unannounced on 2026-09-21/22. A desk that is working with one idle slot is
+    # deliberately left alone; this is about a desk that is out of the market.
+    if not f.get('open_bots') and not f.get('core_candidates', 0) \
+            and waiting is not None and waiting >= NO_CANDIDATE_H:
+        return _check('autopilot', 'fail',
+                      'no position and no candidate for %.1fh' % waiting,
+                      'the radar is admitting nothing; count setup_rejection by gate')
     return _check('autopilot', 'ok', '%d of %d slots in use, ticking'
                   % (f.get('open_bots', 0), f.get('max_bots', 0)))
 
