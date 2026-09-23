@@ -32,6 +32,16 @@ class CycleDeadline(TimeoutError):
 # some gaps; the floor mirrors the daily review's >=95% kline gate. Without it
 # every cycle of hundreds of symbols warns and 'pass' is unreachable.
 COVERAGE_FLOOR = 0.95
+MAX_ERROR_CODE = 64
+
+
+def _failure(stage, error, interval=None):
+    raw = error if isinstance(error, str) else type(error).__name__
+    code = ''.join(c for c in str(raw) if c.isalnum() or c == '_')
+    detail = dict(stage=stage, code=(code[:MAX_ERROR_CODE] or 'Error'))
+    if interval is not None:
+        detail['interval'] = interval
+    return detail
 
 
 def _require_time(clock, deadline):
@@ -65,10 +75,12 @@ def _history(client, plan, symbol, now, clock, deadline):
     source = SOURCE_FUNDING if is_funding else SOURCE_CANDLES
     store_interval = '1m' if is_funding else interval
     batch = empty_batch()
-    rows, gaps, errors, frontier = [], 0, [], start
+    rows, gaps, errors, failure_details, frontier = [], 0, [], [], start
     expected = 0
     if start > target:
         errors.append('checkpoint_ahead_of_cutoff')
+        failure_details.append(_failure('history', 'checkpoint_ahead_of_cutoff',
+                                        interval))
     for _ in range(MAX_PAGES):
         if frontier >= target:
             break
@@ -79,7 +91,9 @@ def _history(client, plan, symbol, now, clock, deadline):
             fetched = (client.funding(symbol, frontier, end) if is_funding
                        else client.klines(symbol, interval, frontier, end))
         except Exception as error:
-            errors.append(type(error).__name__)
+            detail = _failure('history', error, interval)
+            errors.append(detail['code'])
+            failure_details.append(detail)
             break
         if is_funding:
             rows.extend(dict(row, period_ms=None) for row in fetched)
@@ -94,7 +108,8 @@ def _history(client, plan, symbol, now, clock, deadline):
     batch['checkpoints'] = [checkpoint(source, symbol, store_interval,
                                        frontier, now)]
     behind = frontier < target
-    details = dict(rows=len(rows), gaps=gaps, errors=errors, behind=behind,
+    details = dict(rows=len(rows), gaps=gaps, errors=errors,
+                   failure_details=failure_details, behind=behind,
                    queried_through_ms=frontier, requested_through_ms=target)
     if not is_funding:
         details['expected'] = expected
@@ -114,14 +129,18 @@ def _merge(target, source):
 
 
 def _symbol_job(client, contract, plans, now, clock, deadline):
-    symbol, batch, failures, gaps = contract['symbol'], empty_batch(), [], 0
+    symbol, batch, failures, failure_details, gaps = (
+        contract['symbol'], empty_batch(), [], [], 0)
     expected = rows_seen = 0
     for plan in plans:
         history, details = _history(client, plan, symbol, now, clock, deadline)
         _merge(batch, history)
         failures.extend(details['errors'])
+        failure_details.extend(details['failure_details'])
         if details['behind']:
             failures.append('catchup_incomplete')
+            failure_details.append(_failure('history', 'catchup_incomplete',
+                                            plan[0]))
         gaps += details['gaps']
         if 'expected' in details:  # candle intervals only; funding has no slots
             expected += details['expected']
@@ -131,8 +150,11 @@ def _symbol_job(client, contract, plans, now, clock, deadline):
         raw = client.book(symbol)
         batch['top_of_book'].append(top_book(raw, int(clock.wall() * 1000)))
     except Exception as error:
-        failures.append(type(error).__name__)
-    return batch, dict(symbol=symbol, errors=failures, gaps=gaps,
+        detail = _failure('book', error)
+        failures.append(detail['code'])
+        failure_details.append(detail)
+    return batch, dict(symbol=symbol, errors=failures,
+                       failure_details=failure_details, gaps=gaps,
                        expected=expected, rows=rows_seen,
                        deadline_reached=clock.monotonic() >= deadline)
 
@@ -180,12 +202,22 @@ class Updater:
         for contract in contracts:
             try:
                 ticker = snapshot(contract, observed)
-                interest = open_interest(contract, observed)
-                batch['ticker_snapshots'].append(ticker)
-                batch['open_interest'].append(interest)
             except (KeyError, ValueError, TypeError) as error:
+                detail = _failure('snapshot', error)
                 snapshot_errors.append(dict(symbol=contract['symbol'],
-                                            errors=[type(error).__name__]))
+                                            errors=[detail['code']],
+                                            failure_details=[detail]))
+            else:
+                batch['ticker_snapshots'].append(ticker)
+            try:
+                interest = open_interest(contract, observed)
+            except (KeyError, ValueError, TypeError) as error:
+                detail = _failure('open_interest', error)
+                snapshot_errors.append(dict(symbol=contract['symbol'],
+                                            errors=[detail['code']],
+                                            failure_details=[detail]))
+            else:
+                batch['open_interest'].append(interest)
         results = self._fetch(contracts, self._points(), now, deadline, batch)
         return results, snapshot_errors
 
@@ -198,7 +230,8 @@ class Updater:
         try:
             results, errors = self._collect(now, deadline, batch)
         except Exception as error:
-            errors = [dict(errors=[type(error).__name__])]
+            detail = _failure('collection', error)
+            errors = [dict(errors=[detail['code']], failure_details=[detail])]
         failed = [result for result in results if result['errors']]
         deferred = [r for r in failed if r['deadline_reached']]
         gaps = sum(result['gaps'] for result in results)
