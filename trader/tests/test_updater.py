@@ -124,6 +124,9 @@ class UpdaterTests(unittest.TestCase):
                               if p['source'] == 'updater-klines'
                               and p['interval'] == '1m'), START - 5 * MINUTE)
         self.assertEqual(len(self.rows('top_of_book')), 1)
+        failure = status['failures'][0]
+        self.assertIn(dict(stage='history', code='ValueError', interval='1m'),
+                      failure['failure_details'])
         self.client.fail = None
         self.clock.elapsed = 300
         self.updater.cycle(600)
@@ -168,6 +171,62 @@ class UpdaterTests(unittest.TestCase):
         self.assertEqual(status['status'], 'fail')
         self.assertFalse(self.rows('ticker_snapshots'))
         self.assertEqual(len(self.rows('top_of_book')), 1)
+
+    def test_missing_ticker_price_reports_snapshot_stage_and_keeps_good_symbol(self):
+        good = self.client.contracts()[0]
+        bad = dict(good, symbol='ETHBTCUSDTM', lastTradePrice=None,
+                   volumeOf24h=0)
+        with patch.object(self.client, 'contracts', return_value=[bad, good]):
+            status = self.updater.cycle(300)
+
+        self.assertEqual(status['status'], 'fail')
+        failure = next(row for row in status['failures']
+                       if row.get('symbol') == 'ETHBTCUSDTM')
+        self.assertEqual(failure['failure_details'],
+                         [dict(stage='snapshot', code='ProtocolError')])
+        self.assertNotIn('invalid numeric public field', json.dumps(status))
+        self.assertEqual([row['symbol'] for row in self.rows('ticker_snapshots')],
+                         ['XBTUSDTM'])
+        self.assertEqual({row['symbol'] for row in self.rows('open_interest')},
+                         {'ETHBTCUSDTM', 'XBTUSDTM'})
+        self.assertEqual({row['symbol'] for row in self.rows('top_of_book')},
+                         {'ETHBTCUSDTM', 'XBTUSDTM'})
+
+    def test_book_failure_is_distinct_and_preserves_other_successful_rows(self):
+        self.client.fail = 'book'
+        status = self.updater.cycle(300)
+
+        failure = next(row for row in status['failures']
+                       if row.get('symbol') == 'XBTUSDTM')
+        self.assertEqual(failure['failure_details'],
+                         [dict(stage='book', code='ValueError')])
+        self.assertEqual(len(self.rows('ticker_snapshots')), 1)
+        self.assertEqual(len(self.rows('open_interest')), 1)
+        self.assertFalse(self.rows('top_of_book'))
+        self.assertNotIn('untrusted private-looking', json.dumps(status))
+
+    def test_open_interest_failure_is_distinct_and_keeps_ticker_snapshot(self):
+        with patch('trader.data.updater.open_interest',
+                   side_effect=ValueError('private-looking detail')):
+            status = self.updater.cycle(300)
+
+        failure = next(row for row in status['failures']
+                       if row.get('symbol') == 'XBTUSDTM')
+        self.assertEqual(failure['failure_details'],
+                         [dict(stage='open_interest', code='ValueError')])
+        self.assertEqual(len(self.rows('ticker_snapshots')), 1)
+        self.assertFalse(self.rows('open_interest'))
+        self.assertNotIn('private-looking detail', json.dumps(status))
+
+    def test_top_level_collection_failure_is_not_misattributed(self):
+        with patch.object(self.client, 'contracts',
+                          side_effect=RuntimeError('sensitive detail')):
+            status = self.updater.cycle(300)
+
+        self.assertEqual(status['status'], 'fail')
+        self.assertEqual(status['failures'][0]['failure_details'],
+                         [dict(stage='collection', code='RuntimeError')])
+        self.assertNotIn('sensitive detail', json.dumps(status))
 
     def test_cycle_transaction_rolls_back_data_and_checkpoints(self):
         original = self.store.upsert
