@@ -7,6 +7,7 @@ for a cue that could not arrive.
 """
 import json
 import unittest
+from copy import deepcopy
 from unittest.mock import patch
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -220,9 +221,101 @@ class CapTests(unittest.TestCase):
         repeats = [r for r in second if r['event'] == 'ENTRIES_STALLED']
         self.assertEqual(repeats, [])
 
+    def test_same_hour_different_keys_do_not_reuse_a_settled_dispatch_id(self):
+        first_event = dict(event_id=1, type='CLOSE', bot_id=1,
+                           symbol='FIRST', reason_code=1)
+        state, created, _ = controller.cycle(
+            quiet_state(), facts(events=[first_event]), NOW)
+        first = next(r for r in created if r['event'] == 'BOT_CLOSED')
+        receipts = {first['dispatch_id']: dict(
+            answered_at=controller._iso(NOW + 1000), answered_at_ms=NOW + 1000)}
+        second_event = dict(event_id=2, type='CLOSE', bot_id=2,
+                            symbol='SECOND', reason_code=1)
+
+        _, created, _ = controller.cycle(
+            state, facts(events=[first_event, second_event], receipts=receipts),
+            NOW + 2000)
+        second = next(r for r in created if r['event'] == 'BOT_CLOSED')
+
+        self.assertNotEqual(second['dispatch_id'], first['dispatch_id'])
+        self.assertTrue(second['dispatch_id'].endswith('-2'))
+
+    def test_pruned_dispatch_id_in_a_receipt_is_still_reserved(self):
+        reserved = controller._dispatch(
+            'BOT_CLOSED', 'performance_analyst', {}, NOW, 1)['dispatch_id']
+        close = dict(event_id=1, type='CLOSE', bot_id=1,
+                     symbol='FIRST', reason_code=1)
+
+        _, created, _ = controller.cycle(
+            quiet_state(), facts(events=[close], receipts={reserved: {}}), NOW)
+        dispatched = next(r for r in created if r['event'] == 'BOT_CLOSED')
+
+        self.assertNotEqual(dispatched['dispatch_id'], reserved)
+        self.assertTrue(dispatched['dispatch_id'].endswith('-2'))
+
+    def test_standing_dispatch_does_not_reuse_a_settled_same_hour_id(self):
+        prior = controller._dispatch('SYNTHESIS', 'grid_desk_lead', {}, NOW, 1)
+        prior.update(status='DONE', key=controller.cycle_id(NOW))
+        state = quiet_state(dispatches=[prior])
+
+        _, created, _ = controller.cycle(
+            state, facts(entries_stalled=True), NOW + 2000)
+        synthesis = next(r for r in created if r['event'] == 'SYNTHESIS')
+
+        self.assertNotEqual(synthesis['dispatch_id'], prior['dispatch_id'])
+        self.assertTrue(synthesis['dispatch_id'].endswith('-2'))
+
+    def test_an_open_standing_dispatch_is_not_duplicated_same_hour(self):
+        prior = controller._dispatch('SYNTHESIS', 'grid_desk_lead', {}, NOW, 1)
+        prior['key'] = controller.cycle_id(NOW)
+        state = quiet_state(dispatches=[prior])
+
+        _, created, _ = controller.cycle(
+            state, facts(entries_stalled=True), NOW + 2000)
+
+        self.assertFalse(any(r['event'] == 'SYNTHESIS' for r in created))
+
     def test_the_lead_synthesis_is_never_starved_by_the_cap(self):
         _, created, _ = controller.cycle(quiet_state(), self._many(), NOW)
         self.assertIn(('grid_desk_lead', 'SYNTHESIS'), roles_of(created))
+
+    def test_deferred_queue_overflow_fails_without_mutating_input(self):
+        state = quiet_state(deferred_events=[
+            controller.events.event('BOT_CLOSED', str(n), bot_id=n,
+                                    symbol='FIXTURE', reason='EXIT')
+            for n in range(controller.MAX_DEFERRED + 1)])
+        state['dispatches'] = [dict(controller._dispatch(
+            'BOT_OPENED', 'technical_interpreter', {}, NOW, n), key=str(n))
+            for n in range(controller.MAX_OPEN)]
+        before = deepcopy(state)
+
+        with self.assertRaisesRegex(controller.DeferredEventOverflow,
+                                    '257 events'):
+            controller.cycle(state, facts(), NOW)
+
+        self.assertEqual(state, before)
+
+    def test_deferred_queue_has_a_serialized_byte_bound(self):
+        payload = 'x' * (controller.MAX_DEFERRED_BYTES // 4)
+        state = quiet_state(deferred_events=[
+            controller.events.event('BOT_CLOSED', str(n), detail=payload)
+            for n in range(4)])
+        state['dispatches'] = [dict(controller._dispatch(
+            'BOT_OPENED', 'technical_interpreter', {}, NOW, n), key=str(n))
+            for n in range(controller.MAX_OPEN)]
+
+        with self.assertRaisesRegex(controller.DeferredEventOverflow,
+                                    'deferred event queue overflow'):
+            controller.cycle(state, facts(), NOW)
+
+    def test_admitted_payload_cannot_make_candidate_state_unreadable(self):
+        payload = 'x' * (controller.MAX_STATE_BYTES + 1)
+        state = quiet_state(deferred_events=[
+            controller.events.event('BOT_CLOSED', 'large', detail=payload)])
+
+        with self.assertRaisesRegex(controller.DeferredEventOverflow,
+                                    'controller state overflow'):
+            controller.cycle(state, facts(), NOW)
 
 
 class PhaseTests(unittest.TestCase):
@@ -231,7 +324,7 @@ class PhaseTests(unittest.TestCase):
         after, created, summary = controller.cycle(state, facts(), NOW)
         order = list(dict.fromkeys(r['event'] for r in created if r['event'] in
                      ('DATA_PHASE_DUE', 'RESEARCH_DUE', 'ENGINEERING_DUE')))
-        self.assertEqual(order[:3], ['DATA_PHASE_DUE', 'RESEARCH_DUE', 'ENGINEERING_DUE'])
+        self.assertEqual(order, ['DATA_PHASE_DUE', 'RESEARCH_DUE'])
         today = after['daily_phase_outcomes']['2026-09-13']
         self.assertEqual(today['data']['status'], 'RUNNING')
         self.assertEqual(today['data']['due_at'][:16], '2026-09-13T08:15')

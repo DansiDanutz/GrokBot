@@ -9,9 +9,10 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from trader.doctor import __main__ as doctor
-from trader.team import __main__ as cli, facts as readings, public
+from trader.team import __main__ as cli, controller, facts as readings, public
 
 NOW = 1789321500000                      # 2026-09-13 20:45 Europe/Bucharest
 
@@ -132,6 +133,70 @@ class CliTests(unittest.TestCase):
     def test_an_invalid_argument_is_rejected(self):
         with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             cli.main(['--now-ms', 'not-a-number'])
+
+    def test_deferred_overflow_returns_nonzero_without_writing(self):
+        state = dict(schema_version=controller.SCHEMA,
+                     scheduler_owner=controller.SCHEDULER_OWNER,
+                     cycles={}, daily_phase_outcomes={}, markers={},
+                     deferred_events=[controller.events.event(
+                         'BOT_CLOSED', str(n), bot_id=n, symbol='FIXTURE')
+                         for n in range(controller.MAX_DEFERRED + 1)])
+        state['dispatches'] = [dict(controller._dispatch(
+            'BOT_OPENED', 'technical_interpreter', {}, NOW, n), key=str(n))
+            for n in range(controller.MAX_OPEN)]
+        paths = (self.desk.evidence / 'controller-state.json',
+                 self.desk.evidence / 'dispatch.json',
+                 self.desk.runtime / 'team.json')
+        write(paths[0], state)
+        write(paths[1], {'sentinel': 'dispatch'})
+        write(paths[2], {'sentinel': 'public'})
+        before = [path.read_bytes() for path in paths]
+        error = io.StringIO()
+
+        with patch.object(cli, '_engineering') as engineering, \
+                redirect_stdout(io.StringIO()), redirect_stderr(error):
+            result = cli.main(self.desk.args())
+
+        self.assertEqual(result, 2)
+        engineering.assert_not_called()
+        self.assertIn('team controller refused cycle: deferred event queue overflow:',
+                      error.getvalue())
+        self.assertLess(len(error.getvalue()), 256)
+        self.assertNotIn('Traceback', error.getvalue())
+        self.assertEqual([path.read_bytes() for path in paths], before)
+
+    def test_oversize_candidate_state_returns_nonzero_without_writing(self):
+        state = dict(schema_version=controller.SCHEMA,
+                     scheduler_owner=controller.SCHEDULER_OWNER,
+                     cycles={}, daily_phase_outcomes={}, dispatches=[],
+                     markers=dict(scan_id=7, candidates=3, event_id=11,
+                                  entries_stalled=True, structure_blackout=False,
+                                  review_run_ms=NOW - 9_000_000,
+                                  phase_dates=dict(data='2026-09-13',
+                                                   research='2026-09-13',
+                                                   engineering='2026-09-13')),
+                     deferred_events=[controller.events.event(
+                         'BOT_CLOSED', 'large', detail='x' *
+                         (controller.MAX_STATE_BYTES + 1))])
+        paths = (self.desk.evidence / 'controller-state.json',
+                 self.desk.evidence / 'dispatch.json',
+                 self.desk.runtime / 'team.json')
+        write(paths[0], state)
+        write(paths[1], {'sentinel': 'dispatch'})
+        write(paths[2], {'sentinel': 'public'})
+        before = [path.read_bytes() for path in paths]
+        error = io.StringIO()
+
+        with patch.object(cli, '_engineering') as engineering, \
+                redirect_stdout(io.StringIO()), redirect_stderr(error):
+            result = cli.main(self.desk.args())
+
+        self.assertEqual(result, 2)
+        engineering.assert_not_called()
+        self.assertIn('team controller refused cycle: controller state overflow:',
+                      error.getvalue())
+        self.assertLess(len(error.getvalue()), 256)
+        self.assertEqual([path.read_bytes() for path in paths], before)
 
 
 class FactsTests(unittest.TestCase):

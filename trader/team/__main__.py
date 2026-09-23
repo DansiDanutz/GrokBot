@@ -130,7 +130,11 @@ def main(argv=None):
     facts = readings.gather(now, runtime=args.runtime_dir, evidence=args.evidence_dir,
                             experiments_root=args.experiments_dir, radar=args.radar,
                             database=args.database, state=previous)
-    state, created, summary = controller.cycle(previous, facts, now)
+    try:
+        state, created, summary = controller.cycle(previous, facts, now)
+    except controller.DeferredEventOverflow as error:
+        print('team controller refused cycle: %s' % error, file=sys.stderr)
+        return 2
     state, receipt = _engineering(state, summary, args.evidence_dir, args.dry_run)
     if receipt is not None:
         summary['engineering_receipt'] = receipt.get('status')

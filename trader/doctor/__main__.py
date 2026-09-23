@@ -42,6 +42,24 @@ def _vacancy_age_h(snap, now_ms):
     return (now_ms - max(closed)) / 3_600_000 if closed else None
 
 
+def _latest_klines(con):
+    """Exact interval maxima via seeks on the symbol-leading primary key."""
+    return con.execute('''
+        WITH RECURSIVE symbols(symbol) AS (
+            SELECT MIN(symbol) FROM klines
+            UNION ALL
+            SELECT (SELECT MIN(symbol) FROM klines WHERE symbol > symbols.symbol)
+            FROM symbols WHERE symbol IS NOT NULL
+        )
+        SELECT
+            MAX((SELECT MAX(time_ms) FROM klines
+                 WHERE symbol=s.symbol AND interval='1h')),
+            MAX((SELECT MAX(time_ms) FROM klines
+                 WHERE symbol=s.symbol AND interval='1m'))
+        FROM symbols s WHERE s.symbol IS NOT NULL
+    ''').fetchone()
+
+
 def gather(now_ms=None, database=None):
     now = now_ms if now_ms is not None else int(time.time() * 1000)
     f = dict(now_ms=now)
@@ -49,9 +67,7 @@ def gather(now_ms=None, database=None):
     db = Path(database or ROOT / 'market-data' / 'phase-2-20260911' / 'market.sqlite3')
     try:
         con = sqlite3.connect('file:%s?mode=ro' % db, uri=True)
-        f['hourly_committed_ms'] = con.execute(
-            "select max(time_ms) from klines where interval='1h'").fetchone()[0]
-        newest = con.execute("select max(time_ms) from klines where interval='1m'").fetchone()[0]
+        f['hourly_committed_ms'], newest = _latest_klines(con)
         f['minute_age_s'] = (now - newest) / 1000 if newest else None
         con.close()
     except sqlite3.Error:
@@ -96,12 +112,16 @@ def _team(board, now_ms):
     """The team controller's own board: is anyone waiting on an answer?"""
     cycled = board.get('last_cycle_at_ms')
     roster = board.get('roster') or []
+    blocked = ({r.get('name') or '' for r in roster if r.get('status') == 'BLOCKED'}
+               if roster else {r.get('role_name') or '' for r in board.get('dispatches') or []
+                               if r.get('status') == 'BLOCKED'})
     return dict(
         team_cycle_age_s=(now_ms - cycled) / 1000 if cycled else None,
         team_idle_roles=sorted(r.get('name') or '' for r in roster
-                               if r.get('status') == 'IDLE'),
-        team_blocked=sorted({r.get('role_name') or '' for r in board.get('dispatches') or []
-                             if r.get('status') == 'BLOCKED'}))
+                                if r.get('status') == 'IDLE'),
+        team_unobserved_roles=sorted(r.get('name') or '' for r in roster
+                                     if r.get('status') == 'UNOBSERVED'),
+        team_blocked=sorted(blocked))
 
 
 MARK = {'ok': 'ok  ', 'warn': 'WARN', 'fail': 'FAIL', 'unknown': '??  '}

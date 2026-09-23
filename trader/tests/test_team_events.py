@@ -95,6 +95,9 @@ class EventTests(unittest.TestCase):
                 dict(event_id=4, type='OPEN', bot_id=3, symbol='ETHUSDTM')]
         fired = events.derive(facts(events=rows), quiet(event_id=4))
         self.assertEqual(names(fired), ['BOT_OPENED', 'BOT_CLOSED'])
+        self.assertEqual([item['key'] for item in fired],
+                         ['5:7:BTCUSDTM', '6:7:BTCUSDTM'])
+        self.assertEqual([item['payload']['event_id'] for item in fired], [5, 6])
         self.assertEqual(fired[0]['payload']['direction'], 'LONG')
         self.assertEqual(fired[1]['payload']['reason'], 'RANGE_BREAK')
 
@@ -148,12 +151,57 @@ class EventTests(unittest.TestCase):
         tomorrow = facts(local_date='2026-09-14')
         self.assertIn('DATA_PHASE_DUE', names(events.derive(tomorrow, after)))
 
+    def test_capacity_blocked_phase_events_remain_retryable(self):
+        markers = quiet(phase_dates={})
+        given = facts()
+        fired = events.derive(given, markers)
+        after = events.advance(markers, given, fired,
+                               accepted_phase_names=set())
+
+        self.assertEqual(names(events.derive(given, after)), names(fired))
+
     def test_a_role_past_its_own_idle_budget_is_reported(self):
         fired = events.derive(facts(role_idle_h=dict(senior_developer=7.5,
                                                      risk_sentinel=3.0)),
                               quiet())
         self.assertEqual(names(fired), ['ROLE_IDLE'])
         self.assertEqual(fired[0]['payload']['role'], "Dan's Senior Developer")
+
+    def test_a_role_that_remains_idle_is_not_reported_each_cycle(self):
+        given = facts(role_idle_h=dict(senior_developer=7.5))
+        first = events.derive(given, quiet())
+        after = events.advance(quiet(), given, first)
+
+        self.assertEqual(names(first), ['ROLE_IDLE'])
+        self.assertEqual(names(events.derive(given, after)), [])
+
+    def test_an_idle_role_can_recover_and_be_reported_after_regressing(self):
+        stale = facts(role_idle_h=dict(senior_developer=7.5))
+        first = events.derive(stale, quiet())
+        marked = events.advance(quiet(), stale, first)
+        recovered = facts(role_idle_h=dict(senior_developer=1.0))
+        cleared = events.advance(marked, recovered,
+                                  events.derive(recovered, marked))
+
+        self.assertNotIn('senior_developer', cleared['idle_roles'])
+        self.assertEqual(names(events.derive(stale, cleared)), ['ROLE_IDLE'])
+
+    def test_an_unmeasured_role_does_not_count_as_recovered(self):
+        stale = facts(role_idle_h=dict(senior_developer=7.5))
+        marked = events.advance(quiet(), stale, events.derive(stale, quiet()))
+        unknown = facts(role_idle_h=dict(senior_developer=None))
+        unchanged = events.advance(marked, unknown, [])
+
+        self.assertIn('senior_developer', unchanged['idle_roles'])
+        self.assertEqual(names(events.derive(stale, unchanged)), [])
+
+    def test_capacity_blocked_idle_event_remains_retryable(self):
+        given = facts(role_idle_h=dict(senior_developer=7.5))
+        fired = events.derive(given, quiet())
+        after = events.advance(quiet(), given, fired,
+                               accepted_idle_roles=set())
+
+        self.assertEqual(names(events.derive(given, after)), ['ROLE_IDLE'])
 
     def test_an_uninstalled_role_is_never_called_idle(self):
         """A bot Dan has not added cannot answer, so silence is not its fault.
