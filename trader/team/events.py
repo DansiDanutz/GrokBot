@@ -61,16 +61,18 @@ def _bots(f, previous):
     directions = f.get('open_directions') or {}
     out = []
     for row in f.get('events') or []:
-        if int(row.get('event_id') or 0) <= seen:
+        source_id = int(row.get('event_id') or 0)
+        if source_id <= seen:
             continue
         bot, symbol = int(row.get('bot_id') or 0), str(row.get('symbol') or '')
+        key = '%d:%d:%s' % (source_id, bot, symbol)
         if row.get('type') == 'OPEN':
-            out.append(event('BOT_OPENED', '%d:%s' % (bot, symbol), bot_id=bot,
+            out.append(event('BOT_OPENED', key, event_id=source_id, bot_id=bot,
                              symbol=symbol,
                              direction=directions.get(bot) or 'UNKNOWN'))
         elif row.get('type') == 'CLOSE':
             reason = CLOSE_REASONS.get(row.get('reason_code'), 'UNKNOWN')
-            out.append(event('BOT_CLOSED', '%d:%s' % (bot, symbol), bot_id=bot,
+            out.append(event('BOT_CLOSED', key, event_id=source_id, bot_id=bot,
                              symbol=symbol, reason=reason))
     return out
 

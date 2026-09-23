@@ -43,6 +43,53 @@ class PhaseRecoveryTests(unittest.TestCase):
         self.assertTrue(any(r['event'] == 'BOT_CLOSED' and r['payload']['bot_id'] == 88
                             for r in created))
 
+    def test_same_bot_transitions_survive_three_full_cap_cycles(self):
+        state = quiet_state()
+        state['dispatches'] = [dict(controller._dispatch(
+            'BOT_OPENED', 'technical_interpreter', {}, NOW, n), key=str(n))
+            for n in range(12)]
+        older = dict(event_id=101, type='OPEN', bot_id=7, symbol='BTCUSDTM')
+        newer = dict(event_id=102, type='OPEN', bot_id=7, symbol='BTCUSDTM')
+
+        state, created, _ = controller.cycle(
+            state, facts(events=[older], open_directions={7: 'LONG'}), NOW)
+        self.assertEqual(created, [])
+        state, created, _ = controller.cycle(
+            state, facts(events=[older, newer], open_directions={7: 'SHORT'}),
+            NOW + 60_000)
+        self.assertEqual(created, [])
+        self.assertEqual([item['payload']['event_id']
+                          for item in state['deferred_events']], [101, 102])
+
+        receipts = {row['dispatch_id']: receipt(row)
+                    for row in state['dispatches']}
+        _, created, _ = controller.cycle(
+            state, facts(events=[older, newer], receipts=receipts,
+                         open_directions={7: 'SHORT'}), NOW + 120_000)
+        opened = [row for row in created if row['event'] == 'BOT_OPENED'
+                  and row['payload'].get('event_id') in (101, 102)]
+
+        self.assertEqual([(row['payload']['event_id'], row['payload']['direction'])
+                          for row in opened], [(101, 'LONG'), (102, 'SHORT')])
+        self.assertEqual(len({row['key'] for row in opened}), 2)
+        self.assertEqual(len({row['dispatch_id'] for row in opened}), 2)
+
+    def test_legacy_deferred_bot_key_is_retained_alongside_new_source_key(self):
+        legacy = controller.events.event(
+            'BOT_OPENED', '7:BTCUSDTM', bot_id=7, symbol='BTCUSDTM',
+            direction='LONG')
+        state = quiet_state(deferred_events=[legacy])
+        state['dispatches'] = [dict(controller._dispatch(
+            'BOT_OPENED', 'technical_interpreter', {}, NOW, n), key=str(n))
+            for n in range(12)]
+        newer = dict(event_id=102, type='OPEN', bot_id=7, symbol='BTCUSDTM')
+
+        state, _, _ = controller.cycle(
+            state, facts(events=[newer], open_directions={7: 'SHORT'}), NOW)
+
+        self.assertEqual([item['key'] for item in state['deferred_events']],
+                         ['7:BTCUSDTM', '102:7:BTCUSDTM'])
+
     def test_no_eligible_engineering_creates_no_task_and_remains_stable(self):
         state = quiet_state()
         state['markers']['phase_dates'].pop('engineering')

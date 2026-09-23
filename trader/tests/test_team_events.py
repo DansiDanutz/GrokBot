@@ -95,6 +95,9 @@ class EventTests(unittest.TestCase):
                 dict(event_id=4, type='OPEN', bot_id=3, symbol='ETHUSDTM')]
         fired = events.derive(facts(events=rows), quiet(event_id=4))
         self.assertEqual(names(fired), ['BOT_OPENED', 'BOT_CLOSED'])
+        self.assertEqual([item['key'] for item in fired],
+                         ['5:7:BTCUSDTM', '6:7:BTCUSDTM'])
+        self.assertEqual([item['payload']['event_id'] for item in fired], [5, 6])
         self.assertEqual(fired[0]['payload']['direction'], 'LONG')
         self.assertEqual(fired[1]['payload']['reason'], 'RANGE_BREAK')
 
