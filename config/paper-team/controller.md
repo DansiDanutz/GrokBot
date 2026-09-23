@@ -1,5 +1,39 @@
 # Current paper-team controller
 
+> **Recovery contract, 2026-09-23.** The historical handoff evidence below is
+> retained for provenance. The installed launchd controller owns hourly :15
+> dispatch computation; the Lead native :15 routine reads and acts on that board.
+> The receipt steward runs hourly :35. Neither native routine replaces the
+> controller, and a configured routine is not proof of a successful run.
+
+## Capacity, receipts and current health
+
+An event is admitted only when all required owners fit under the 12-open-task
+cap. Deferred events retain their source observation time even after source
+cursors advance. The retry queue is limited to 256 events and 1 MiB; saturation
+fails the cycle before any bridge call or file write, with exit 2 and an explicit
+diagnostic. The retained candidate state is also capped at 3 MiB, below the
+reader’s 4 MiB ceiling; the same fail-closed behavior applies. Preserve the previous state and investigate blocked work; do not
+truncate the queue or advance cursors by hand to make the error disappear.
+Prior-date phase work expires as MISSED rather than replaying stale research.
+
+Phase records include an attempt ID and dispatch IDs. Research completes only
+when both owners have actual DONE receipts; a required blocked owner blocks the
+phase. Engineering with no eligible request creates no empty assignment.
+Same-hour dispatch IDs remain distinct, and open standing conversations are not
+reissued. Repeated idle observations produce one alert until measured recovery.
+
+Only an owner's own receipt refreshes its observed activity. A Lead summary does
+not complete subordinate work. Never-observed native roles are UNOBSERVED;
+newer owner evidence may clear current blocked health while preserving historical
+blocked dispatches. Waiting for a legitimate trigger is not fabricated work.
+
+Work evidence belongs on Paperclip issues. Hermes/OpenClaw fleet work and Grok
+inference providers remain separate from this paper-team controller. The trading
+engine alone writes the book; research rules require manual acceptance.
+
+---
+
 > **Correction, 2026-09-13.** This file says the native timer stays PAUSED and
 > that enabling it would create a second competing scheduler. That was true while
 > the Codex heartbeat existed: it was both the timer and the thing that actually

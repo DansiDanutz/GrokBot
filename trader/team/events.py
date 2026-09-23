@@ -128,11 +128,12 @@ def _phases(f, previous):
 
 def _idle(f, previous):
     out = []
+    acknowledged = set(previous.get('idle_roles') or ())
     for role_id, idle_h in sorted((f.get('role_idle_h') or {}).items()):
         role = roster.BY_ID.get(role_id)
         if role is None or not role['installed'] or idle_h is None:
             continue
-        if idle_h > role['max_idle_h']:
+        if idle_h > role['max_idle_h'] and role_id not in acknowledged:
             out.append(event('ROLE_IDLE', role_id, role=role['name'],
                              idle_h=round(float(idle_h), 2)))
     return out
@@ -162,7 +163,8 @@ def derive(facts, previous):
     return out
 
 
-def advance(previous, facts, fired):
+def advance(previous, facts, fired, accepted_phase_names=None,
+            accepted_idle_roles=None):
     """Return the markers to persist so these events never fire twice."""
     previous, names = previous or {}, {e['name'] for e in fired}
     review = (facts.get('review') or {})
@@ -181,9 +183,28 @@ def advance(previous, facts, fired):
         liq_clusters_ms=max(facts.get('liq_clusters_ms') or 0,
                             previous.get('liq_clusters_ms') or 0) or None,
         cycle_at_ms=facts['now_ms'])
+    accepted_phases = (names if accepted_phase_names is None
+                       else set(accepted_phase_names))
     dates = dict(previous.get('phase_dates') or {})
     for phase in PHASES:
-        if PHASE_EVENT[phase] in names:
+        if PHASE_EVENT[phase] in accepted_phases:
             dates[phase] = facts.get('local_date')
     markers['phase_dates'] = dates
+
+    acknowledged = set(previous.get('idle_roles') or ())
+    readings = facts.get('role_idle_h') or {}
+    for role_id in tuple(acknowledged):
+        role, idle_h = roster.BY_ID.get(role_id), readings.get(role_id)
+        if role is None or not role['installed']:
+            acknowledged.discard(role_id)
+        elif idle_h is not None and idle_h <= role['max_idle_h']:
+            acknowledged.discard(role_id)
+    accepted = ({e['key'] for e in fired if e['name'] == 'ROLE_IDLE'}
+                if accepted_idle_roles is None else set(accepted_idle_roles))
+    for role_id in accepted:
+        role, idle_h = roster.BY_ID.get(role_id), readings.get(role_id)
+        if (role is not None and role['installed'] and idle_h is not None
+                and idle_h > role['max_idle_h']):
+            acknowledged.add(role_id)
+    markers['idle_roles'] = sorted(acknowledged)
     return markers

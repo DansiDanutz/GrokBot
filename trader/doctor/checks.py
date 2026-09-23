@@ -154,12 +154,15 @@ def _team(f):
                       'com.danslab.trader-team-controller did not fire; '
                       'the whole team is stalled and nobody is being dispatched')
     idle, blocked = f.get('team_idle_roles') or [], f.get('team_blocked') or []
-    if idle or blocked:
+    unobserved = f.get('team_unobserved_roles') or []
+    if idle or blocked or unobserved:
         parts = []
         if idle:
             parts.append('idle: ' + ', '.join(idle))
         if blocked:
             parts.append('blocked: ' + ', '.join(blocked))
+        if unobserved:
+            parts.append('unobserved: ' + ', '.join(unobserved))
         return _check('team', 'warn', '; '.join(parts),
                       "dispatch.json; the role's room in the Grok Bot app")
     return _check('team', 'ok', 'controller cycled %.0fs ago, no idle role' % age)

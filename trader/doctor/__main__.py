@@ -96,12 +96,16 @@ def _team(board, now_ms):
     """The team controller's own board: is anyone waiting on an answer?"""
     cycled = board.get('last_cycle_at_ms')
     roster = board.get('roster') or []
+    blocked = ({r.get('name') or '' for r in roster if r.get('status') == 'BLOCKED'}
+               if roster else {r.get('role_name') or '' for r in board.get('dispatches') or []
+                               if r.get('status') == 'BLOCKED'})
     return dict(
         team_cycle_age_s=(now_ms - cycled) / 1000 if cycled else None,
         team_idle_roles=sorted(r.get('name') or '' for r in roster
-                               if r.get('status') == 'IDLE'),
-        team_blocked=sorted({r.get('role_name') or '' for r in board.get('dispatches') or []
-                             if r.get('status') == 'BLOCKED'}))
+                                if r.get('status') == 'IDLE'),
+        team_unobserved_roles=sorted(r.get('name') or '' for r in roster
+                                     if r.get('status') == 'UNOBSERVED'),
+        team_blocked=sorted(blocked))
 
 
 MARK = {'ok': 'ok  ', 'warn': 'WARN', 'fail': 'FAIL', 'unknown': '??  '}
